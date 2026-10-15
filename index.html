@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>SDR Weekly Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: portal shell. Fixed left rail (nav, pod filter, period) + one content view at a time; rail becomes a top bar on phones. */
+:root{
+  --bg:#FAFAF9; --surface:#FFFFFF; --rail:#131211; --rail-fg:#F4F3F1; --rail-muted:#A39D97; --rail-hi:#2A2826;
+  --fg:#1C1B1A; --muted:#6B6560; --line:#E4E3E1;
+  --accent:#FF4D00; --link:#CF3300; --accent-soft:#FDEADF; --accent-fg:#FFFFFF; --rail-accent:#FF4D00;
+  --s-conv:#FF4D00; --s-noans:#D3D0CC; --s-bot:#203444; --s-other:#57534F; --s-none:#782B32;
+  --warn-bg:#FDEADF; --warn-fg:#A32900; --bad-bg:#F6E1E3; --bad-fg:#782B32; --ok-bg:#E1EEEC; --ok-fg:#103C3A;
+  --f-display:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-data:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#131211; --surface:#1C1B1A; --rail:#0B0A0A; --rail-fg:#F4F3F1; --rail-muted:#9A948E; --rail-hi:#262422;
+  --fg:#F4F3F1; --muted:#A39D97; --line:#34312E;
+  --accent:#FF5A14; --link:#FF7A40; --accent-soft:#3A2117; --accent-fg:#FFFFFF; --rail-accent:#FF5A14;
+  --s-conv:#FF5A14; --s-noans:#4A4643; --s-bot:#7C97B0; --s-other:#8F8983; --s-none:#C46A72;
+  --warn-bg:#3A2117; --warn-fg:#FFB089; --bad-bg:#3A1C20; --bad-fg:#F0A7AE; --ok-bg:#16302E; --ok-fg:#9FD4CC;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131211; --surface:#1C1B1A; --rail:#0B0A0A; --rail-fg:#F4F3F1; --rail-muted:#9A948E; --rail-hi:#262422;
+  --fg:#F4F3F1; --muted:#A39D97; --line:#34312E;
+  --accent:#FF5A14; --link:#FF7A40; --accent-soft:#3A2117; --accent-fg:#FFFFFF; --rail-accent:#FF5A14;
+  --s-conv:#FF5A14; --s-noans:#4A4643; --s-bot:#7C97B0; --s-other:#8F8983; --s-none:#C46A72;
+  --warn-bg:#3A2117; --warn-fg:#FFB089; --bad-bg:#3A1C20; --bad-fg:#F0A7AE; --ok-bg:#16302E; --ok-fg:#9FD4CC;
+  color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font:inherit}
+a:focus-visible,button:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
+.rail{background:var(--rail);color:var(--rail-fg);position:sticky;top:0;height:100vh;overflow-y:auto;
+  padding-block:22px 22px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;display:flex;flex-direction:column;gap:22px}
+.brand{display:grid;gap:8px}
+.brand img{width:112px;height:auto;display:block}
+.brand b{font-family:var(--f-display);font-size:1.02rem;letter-spacing:-.005em}
+.brand span{font-size:.76rem;color:var(--rail-muted)}
+.rail-group{display:grid;gap:6px}
+.rail-label{font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:var(--rail-muted);font-weight:600;padding-left:10px}
+.nav{display:grid;gap:2px}
+.nav button,.rail .opt{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;background:none;border:0;color:var(--rail-fg);
+  padding:7px 10px;border-radius:0;cursor:pointer;font-size:.9rem}
+.nav button:hover,.rail .opt:hover{background:var(--rail-hi)}
+.nav button[aria-current="page"]{background:var(--rail-hi);color:#fff;box-shadow:inset 3px 0 0 var(--rail-accent)}
+.nav .count{font-family:var(--f-data);font-size:.72rem;color:var(--rail-muted)}
+.rail .opt small{color:var(--rail-muted);font-size:.74rem}
+.rail .opt[aria-pressed="true"]{background:var(--rail-hi);color:#fff}
+.rail .opt[aria-pressed="true"]::before{content:"";width:6px;height:6px;border-radius:0;background:var(--rail-accent);margin-right:-2px;order:-1}
+.per{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--rail-hi);padding:3px;border-radius:0}
+.per button{background:none;border:0;color:var(--rail-fg);padding:6px 4px;border-radius:0;cursor:pointer;font-size:.82rem}
+.per button[aria-pressed="true"]{background:var(--rail-accent);color:var(--accent-fg);font-weight:600}
+.rail-foot{margin-top:auto;font-size:.76rem;color:var(--rail-muted);display:grid;gap:6px}
+.rail-foot a{color:#FF8A57}
+.live-status{display:flex;align-items:center;gap:7px;color:var(--rail-fg)}
+.live-status i{width:7px;height:7px;background:var(--rail-muted);flex:none}
+.live-status i.live{background:#4CC38A}.live-status i.snap{background:#F0B354}.live-status i.err{background:#F07468}
+.refresh{justify-self:start;background:none;border:1px solid var(--rail-hi);color:var(--rail-fg);padding:4px 10px;font-size:.76rem;cursor:pointer}
+.refresh:hover{background:var(--rail-hi)}
+.banner{border-left:3px solid var(--accent);background:var(--warn-bg);padding:10px 14px;font-size:.88rem}
+
+.main{min-width:0;padding-block:26px 56px;padding-left:28px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.main-inner{max-width:1040px;display:grid;gap:22px}
+.topline{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 20px}
+h1{font-family:var(--f-display);font-size:1.6rem;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h2{font-family:var(--f-display);font-size:1.08rem;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:.95rem;margin:0;font-weight:600}
+p{margin:0;max-width:72ch}
+.crumb{font-size:.78rem;color:var(--muted)}
+.ctx{display:flex;flex-wrap:wrap;gap:6px}
+.ctx span{font-size:.76rem;border:1px solid var(--line);background:var(--surface);border-radius:0;padding:3px 10px;color:var(--muted)}
+.ctx b{color:var(--fg);font-weight:600}
+.muted{color:var(--muted)}
+.small{font-size:.84rem}
+.view{display:grid;gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:0;padding:20px;display:grid;gap:14px;min-width:0;align-content:start}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+.sec-head .right{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.hs-link{font-size:.8rem;white-space:nowrap}
+.hs-link::after{content:" ↗"}
+.tag{font-family:var(--f-data);font-size:.72rem;color:var(--muted)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th.l,td.l{text-align:left}
+thead th{font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;vertical-align:bottom}
+td,.kpi b,.tot,.tag{font-variant-numeric:tabular-nums}
+td.n{font-family:var(--f-data);font-size:.85rem}
+tbody tr:last-child td{border-bottom:none}
+table.kb td{white-space:normal;vertical-align:top;text-align:left;min-width:110px}
+table.kb td:last-child{min-width:280px}
+tr.team td{font-weight:700;border-top:2px solid var(--line)}
+tr.sdr-row{cursor:pointer}
+tr.sdr-row:hover td{background:var(--accent-soft)}
+.pod{display:block;font-size:.72rem;color:var(--muted);font-weight:400}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.pill.warn{background:var(--warn-bg);color:var(--warn-fg)}
+.pill.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.pill.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.pill.info{background:var(--accent-soft);color:var(--accent)}
+.kpis{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));gap:12px}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:460px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:0;padding:14px 16px;display:grid;gap:2px}
+.kpi b{font-family:var(--f-display);font-size:1.6rem;font-weight:600;line-height:1.2}
+.kpi span{font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.kpi em{font-style:normal;font-size:.8rem;color:var(--muted);min-height:1.2em}
+.bars{display:grid;gap:10px}
+.bar-row{display:grid;grid-template-columns:100px 1fr 56px;gap:12px;align-items:center}
+.bar-row .lbl{font-size:.85rem;font-weight:600}
+.bar-row .tot{font-family:var(--f-data);font-size:.85rem;text-align:right}
+.bar{display:flex;height:18px;border-radius:0;overflow:hidden;background:var(--line);min-width:2px}
+.bar span{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.78rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:0;margin-right:6px;vertical-align:-1px}
+.c-conv,.c-pos,.c-new{background:var(--s-conv)}.c-noans,.c-work,.c-fu{background:var(--s-noans)}.c-bot,.c-exh{background:var(--s-bot)}.c-other,.c-disq{background:var(--s-other)}.c-none{background:var(--s-none)}
+.bars h3{margin-bottom:2px}
+.c-call{background:var(--s-bot)}.c-seq{background:var(--s-conv)}.c-one{background:var(--s-noans)}.c-li{background:transparent;border:1px dashed var(--muted)}
+ul.wins{list-style:none;margin:0;padding:0;display:grid}
+ul.wins li{display:grid;grid-template-columns:132px 1fr auto;gap:4px 14px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+ul.wins li:last-child{border-bottom:none}
+ul.wins .who{font-size:.8rem;color:var(--muted);white-space:nowrap}
+ul.wins .w-type{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--accent)}
+ul.wins .w-type.w-held{color:var(--ok-fg)}ul.wins .w-type.w-conv{color:var(--fg)}ul.wins .w-type.w-seq{color:var(--muted)}
+@media (max-width:620px){ul.wins li{grid-template-columns:1fr auto}ul.wins .w-type{grid-column:1/-1}}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.t-row{display:grid;grid-template-columns:100px 1fr 64px;gap:12px;align-items:center}
+.t-track{position:relative;height:18px;background:var(--line);border-radius:0}
+.t-fill{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:0}
+.t-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--fg)}
+.t-mark.floor{background:var(--muted)}
+.t-scale{display:grid;grid-template-columns:100px 1fr 64px;gap:12px;font-size:.72rem;color:var(--muted)}
+.t-scale div:nth-child(2){position:relative;height:14px}
+.t-scale span{position:absolute;transform:translateX(-50%);font-family:var(--f-data);white-space:nowrap}
+ul.notes{margin:0;padding-left:18px;display:grid;gap:5px;max-width:78ch}
+.flag{border-left:3px solid var(--accent);background:var(--warn-bg);color:var(--fg);padding:10px 14px;border-radius:0;font-size:.88rem;display:grid;gap:6px}
+.empty{color:var(--muted);font-size:.88rem}
+dl.defs{margin:0;display:grid;grid-template-columns:minmax(160px,220px) 1fr;gap:0}
+dl.defs dt,dl.defs dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.defs dt{font-weight:600;padding-right:16px}
+dl.defs dd{color:var(--fg);font-size:.9rem;display:grid;gap:4px}
+dl.defs code{font-family:var(--f-data);font-size:.78rem;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:0}
+dl.defs .caveat{color:var(--muted);font-size:.84rem}
+
+@media (max-width:820px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:sticky;top:0;z-index:10;height:auto;padding-block:max(10px,env(safe-area-inset-top,0px)) 10px;padding-right:max(16px,env(safe-area-inset-right,0px));gap:10px}
+  .brand span,.rail-foot,.rail-label{display:none}
+  .nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}
+  .nav button{white-space:nowrap;width:auto}
+  .nav .count{display:none}
+  .pods{display:flex;overflow-x:auto;gap:4px}
+  .pods .opt{width:auto;white-space:nowrap}
+  .main{padding-left:max(16px,env(safe-area-inset-left,0px))}
+  dl.defs{grid-template-columns:1fr}
+  dl.defs dt{border-bottom:0;padding-bottom:0}
+}
+@media (max-width:520px){.bar-row,.t-row,.t-scale{grid-template-columns:72px 1fr 44px}}
+@media (prefers-reduced-motion:no-preference){.bar span,.t-fill{transition:width .25s ease}}
+</style>
+
+</head>
+<body>
+<div class="shell">
+<aside class="rail" aria-label="Portal navigation">
+  <div class="brand"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOAAAAA0CAQAAAA5i/xTAAAEdElEQVR42u1c25XjIAzV5KQjpSZRE9SEamI/4swYzENgyBJi7ddmgox00RM5Pw4WIQQAhm8gT9L7IiLpTSwGNdGuEBAAABhMZ0kBzCap+/x/6PakJ9kV7fZkh0hqHbglALTOJ5zuUPUCUAeSkoPbAu4Tg09ogl3RW7giLADgvInGeJ5LAMiCT9YgPkjGa1ig+RIAj5IZSRmB0ytGeXFQLQyg8uKgAs4DSLtK5mXCZysaHHIYHtteGczixbwCDiQVJqz7lJia0mrtpfvW6SnS/feUNnbck35crtpP++IaR4VAibSaOzq857lk8XdffoAbnlNeaz0NMjyEhZBEAl/SbAchR9jQkYgRdSmbbaIPQ8466+zv53jwLWmP8lprN1lja1N+RGaBoV8q+7iDpGV1W6edjj6IOsDXo/mVaqWht+fw/6Ud2OCw6sz+sQHA9G5yINpw17nIFzJBR8FDqQN85yEMVRtXYn4vNgBBB/uzVavLAGqBVo5c6egF00xJpC6qUOwoCHXUuaOrI19d1tUSVQAo544lSVuAoQag+8XUUQDu1Vy/NpQgB6Bt5hqR9NWJ0V6eqLLVnvHu3HQ0w9TV7Vw9Qf/yXAtaJoGt7JMWvn+LqPtRLNZLEOoGVeCbbhEYDJhEwU+C1elmAQogpAQcnCkg8rs6OIyW8oBOOc+z5a7chfpxjpIOCwVRkqKuEAsuNJ5vopBrIgbqxkhEXeHb549jALSFAuRPFmwoNXxdxAEk0aHVyW8lALTNiQR1ha81kZECiIK1OrFWC6cBbBZAK/Q5OrH3RBKDFW2cMBb68VKfjGM4NPax4Coqdw8g+RwzMhz/pjIta6FmbruOHjYokDvC9+6L3/Ybx9yxQPHxzBmMqQFwD0G7DcwN3zkAuQtfrLD+Kgs0FfcQY+HjDwRfboFD6AngWQhnt77PPxaFQl6dgrAXfPwlo/ESW8U6AM9A2M/6zBKq5vc621u0/ymHsB98vDyANVxJyvWWaGGjqOnaM/YpmJcoqQs6ZYEk7guLAAxvIUoQ9oRv9mkyLWxfc1WMT/k5LQ8vt4MdSCHsC5+CuSnmkbBG0Ym/6ghXW1Mx3qOujHYQxu8Gbcd6Z374Xop9Fly8zctSdRw3B5f75Ppnm/H5vSoAQwg1YODgKBMTVoUvp96aPFqBLSYsxzVcB2AIIQH9QohNHdM14CvLUgaQQVXOHhS43jM5IVWckpng+z/pkPTlblM1e1DkessYrhp+Yt8JHw8FP69obtSsyU50F18vM/AYdpoZHoMOiDlRpnBytSkqmiv2JNNsCWjhjxzQyVv2Xq/HyF4koei4hBZNdf/NvGDkPp6qpLGZ8dz8/Et62tu/kaf0yy3xJBo7WV5/m0agjSsH2bLkmQS4vajCXnIfc/b+C3f5CTUUZaa4ZfR7nukJNTxOT/ws80M/vWu+XLTu/6NC2BqB7xdaU+S5zRyvX6n4cLoAvAC86ALwogvAD0taLgAvAC8ApTT1tMBVB5Zsz0w8bAVXJyZFY35RagD9AwXC2f3K2QkKAAAAAElFTkSuQmCC" alt="inploi" width="112" height="26"><b>SDR Portal</b><span>Weekly review for Matt and Annie</span></div>
+  <div class="rail-group">
+    <div class="rail-label">Views</div>
+    <nav class="nav" id="nav"></nav>
+  </div>
+  <div class="rail-group">
+    <div class="rail-label">Period</div>
+    <div class="per" id="per">
+      <button data-per="wk" id="per-wk" aria-pressed="false">This week</button>
+      <button data-per="mtd" id="per-mtd" aria-pressed="true">Month to date</button>
+    </div>
+  </div>
+  <div class="rail-group">
+    <div class="rail-label">Pod</div>
+    <div class="pods" id="pods"></div>
+  </div>
+  <div class="rail-foot">
+    <span class="live-status"><i id="statusDot"></i><span id="statusText">Connecting to HubSpot…</span></span><button type="button" class="refresh" id="refreshBtn" hidden>Refresh now</button>
+    <a href="https://app-eu1.hubspot.com/reports-dashboard/25735731/view/115946730" target="_blank" rel="noopener">Open the HubSpot dashboard ↗</a>
+  </div>
+</aside>
+
+<main class="main">
+<div class="main-inner">
+  <div class="banner" id="banner" hidden></div>
+  <div class="topline">
+    <div><div class="crumb">SDR Portal / <span id="crumbView"></span></div><h1 id="viewTitle"></h1></div>
+    <div class="ctx" id="ctx"></div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="view" data-view="overview">
+    <div class="kpis" id="ovKpis"></div>
+    <div class="card">
+      <div class="sec-head"><h2>Quick wins this week</h2><span class="tag" id="winsTag"></span></div>
+      <ul class="wins" id="winsList"></ul>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Scorecard</h2><span class="tag" id="scoreTag"></span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Accounts<br>assigned</th><th>Accounts<br>contacted</th><th>Coverage</th><th>Contacts<br>reached</th><th>Contacts<br>per account</th><th>Calls</th><th>Real<br>conversations</th><th>Emails<br>sent</th><th>First meetings<br>booked</th></tr></thead>
+        <tbody id="scoreBody"></tbody>
+      </table></div>
+      <p class="muted small">Click an SDR row to filter the whole portal to that SDR. The Definitions view explains how each number is worked out.</p>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>New vs follow-up</h2><span class="tag" id="nfTag"></span></div>
+      <p class="muted small">Based on SDR calls. <b>New</b> means this period has the first SDR call of 2026 to that account or contact. <b>Follow-up</b> means it was already called earlier in the year. Emails and LinkedIn aren't included yet.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Accounts<br>called</th><th>New<br>accounts</th><th>Follow-up<br>accounts</th><th>Contacts<br>called</th><th>New<br>contacts</th><th>Follow-up<br>contacts</th></tr></thead>
+        <tbody id="nfBody"></tbody>
+      </table></div>
+      <div class="legend"><span><i class="c-new"></i>New</span><span><i class="c-fu"></i>Follow-up</span></div>
+      <div class="grid2">
+        <div class="bars" id="nfAccBars" role="img" aria-label="Accounts called, new vs follow-up, by SDR."><h3>Accounts</h3></div>
+        <div class="bars" id="nfConBars" role="img" aria-label="Contacts called, new vs follow-up, by SDR."><h3>Contacts</h3></div>
+      </div>
+      <p class="muted small" id="nfNote"></p>
+    </div>
+  </div>
+
+  <!-- MEETINGS -->
+  <div class="view" data-view="meetings" hidden>
+    <div class="card">
+      <div class="sec-head"><h2>First meetings held vs target</h2>
+        <div class="right"><span class="pill bad" id="meetPill"></span><span class="tag">month to date</span></div></div>
+      <p class="muted small" id="paceNote"></p>
+      <div class="bars" id="targetBars" role="img" aria-label="First meetings held month to date against the target of 8."></div>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>New first meetings</h2>
+        <div class="right"><span class="tag" id="meetTag"></span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/460416481" target="_blank" rel="noopener">Old report in HubSpot</a></div></div>
+      <div class="tbl"><table>
+        <thead><tr><th>Company</th><th class="l">Meeting</th><th class="l">Credited SDR</th><th class="l">Booked by</th><th>Date</th><th class="l">Kind</th><th class="l">Outcome</th></tr></thead>
+        <tbody id="meetBody"></tbody>
+      </table></div>
+      <div class="flag">
+        <b>How these meetings are counted</b>
+        <ul class="notes">
+          <li><b>First meetings only.</b> Once a company has a deal in the pipeline, follow-up calls belong to the AE and are left out.</li>
+          <li><b>Credit goes to the company's SDR Owner.</b> Pod leads book many of these meetings, so the old "booked by SDR" report missed them.</li>
+          <li><b>Some meetings are logged twice.</b> A second HubSpot record titled "[Gong] Google Meet: …" is added by the call-recording integration. The copy gets marked Completed while the original stays Scheduled.</li>
+          <li><b>Follow-up titles are left out.</b> Meetings titled proposal, pricing, feedback, business case and similar count as AE follow-ups.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALLS -->
+  <div class="view" data-view="calls" hidden>
+    <div class="kpis" id="callKpis"></div>
+    <div class="card">
+      <div class="sec-head"><h2>Who was called</h2><span class="tag" id="cqTag"></span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Calls</th><th>Unique<br>contacts</th><th>Called<br>once</th><th>Called<br>twice</th><th>Called<br>3+ times</th><th>Net-new<br>contacts</th><th>Follow-up<br>contacts</th><th>Same-day<br>redials</th><th>No contact<br>on call</th><th>Contacts with a<br>real conversation</th></tr></thead>
+        <tbody id="cqBody"></tbody>
+      </table></div>
+      <div class="legend"><span><i class="c-new"></i>Calls to net-new contacts</span><span><i class="c-fu"></i>Calls to follow-up contacts</span></div>
+      <div class="bars" id="cqBars" role="img" aria-label="Calls split into net-new and follow-up contacts for each SDR."></div>
+      <ul class="notes muted small">
+        <li><b>Net-new:</b> the contact's first call from any SDR this year falls in the period.</li>
+        <li><b>Follow-up:</b> the contact was already called by an SDR earlier in 2026.</li>
+        <li><b>Same-day redials:</b> extra calls to the same contact on the same day.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Calls by outcome</h2>
+        <div class="right"><span class="tag" id="callsTag"></span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/430627548" target="_blank" rel="noopener">Old report in HubSpot</a></div></div>
+      <div class="legend"><span><i class="c-conv"></i>Real conversation</span><span><i class="c-noans"></i>No answer</span><span><i class="c-bot"></i>AI screening bot</span><span><i class="c-other"></i>Gatekeeper, wrong number, bad timing, not interested</span><span><i class="c-none"></i>No outcome logged</span></div>
+      <div class="bars" id="callBars" role="img" aria-label="Calls by outcome for each SDR."></div>
+    </div>
+  </div>
+
+  <!-- OUTREACH -->
+  <div class="view" data-view="outreach" hidden>
+    <div class="kpis" id="outKpis"></div>
+    <div class="card">
+      <div class="sec-head"><h2>Channel mix</h2><span class="tag" id="mixTag"></span></div>
+      <div class="legend"><span><i class="c-call"></i>Calls</span><span><i class="c-seq"></i>Sequence emails</span><span><i class="c-one"></i>One-off emails</span><span><i class="c-li"></i>LinkedIn (not tracked yet)</span></div>
+      <div class="bars" id="mixBars" role="img" aria-label="Outbound touches by channel for each SDR."></div>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Calls</th><th>Sequence<br>emails</th><th>One-off<br>emails</th><th>Total<br>touches</th><th>Calls share</th></tr></thead>
+        <tbody id="mixBody"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Sequences</h2>
+        <div class="right"><span class="tag" id="seqTag"></span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/430630843" target="_blank" rel="noopener">Old report in HubSpot</a></div></div>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Contacts<br>enrolled</th><th>Sequence<br>emails sent</th></tr></thead>
+        <tbody id="seqBody"></tbody>
+      </table></div>
+      <h3>Sequences in use</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Sequence</th><th class="l">Built by</th><th>Created</th><th>Enrolled</th><th>Steps sent</th><th>Replies</th><th>Meetings</th></tr></thead>
+        <tbody id="seqList"></tbody>
+      </table></div>
+      <ul class="notes muted small">
+        <li><b>Contacts enrolled:</b> contacts owned by the SDR whose latest sequence enrolment falls in the period. A contact enrolled twice counts once.</li>
+        <li><b>Sequences in use:</b> HubSpot only keeps lifetime totals per sequence, so these columns are since the sequence was created, not for the period. Test (mock-up) sequences are left out.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Email replies</h2><span class="tag" id="repTag"></span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Emails sent</th><th>Replies received</th><th>Replies per 100 sent</th></tr></thead>
+        <tbody id="repBody"></tbody>
+      </table></div>
+      <div class="flag"><span><b>Shown separately from engagement on purpose.</b> HubSpot can't tell a real reply from an out-of-office or auto-reply, so these are all incoming emails logged to the SDR. Treat this as an upper bound, not as conversations.</span></div>
+    </div>
+  </div>
+
+  <!-- ACCOUNTS -->
+  <div class="view" data-view="accounts" hidden>
+    <div class="grid2">
+      <div class="card">
+        <div class="sec-head"><h2>Accounts worked to an outcome</h2>
+          <div class="right"><span class="tag">current status</span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/430621582" target="_blank" rel="noopener">Old report</a></div></div>
+        <div class="legend"><span><i class="c-pos"></i>Handed to AE</span><span><i class="c-disq"></i>Disqualified</span><span><i class="c-exh"></i>Exhausted</span><span><i class="c-work"></i>Still being worked</span></div>
+        <div class="bars" id="statusBars" role="img" aria-label="Account status by SDR."></div>
+        <div class="tbl"><table>
+          <thead><tr><th>SDR</th><th>Assigned</th><th>Handed to AE</th><th>Disqualified</th><th>Exhausted</th><th>In pod patch</th></tr></thead>
+          <tbody id="statusBody"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="sec-head"><h2>Engagement</h2>
+          <div class="right"><span class="tag">distinct companies</span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/460416061" target="_blank" rel="noopener">Old report</a></div></div>
+        <div class="tbl"><table>
+          <thead><tr><th>SDR</th><th>Real engagement</th><th>Bot only</th><th id="twHead">Two-way contacts</th></tr></thead>
+          <tbody id="engBody"></tbody>
+        </table></div>
+        <ul class="notes muted small">
+          <li><b>Real engagement:</b> companies whose account engagement is Connected, Valuable Conversation or Meeting booked, each counted once.</li>
+          <li><b>Bot only:</b> companies reached only by the AI screening bot. These don't count.</li>
+          <li><b>Two-way contacts:</b> contacts reached in the period whose Lead Status is Two-Way Contact.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="view" data-view="pipeline" hidden>
+    <div class="kpis" id="pipeKpis" style="--cols:4"></div>
+    <div class="card">
+      <div class="sec-head"><h2>Open SDR-sourced deals</h2>
+        <div class="right"><span class="pill warn">AE acceptance not recorded</span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/430644639" target="_blank" rel="noopener">Revenue report</a></div></div>
+      <div class="tbl"><table>
+        <thead><tr><th>Deal</th><th class="l">SDR</th><th class="l">Stage</th><th>Amount</th><th>ARR field</th><th>Created</th><th class="l">Next step</th></tr></thead>
+        <tbody id="dealBody"></tbody>
+      </table></div>
+      <ul class="notes muted small">
+        <li><b>Value field:</b> the amount shown is the deal Amount. The ARR field (excluding implementation fees) is often blank.</li>
+        <li><b>Excluded:</b> deals where a pod lead or someone other than the four SDRs is the SDR Owner.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- REVIEW -->
+  <div class="view" data-view="review" hidden>
+    <div class="card">
+      <div class="sec-head"><h2>Where things are stuck</h2></div>
+      <div class="tbl"><table><thead id="revHead"></thead><tbody id="revBody"></tbody></table></div>
+      <p class="muted small">Ramp status and support needs: for Annie to add before the review.</p>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Lead response time</h2><span class="tag">partner, event and inbound leads since 15 Sep</span></div>
+      <div class="kpis" id="leadKpis"></div>
+      <div class="tbl"><table>
+        <thead><tr><th>Lead</th><th class="l">Company</th><th class="l">Source</th><th class="l">Owner</th><th>Created</th><th>Response time</th></tr></thead>
+        <tbody id="leadBody"></tbody>
+      </table></div>
+      <ul class="notes muted small">
+        <li><b>Response time</b> is HubSpot's Lead response time: from when the contact was created to the owner's first call, email, meeting outcome or task.</li>
+        <li><b>These leads aren't owned by SDRs</b>, so the pod filter doesn't change this table. There's no target yet; Matt agreed to set one once inbound passes about 50 leads a week.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Not reportable yet</h2></div>
+      <ul class="notes">
+        <li><b>New accounts reached per week.</b> Needs the SDR First Outreach Date field and its workflow.</li>
+        <li><b>Partner, event and inbound leads worked by SDRs.</b> These leads are owned by AEs, Matt or Annie, not SDRs. Response times are shown above.</li>
+        <li><b>LinkedIn activity.</b> Waiting on the HeyReach vs Krono decision.</li>
+        <li><b>AE-accepted opportunities and ARR excluding implementation fees.</b> AE Accepted is blank on every deal, and the ARR fields disagree.</li>
+        <li><b>Qualified meetings held.</b> Needs an agreed definition of a qualified meeting. First meetings held are shown for now.</li>
+        <li><b>% of leads followed up within the agreed time.</b> No target until inbound passes about 50 leads a week.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- KNOWLEDGE BASE -->
+  <div class="view" data-view="kb" hidden>
+    <div class="card">
+      <div class="sec-head"><h2>Three things to get right</h2></div>
+      <ul class="notes">
+        <li><b>Meeting type sits on the meeting record, not the company.</b> Set it to Discovery Call when the first meeting is booked.</li>
+        <li><b>Contact owner and company SDR Owner do different jobs.</b> Contact owner is the person working that contact. Company SDR Owner is the SDR who gets credit for the account.</li>
+        <li><b>Associations matter as much as any field.</b> Every call, meeting and contact must be linked to its company, or the account numbers miss it.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>What to update, and when</h2><span class="tag">HubSpot</span></div>
+      <div class="tbl"><table class="kb">
+        <thead><tr><th class="l">When this happens</th><th class="l">Who</th><th class="l">Record</th><th class="l">Update</th></tr></thead>
+        <tbody>
+          <tr><td>Account is assigned</td><td class="l">Annie</td><td class="l">Company</td><td class="l"><b>SDR Owner</b> = the SDR; <b>Account Status</b> = New; <b>Pod Catagory</b> if it sits in an AE patch</td></tr>
+          <tr><td>SDR adds or finds a contact</td><td class="l">SDR</td><td class="l">Contact</td><td class="l">Link the contact to its <b>company</b>; correct <b>email</b>; <b>Contact owner</b> = the SDR; <b>Activity type</b> (ICP Add / SDR sourced); <b>Lead Status</b> = New</td></tr>
+          <tr><td>First touch on the account</td><td class="l">SDR</td><td class="l">Company</td><td class="l"><b>Account Status</b> New → In Progress</td></tr>
+          <tr><td>Every call</td><td class="l">SDR</td><td class="l">Call</td><td class="l"><b>Call outcome</b>; call logged against the <b>contact and company</b></td></tr>
+          <tr><td rowspan="2">A real conversation happens</td><td class="l" rowspan="2">SDR</td><td class="l">Contact</td><td class="l"><b>Lead Status</b> = Two-Way Contact</td></tr>
+          <tr><td class="l">Company</td><td class="l"><b>Call Outcome – Account engagement</b> = Connected or Valuable Conversation</td></tr>
+          <tr><td rowspan="3">Meeting booked (by the SDR or a pod lead)</td><td class="l">Whoever books</td><td class="l">Meeting</td><td class="l"><b>Meeting type</b> = Discovery Call; meeting linked to the <b>contact and company</b></td></tr>
+          <tr><td class="l">SDR</td><td class="l">Company</td><td class="l"><b>Account Status</b> = Meeting Booked; <b>Account engagement</b> = Meeting booked</td></tr>
+          <tr><td class="l">SDR</td><td class="l">Contact</td><td class="l"><b>Lead Status</b> = Discovery Meeting Booked</td></tr>
+          <tr><td>Meeting takes place, or doesn't</td><td class="l">Meeting owner (often the pod lead)</td><td class="l">Meeting</td><td class="l"><b>Meeting outcome</b> within 24 hours (Completed / No Show / Canceled / Rescheduled), on the <b>original</b> meeting record, not the "[Gong]" copy</td></tr>
+          <tr><td rowspan="2">Deal created</td><td class="l">Pod lead / AE</td><td class="l">Deal</td><td class="l"><b>SDR Owner</b> = the pod's SDR, even when the pod lead booked; <b>Deal- Source</b> = SDR</td></tr>
+          <tr><td class="l">SDR</td><td class="l">Company</td><td class="l"><b>Account Status</b> = Open Opportunity</td></tr>
+          <tr><td>AE takes the deal</td><td class="l">AE</td><td class="l">Deal</td><td class="l"><b>Meeting Accepted</b> (AE accepted), <b>Next step</b>, <b>ARR</b></td></tr>
+          <tr><td rowspan="2">Account goes nowhere</td><td class="l" rowspan="2">SDR</td><td class="l">Company</td><td class="l"><b>Account Status</b> = Not Interested / Disqualified / Nurture, or Exhausted once the agreed number of touches has been reached</td></tr>
+          <tr><td class="l">Contact</td><td class="l"><b>Lead Status</b> = Not Qualified / Lost</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>What each field drives on this dashboard</h2></div>
+      <dl class="defs">
+        <dt>Call outcome</dt><dd><span>Calls by outcome and real conversations.</span></dd>
+        <dt>Account Status</dt><dd><span>Coverage, new accounts reached, stuck accounts, and accounts worked to an outcome.</span></dd>
+        <dt>SDR Owner (company)</dt><dd><span>Who gets credit for accounts and meetings.</span></dd>
+        <dt>SDR Owner (deal)</dt><dd><span>Who gets credit for pipeline and revenue.</span></dd>
+        <dt>Meeting type and outcome</dt><dd><span>First meetings booked and held against the target.</span></dd>
+        <dt>Associations and contact email</dt><dd><span>New vs follow-up accounts and contacts. Without them, HubSpot can't tie a call or email back to its company.</span></dd>
+        <dt>Activity type</dt><dd><span>Only needed for source and funnel reporting, which is parked.</span></dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- DEFINITIONS -->
+  <div class="view" data-view="defs" hidden>
+    <div class="card">
+      <div class="sec-head"><h2>How each number is worked out</h2><span class="tag">HubSpot properties</span></div>
+      <dl class="defs">
+        <dt>Accounts contacted</dt>
+        <dd><span>Companies with an SDR Owner whose <b>Last Contacted</b> date (<code>notes_last_contacted</code>) falls in the period.</span>
+          <span>HubSpot sets this automatically whenever a call, sales email, LinkedIn message or meeting is logged against the company or its contacts.</span>
+          <span class="caveat">It counts activity by anyone, not only the SDR, so an AE's email also counts. It's a "last touch" date, so it can only be read for the current week or month, not rebuilt for a past week. Marketing emails don't count.</span></dd>
+        <dt>Accounts assigned</dt>
+        <dd><span>Companies with company <b>SDR Owner</b> (<code>sdr_owner</code>) set, excluding N/A and Annie.</span></dd>
+        <dt>Coverage</dt>
+        <dd><span>Accounts contacted ÷ accounts assigned.</span></dd>
+        <dt>Contacts reached</dt>
+        <dd><span>Contacts at those companies whose contact <b>Last Contacted</b> date falls in the period.</span></dd>
+        <dt>Calls</dt>
+        <dd><span>Call records where <b>Activity assigned to</b> (<code>hubspot_owner_id</code>) is the SDR and the <b>Activity date</b> (<code>hs_timestamp</code>) falls in the period.</span></dd>
+        <dt>Real conversations</dt>
+        <dd><span>Calls whose <b>Call outcome</b> (<code>hs_call_disposition</code>) is Connected, Valuable Conversation or Meeting Booked.</span></dd>
+        <dt>Unique, net-new and follow-up contacts</dt>
+        <dd><span>From the contact associated to each call.</span>
+          <span>Net-new means the contact's first SDR call of 2026 falls in the period. Follow-up means they had an earlier SDR call this year.</span></dd>
+        <dt>New vs follow-up accounts</dt>
+        <dd><span>From SDR calls, each linked to its contact and company. An account or contact is <b>new</b> when this period has its first SDR call of 2026, and <b>follow-up</b> when it was already called earlier in 2026.</span><span class="caveat">Emails and LinkedIn aren't included yet. Calls not linked to a company count towards contacts but not accounts.</span></dd>
+        <dt>Emails sent</dt>
+        <dd><span>Email records assigned to the SDR with direction "sent". This includes logged calendar invites.</span></dd>
+        <dt>Sequence emails and enrolments</dt>
+        <dd><span><b>Sequence emails:</b> sent emails assigned to the SDR that have a <code>hs_sequence_id</code>. <b>One-off emails</b> are the rest. <b>Contacts enrolled:</b> contacts owned by the SDR whose <code>hs_latest_sequence_enrolled_date</code> falls in the period.</span><span class="caveat">Sequence-level enrolments, steps, replies and meetings are lifetime totals from the HubSpot sequences report.</span></dd>
+        <dt>Email replies</dt>
+        <dd><span>Email records assigned to the SDR with direction "incoming".</span><span class="caveat">Includes out-of-office and other auto-replies, so it's an upper bound.</span></dd>
+        <dt>Channel mix</dt>
+        <dd><span>Calls, sequence emails and one-off emails for each SDR. LinkedIn isn't logged in HubSpot yet.</span></dd>
+        <dt>Quick wins</dt>
+        <dd><span>This week: first meetings booked (by meeting create date) and held, calls logged as Connected, Valuable Conversation or Bad timing, and sequences created.</span><span class="caveat">Always shows this week, whatever the period toggle says.</span></dd>
+        <dt>Lead response time</dt>
+        <dd><span>Contacts created since 15 Sep whose Lead Source isn't Sales Outbound, and HubSpot's <code>hs_time_to_first_engagement</code>: time from creation to the current owner's first call, email, meeting outcome or task.</span></dd>
+        <dt>First meetings booked / held</dt>
+        <dd><span>Meetings on companies with an SDR Owner, credited to that SDR.</span>
+          <span class="caveat">Only new first meetings count. Meetings on companies that already had a deal before the meeting was booked, and titles such as proposal, pricing or feedback, are AE follow-ups and are left out.</span></dd>
+        <dt>Account outcomes</dt>
+        <dd><span>Company <b>Account Status</b> (<code>account_status</code>), grouped as follows:</span>
+          <span>Handed to AE = Meeting Booked or Open Opportunity. Disqualified = Disqualified or Not Interested. Exhausted = Exhausted. Everything else is still being worked.</span></dd>
+        <dt>Engagement</dt>
+        <dd><span>Company <b>Call Outcome – Account engagement</b> (<code>call_outcome__account_engagement</code>) is Connected, Valuable Conversation or Meeting booked.</span></dd>
+        <dt>Pipeline</dt>
+        <dd><span>Open deals with deal <b>SDR Owner</b> (<code>sdr_beneficiary_s_</code>) set to one of the SDRs. Value is <b>Amount</b>; <b>Annual recurring revenue</b> (<code>hs_arr</code>) is shown alongside.</span></dd>
+        <dt>Pods</dt>
+        <dd><span>Each pod pairs one SDR with a pod lead. Company <b>Pod Catagory</b> (<code>pod_catagory</code>) marks accounts in a pod patch; blank means round-robin.</span></dd>
+        <dt>Periods</dt>
+        <dd><span id="defPeriods"></span></dd>
+      </dl>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+
+<script src="snapshot.js"></script>
+<script src="app.js"></script>
+
+
+</body>
+</html>
