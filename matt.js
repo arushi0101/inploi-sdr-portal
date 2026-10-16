@@ -42,7 +42,6 @@ function dnice(ms){var d=new Date(ms);return d.getDate()+' '+MON[d.getMonth()];}
 function isoD(ms){return ms?new Date(ms).toISOString().slice(0,10):'';}
 function kfmt(v){return '\u00a3'+(Math.round(v/100)/10)+'k';}
 function pctS(a,b){return b?Math.round(a/b*100)+'%':'\u2013';}
-function median(a){if(!a.length)return null;a=a.slice().sort(function(x,y){return x-y;});var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
 function reg(fn){var id='h'+(++hid);H[id]=fn;return id;}
 function rng(k){return D.R[k||range];}
 function inR(ts,k){var r=rng(k);return ts!=null&&ts>=r[0]&&ts<r[1];}
@@ -293,14 +292,6 @@ function render(){
     stack(R.map(function(r){return {l:r.l,sub:r.sub,v:{n:(crBy[r.i]||[]).length}};}),[{k:'n',l:'Deals created',c:COL.bot}],function(ri){drillDeals('Opportunities created \u00b7 '+R[ri].l,crBy[R[ri].i]||[]);},{noLegend:true})+
     '<h3 style="margin-top:16px;font-size:.85rem">F3 \u00b7 SDR opportunities: stage and next step</h3>'+
     tbl(['Deal','SDR','Stage','Amount','AE accepted','Next step'],open.slice().sort(function(a,b){return b.amt-a.amt;}).map(function(d){return [(d.co?'<button class="num" data-co="'+e(d.co)+'">'+e(d.n)+'</button>':e(d.n)),e(sdrName(d.s)),e(d.st),kfmt(d.amt),d.acc?'Yes':'<span class="muted">Not marked</span>',d.next?e(d.next):'<span class="pill bad">Missing</span>'];})))+'</div>';
-
-  /* H. Lead follow-up */
-  var touchedL=L.filter(function(l){return l.r!=null;}),med=median(touchedL.map(function(l){return l.r;}));
-  html+='<div class="mt-h">H. Lead follow-up</div>'+card('H1','Lead response time',rangeLabel(),
-    '<div class="mt-kpis">'+kpiT('H1','Leads received',num(fmt(L.length),function(){drillLeads('Leads received',L);}),'Partner, marketing / event, inbound')+
-      kpiT('H1','Followed up',num(fmt(touchedL.length),function(){drillLeads('Leads followed up',touchedL);}),(L.length-touchedL.length)+' not touched yet')+
-      kpiT('H1','Median time to first touch',med==null?'\u2013':(med<48?med.toFixed(1)+' h':(med/24).toFixed(1)+' days'),'No target set')+'</div>'+
-    '<p class="mt-note">The \u201c% within the agreed timeframe\u201d measure stays parked until inbound is over about 50 leads a week.</p>',['warn','Parked']);
 
   /* Weekly review */
   html+='<div class="mt-h">Weekly review</div>'+card('Review','What\u2019s stuck and what needs action','Live',reviewTable(X,R));
