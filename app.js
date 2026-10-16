@@ -337,7 +337,7 @@ function showTable(title,sub,cols,rows,note){
     '<div class="tbl dt"><table><thead><tr id="dtHead">'+cols.map(function(c){return '<th class="'+(c.t==='num'?'':'l')+'" tabindex="0" title="Sort">'+esc(c.h)+'</th>';}).join('')+'</tr></thead><tbody id="dtBody"></tbody></table></div>';
   Array.prototype.forEach.call($('dtHead').children,function(th,i){var go=function(){if(sortI===i)sortD=-sortD;else{sortI=i;sortD=cols[i].t==='num'||cols[i].t==='date'?-1:1;}draw();};th.addEventListener('click',go);th.addEventListener('keydown',function(e){if(e.key==='Enter')go();});});
   $('dtQ').addEventListener('input',function(){q=this.value.toLowerCase().trim();draw();});
-  $('dtCsv').addEventListener('click',function(){var csv=[cols.map(function(c){return c.h;})].concat(rows.map(function(r){return r.map(function(v,i){return cellTxt(cols[i],v);});})).map(function(r){return r.map(function(x){return '"'+String(x).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  $('dtCsv').addEventListener('click',function(){var csv=[cols.map(function(c){return c.h;})].concat(rows.map(function(r){return r.map(function(v,i){return cellTxt(cols[i],v);});})).map(function(r){return r.map(function(x){return '"'+String(x).replace(/"/g,'""')+'"';}).join(',');}).join(String.fromCharCode(10));
     var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=title.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.csv';document.body.appendChild(a);a.click();a.remove();});
   draw();dr.firstChild.scrollTop=0;
 }

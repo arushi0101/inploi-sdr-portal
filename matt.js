@@ -23,7 +23,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 '.mt-flag.ok{background:var(--ok-bg);color:var(--ok-fg)}.mt-code{font-family:var(--f-data);font-size:.7rem;color:var(--muted);font-weight:600;margin-right:6px}'+
 '.mt-note{font-size:.8rem;color:var(--muted);margin:8px 0 0}.mt-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px}'+
 '.mt-tbl td.n button.num,.mt-tbl td button.num{font-family:var(--f-data)}.mt-tbl tr.team td{font-weight:700}'+
-'.dr-panel:has(.dt){width:min(1080px,100%)}.dt table{font-size:.83rem}.dt th{cursor:pointer;user-select:none;white-space:nowrap}.dt th[aria-sort=ascending]::after{content:" \\2191"}.dt th[aria-sort=descending]::after{content:" \\2193"}'+
+'.dr-panel:has(.dt){width:min(1080px,100%)}.dt table{font-size:.83rem}.dt th{cursor:pointer;user-select:none;white-space:nowrap}.dt th[aria-sort=ascending]::after{content:" \u2191"}.dt th[aria-sort=descending]::after{content:" \u2193"}'+
 '.dt td{white-space:normal;vertical-align:top}.dt-tools{display:flex;gap:10px;align-items:center}.dt-tools .dr-search{flex:1}'+
 '@media (max-width:620px){.mt-row{grid-template-columns:76px minmax(0,1fr) 44px;gap:8px}.mt-cols{height:120px}}'+
 '</style>');
