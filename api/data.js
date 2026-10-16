@@ -576,10 +576,16 @@ async function statusHistory(ids) {
     const r = await hs('/crm/v3/objects/companies/batch/read', { inputs: ch.map(id => ({ id: String(id) })), properties: ['account_status'], propertiesWithHistory: ['account_status'] });
     (r.results || []).forEach(x => {
       const h = ((x.propertiesWithHistory && x.propertiesWithHistory.account_status) || []).map(e => ({ v: String(e.value || ''), t: toMs(e.timestamp) })).filter(e => e.t != null).sort((a, b) => a.t - b.t);
-      const firstOff = h.find(e => e.v && !/^new$/i.test(e.v));
-      const last = h.length ? h[h.length - 1] : null;
-      let mb = null; h.forEach(e => { if (/^meeting booked$/i.test(e.v)) mb = e.t; });
-      out[String(x.id)] = [firstOff ? firstOff.t : null, last ? last.t : null, mb];
+      // Only real changes count: re-saving the same value (imports, workflows) is ignored, and an account
+      // that was created already past New has no first-outreach date (it never moved off New in HubSpot).
+      let prev = null, firstOff = null, last = null, mb = null;
+      h.forEach((e, i) => {
+        if (i > 0 && e.v === prev) return;
+        if (i > 0) { last = e.t; if (firstOff == null && (!prev || /^new$/i.test(prev)) && e.v && !/^new$/i.test(e.v)) firstOff = e.t; if (/^meeting booked$/i.test(e.v)) mb = e.t; }
+        else if (/^meeting booked$/i.test(e.v)) mb = e.t;
+        prev = e.v;
+      });
+      out[String(x.id)] = [firstOff, last, mb];
     });
   };
   for (let i = 0; i < chunks.length; i += 4) await Promise.all(chunks.slice(i, i + 4).map(one));
