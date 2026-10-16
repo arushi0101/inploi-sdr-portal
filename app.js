@@ -72,14 +72,15 @@ var pods=$('pods');
   b.addEventListener('click',function(){setPod(o.k);});pods.appendChild(b);});
 /* custom date range: replaces month to date with any From / To period, for every section */
 state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to)state.cus=sc;}catch(e){}
-document.head.insertAdjacentHTML('beforeend','<style>.per .per-cus{grid-column:1/-1}.cus-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.cus-box label{display:grid;gap:3px;font-size:.7rem;color:var(--rail-muted);text-transform:uppercase;letter-spacing:.06em}.cus-box input{background:var(--rail-hi);border:1px solid #3a3734;color:var(--rail-fg);padding:5px 6px;font:inherit;font-size:.8rem;color-scheme:dark;min-width:0}.cus-box button{grid-column:1/-1;background:var(--rail-accent);color:var(--accent-fg);border:0;padding:6px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.cus-box .cus-err{grid-column:1/-1;font-size:.74rem;color:#FF9A70}</style>');
-$('per').insertAdjacentHTML('beforeend','<button data-per="cus" class="per-cus" aria-pressed="false" aria-expanded="false">Custom dates</button>');
+document.head.insertAdjacentHTML('beforeend','<style>.per .per-cus{grid-column:auto}.cus-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.cus-box label{display:grid;gap:3px;font-size:.7rem;color:var(--rail-muted);text-transform:uppercase;letter-spacing:.06em}.cus-box input{background:var(--rail-hi);border:1px solid #3a3734;color:var(--rail-fg);padding:5px 6px;font:inherit;font-size:.8rem;color-scheme:dark;min-width:0}.cus-box button{grid-column:1/-1;background:var(--rail-accent);color:var(--accent-fg);border:0;padding:6px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.cus-box .cus-err{grid-column:1/-1;font-size:.74rem;color:#FF9A70}</style>');
+$('per').insertAdjacentHTML('beforeend','<button data-per="l30" class="per-cus" aria-pressed="false" title="Same window as the HubSpot Meetings Booked report">Last 30 days</button><button data-per="cus" class="per-cus" aria-pressed="false" aria-expanded="false">Custom dates</button>');
 $('per').insertAdjacentHTML('afterend','<form class="cus-box" id="cusBox" hidden><label>From<input type="date" id="cusFrom" required></label><label>To<input type="date" id="cusTo" required></label><button type="submit">Apply dates</button><span class="cus-err" id="cusErr" hidden></span></form>');
 function todayIso(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-function setCustom(from,to){
+function last30(){var t=LISO.format(new Date()),d=new Date(t+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-30);return {from:d.toISOString().slice(0,10),to:t,l30:true};}
+function setCustom(from,to,l30){
   if(!from||!to||from>to){$('cusErr').textContent='Pick a From date on or before the To date.';$('cusErr').hidden=false;return false;}
   if((Date.parse(to)-Date.parse(from))/86400000>366){$('cusErr').textContent='Pick a range of a year or less.';$('cusErr').hidden=false;return false;}
-  $('cusErr').hidden=true;state.cus={from:from,to:to};state.per='mtd';
+  $('cusErr').hidden=true;state.cus={from:from,to:to,l30:!!l30};state.per='mtd';
   try{localStorage.setItem('sdrPortalCus',JSON.stringify(state.cus));}catch(e){}
   $('cusBox').hidden=true;load(true);render();return true;}
 function clearCustom(){if(!state.cus)return;state.cus=null;try{localStorage.removeItem('sdrPortalCus');}catch(e){}load(true);}
@@ -87,6 +88,7 @@ window.SDRCustom={set:setCustom,clear:clearCustom,get:function(){return state.cu
 $('cusBox').addEventListener('submit',function(e){e.preventDefault();setCustom($('cusFrom').value,$('cusTo').value);});
 Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){
   b.addEventListener('click',function(){
+    if(b.dataset.per==='l30'){$('cusBox').hidden=true;var r=last30();setCustom(r.from,r.to,true);return;}
     if(b.dataset.per==='cus'){var box=$('cusBox');box.hidden=!box.hidden;b.setAttribute('aria-expanded',String(!box.hidden));
       if(!box.hidden){$('cusFrom').value=state.cus?state.cus.from:(PERIODS&&PERIODS.mtd?PERIODS.mtd.start:'');$('cusTo').value=state.cus?state.cus.to:todayIso();$('cusTo').max=todayIso();$('cusFrom').max=todayIso();$('cusFrom').focus();}return;}
     $('cusBox').hidden=true;state.per=b.dataset.per;try{localStorage.setItem('sdrPortalPer',state.per);}catch(e){}
@@ -134,7 +136,7 @@ function setPod(k){state.pod=(state.pod===k&&k!=='all')?'all':k;try{localStorage
 
 function render(){
   var P=state.per,S=sel(),all=state.pod==='all';
-  var isCus=P==='mtd'&&PERIODS.mtd&&PERIODS.mtd.custom;var perLabel=(P==='wk'?'This week':isCus?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(P);
+  var isCus=P==='mtd'&&PERIODS.mtd&&PERIODS.mtd.custom,isL30=isCus&&state.cus&&state.cus.l30;var perLabel=(P==='wk'?'This week':isL30?'Last 30 days':isCus?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(P);
   $('winsTag').textContent=rangeLabel('wk')+' \u00b7 always this week';
   var pace1=8*PERIODS.dayOfMonth/PERIODS.daysInMonth;
   $('paceNote').textContent='Target 8 a month, floor 6. Today is day '+PERIODS.dayOfMonth+' of '+PERIODS.daysInMonth+', so the on-pace figure is '+(Math.round(pace1*10)/10)+'.';
@@ -144,7 +146,7 @@ function render(){
   syncRes();
   Array.prototype.forEach.call(nav.querySelectorAll('button[data-view]'),function(b){if(b.dataset.view===state.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   Array.prototype.forEach.call(pods.querySelectorAll('.opt'),function(b){b.setAttribute('aria-pressed',String(b.dataset.pod===state.pod));});
-  Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(isCus?b.dataset.per==='cus':b.dataset.per===P));});
+  Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(isCus?b.dataset.per===(isL30?'l30':'cus'):b.dataset.per===P));});
   $('viewTitle').textContent=V.title; $('crumbView').textContent=V.label;
   var who=all?'All SDRs':byK(state.pod).name+' \u00b7 '+byK(state.pod).pod;
   $('ctx').innerHTML='<span><b>'+esc(who)+'</b></span><span>'+esc(perLabel)+'</span>';
@@ -207,10 +209,10 @@ function render(){
     self:function(m){return m.by&&byK(m.s)&&m.by===byK(m.s).name;},other:function(m){return m.by&&m.by!=='\u2013'&&!(byK(m.s)&&m.by===byK(m.s).name);}};
   MLIST={};var mk=function(list,title){var id='m'+Object.keys(MLIST).length;MLIST[id]=[list,title];return id;};
   var mnum=function(list,title,txt){return list.length?'<button class="num" data-mlist="'+mk(list,title)+'">'+(txt==null?list.length:txt)+'</button>':'0';};
-  var tagTxt=(P==='wk'?'This week':PERIODS.mtd.custom?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(P)+' \u00b7 by date booked';
+  var tagTxt=(P==='wk'?'This week':PERIODS.mtd.custom?(state.cus&&state.cus.l30?'Last 30 days':'Custom dates'):'Month to date')+' \u00b7 '+rangeLabel(P)+' \u00b7 by date booked';
   ['meetTag','meetTag2','meetDayTag','meetBdTag'].forEach(function(id){if($(id))$(id).textContent=tagTxt;});
   var held=mB.filter(GR.held);
-  $('meetKpis').innerHTML=kpi(mnum(mB,'Meetings booked'),'Meetings booked','Companies moved to Meeting Booked')+
+  $('meetKpis').innerHTML=kpi(mnum(mB,'Meetings booked'),'Meetings booked','At Meeting Booked now, status updated in the period (the HubSpot report rule)')+
     kpi(mnum(held,'Booked in the period and already held'),'Already held',pct(held.length,mB.length)+' of those booked')+
     kpi(mnum(mB.filter(GR.up),'Booked, meeting still to come'),'Still to come','Meeting date today or later')+
     kpi(mnum(mB.filter(function(m){return GR.ns(m)||GR.cx(m);}),'Booked: no show, cancelled or rescheduled'),'No show / cancelled','Includes rescheduled')+
@@ -403,7 +405,7 @@ window.SDRDrill={table:function(t,s,c,r,n){drStack=[];showTable(t,s,c,r,n);},nam
 function openDrill(spec){var p=spec.split('|'),m=p[0],per=p[1],sk=p[2];
   var ids={};(sk?[byK(sk)]:sel()).forEach(function(s){var a=LISTS[m]&&LISTS[m][s.k]&&LISTS[m][s.k][per];(a||[]).forEach(function(id){ids[id]=1;});});
   var who=sk?byK(sk).short:(state.pod==='all'?'All SDRs':byK(state.pod).short);
-  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?'Custom dates \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m]);}
+  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?(state.cus&&state.cus.l30?'Last 30 days':'Custom dates')+' \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m]);}
 var J_TYPES=[['all','All'],['call','Calls'],['email','Emails'],['meeting','Meetings'],['note','Notes'],['deal','Deals']];
 var J_LABEL={call:'Call',email:'Email sent',reply:'Email received',meeting:'Meeting',note:'Note',deal:'Deal created'};
 function showJourney(id){
@@ -446,7 +448,7 @@ function renderJourney(j,filter){
 }
 document.addEventListener('click',function(e){
   var ml=e.target.closest('[data-mlist]');if(ml&&MLIST[ml.dataset.mlist]){e.preventDefault();e.stopPropagation();drStack=[];var x=MLIST[ml.dataset.mlist];
-    showTable(x[1],(state.pod==='all'?'All SDRs':byK(state.pod).short)+' \u00b7 '+(state.per==='wk'?'This week':PERIODS.mtd.custom?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(state.per)+' \u00b7 by date booked',
+    showTable(x[1],(state.pod==='all'?'All SDRs':byK(state.pod).short)+' \u00b7 '+(state.per==='wk'?'This week':PERIODS.mtd.custom?(state.cus&&state.cus.l30?'Last 30 days':'Custom dates'):'Month to date')+' \u00b7 '+rangeLabel(state.per)+' \u00b7 by date booked',
       [{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Booked by',t:'text'},{h:'Meeting',t:'text'},{h:'Booked on',t:'date'},{h:'Meeting date',t:'date'},{h:'Outcome',t:'text'},{h:'Note',t:'text'}],
       x[0].map(function(m){return [[String(m.id),m.c],byK(m.s)?byK(m.s).short:'',m.by||'',m.m||'',m.bs?Date.parse(m.bs+'T12:00:00Z'):null,m.ds&&m.d!=='\u2013'?Date.parse(m.ds+'T12:00:00Z'):null,m.o?m.o[1]:'',(m.x?m.x[1]:'')+(/^Meeting booked/.test(m.kind||'')?'':(m.x?'; ':'')+'In calendar only: company not at Meeting Booked')];}),
       'Counted by the date the meeting was booked: the day the company moved to Meeting Booked in HubSpot.');return;}

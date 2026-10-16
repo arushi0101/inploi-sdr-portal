@@ -250,7 +250,7 @@ async function build(q) {
     if (/connected|valuable|meeting booked/.test(e) && !/attempting/.test(e)) { x.eng++; add('eng', sk, 'all', id); }
     else if (/screening bot|attempting/.test(e)) x.bot++;
   });
-  const d30 = now.getTime() - 30 * 86400000;
+  const tp = londonParts(now), d30 = londonMidnight(tp.y, tp.m, tp.d - 30); // same lower bound as the HubSpot report (today minus 30 days, UK time)
   mbIds.forEach(id => {
     const c = coById[id], at = mbAt[id], x = S[c.sdr.k]; if (at == null) return;
     K.forEach(k => { if (inP(at, k)) { x.first[k]++; add('booked', c.sdr.k, k, id); } });
@@ -585,7 +585,7 @@ async function statusHistory(ids) {
         else if (/^meeting booked$/i.test(e.v)) mb = e.t;
         prev = e.v;
       });
-      out[String(x.id)] = [firstOff, last, mb];
+      out[String(x.id)] = [firstOff, last, mb, h.length ? h[h.length - 1].t : null];
     });
   };
   for (let i = 0; i < chunks.length; i += 4) await Promise.all(chunks.slice(i, i + 4).map(one));
@@ -598,9 +598,10 @@ async function buildMatt(q) {
   const t = londonParts(now);
   const lwk = P.wk.start - 7 * 86400000;
   const lm = londonMidnight(t.m === 1 ? t.y - 1 : t.y, t.m === 1 ? 12 : t.m - 1, 1);
-  const from = Math.min(lwk, lm, CUS ? CUS.start : Infinity);
+  const from = Math.min(lwk, lm, londonMidnight(t.y, t.m, t.d - 30), CUS ? CUS.start : Infinity);
   const R = { wk: [P.wk.start, P.today + 86400000], lwk: [lwk, P.wk.start], mtd: [P.mtd.start, P.today + 86400000], lm: [lm, P.mtd.start] };
   if (CUS) R.cus = [CUS.start, Math.min(CUS.end, P.today + 86400000)];
+  R.l30 = [londonMidnight(t.y, t.m, t.d - 30), P.today + 86400000];
   const sdrBy = {}; SDRS.forEach((s, i) => { sdrBy[s.id] = i; sdrBy[s.name.toLowerCase()] = i; });
   const sdrIx = v => { if (!v) return -1; v = String(v); if (sdrBy[v] != null) return sdrBy[v]; if (sdrBy[v.toLowerCase()] != null) return sdrBy[v.toLowerCase()]; const i = SDRS.findIndex(s => v.toLowerCase().startsWith(s.short.toLowerCase())); return i; };
 
@@ -623,7 +624,7 @@ async function buildMatt(q) {
   });
   const sdrCoIds = Object.keys(CO).filter(id => CO[id][2] >= 0);
   const hist = await statusHistory(sdrCoIds);
-  sdrCoIds.forEach(id => { const h = hist[id] || []; CO[id][7] = h[0] || null; CO[id][8] = h[1] || null; CO[id][9] = h[2] || null; });
+  sdrCoIds.forEach(id => { const h = hist[id] || []; CO[id][7] = h[0] || null; CO[id][8] = h[1] || null; CO[id][9] = h[2] || null; CO[id][10] = h[3] || null; });
 
   // Calls by the SDRs, month by month to stay under the search cap
   const calls = [];

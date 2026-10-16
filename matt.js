@@ -31,7 +31,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 var HS='https://app-eu1.hubspot.com/contacts/25735731/record/';
 var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 var COL={conv:'var(--s-conv)',noans:'var(--s-noans)',bot:'var(--s-bot)',other:'var(--s-other)',none:'var(--s-none)',green:'#2F9E6B',amber:'#E0A030',sky:'#7C97B0'};
-var RANGES=[['wk','This week'],['lwk','Last week'],['mtd','This month'],['lm','Last month'],['cus','Custom dates']];
+var RANGES=[['wk','This week'],['lwk','Last week'],['mtd','This month'],['lm','Last month'],['l30','Last 30 days'],['cus','Custom dates']];
 var D=null,loading=false,err=null,api=null,H={},hid=0,loadedKey='',showCus=false;
 function cusKey(){return api&&api.cus?api.cus.from+'|'+api.cus.to:'';}
 var range='mtd';try{var sr=localStorage.getItem('sdrMattRange');if(sr!=='cus'&&RANGES.some(function(r){return r[0]===sr;}))range=sr;}catch(e){}
@@ -125,7 +125,8 @@ function compute(){
   X.contacted=sdrCos.filter(function(id){return touched[id];});
   X.conBy=conBy;
   X.newReached=sdrCos.filter(function(id){return inR(D.CO[id][7]);});
-  X.mb=sdrCos.filter(function(id){return inR(D.CO[id][9]);});
+  // Same rule as the HubSpot “Meetings Booked” report: Account Status is Meeting Booked now and was last updated in the period
+  X.mb=sdrCos.filter(function(id){return /^meeting booked$/i.test(D.CO[id][1])&&inR(D.CO[id][10]!=null?D.CO[id][10]:D.CO[id][9]);});
   X.outcomeMoved=sdrCos.filter(function(id){return outcome(D.CO[id][1])!=='work'&&inR(D.CO[id][8]);});
   X.firstMeet=D.MEET.filter(function(m){return m.first&&D.CO[m.co]&&S.indexOf(D.CO[m.co][2])>=0;});
   X.deals=D.DEALS.filter(function(d){return S.indexOf(d.s)>=0;});
@@ -158,7 +159,7 @@ function render(){
     kpiT('B3','New accounts reached',num(fmt(X.newReached.length),function(){drillCos('New accounts reached',X.newReached,'Accounts whose Account Status first moved off New in this period, from HubSpot\u2019s status history. This is the spec\u2019s \u201cSDR First Outreach Date\u201d, worked out without a new field or backfill.');}),'First moved from New to being worked')+
     kpiT('B4','Contacts per account',num(cpa.toFixed(1),function(){drillContactsPer();}),fmt(X.contacted.length)+' accounts contacted')+
     kpiT('B5','Accounts moved to an outcome',num(fmt(X.outcomeMoved.length),function(){drillCos('Accounts moved to an outcome',X.outcomeMoved,'Accounts whose Account Status changed in this period to Meeting Booked, Open Opportunity, Not Interested, Disqualified or Exhausted.');}),X.outcomeMoved.filter(function(id){return outcome(D.CO[id][1])==='pos';}).length+' handed to an AE')+
-    kpiT('E1','Meetings booked',num(fmt(X.mb.length),function(){drillBooked(X.mb);}),'Moved to Meeting Booked')+
+    kpiT('E1','Meetings booked',num(fmt(X.mb.length),function(){drillBooked(X.mb);}),'At Meeting Booked, updated in period')+
     kpiT('C1','Calls made',num(fmt(X.calls.length),function(){drillCalls('Calls made',X.calls);}),num(fmt(conv.length),function(){drillCalls('Real conversations',conv);})+' real conversations ('+pctS(conv.length,X.calls.length)+')')+
   '</div>';
 
@@ -262,7 +263,7 @@ function render(){
   var moBy=bySdr(past,function(m){return D.CO[m.co][2];});
   html+='<div class="mt-two">'+card('E1','Meetings booked',rangeLabel(),
     stack(R.map(function(r){return {l:r.l,sub:r.sub,v:{b:(mbBy[r.i]||[]).length}};}),[{k:'b',l:'Moved to Meeting Booked',c:COL.conv}],function(ri){drillBooked(mbBy[R[ri].i]||[],R[ri].l);},{noLegend:true})+
-    '<p class="mt-note">Companies moved to Meeting Booked in the period, credited to the company SDR Owner, not the booker. Same rule as the HubSpot \u201cMeetings Booked\u201d report, but it also keeps companies that have since moved on to Open Opportunity.</p>'+
+    '<p class="mt-note">Companies at Meeting Booked now whose Account Status was last updated in the period, credited to the company SDR Owner (not the booker). This is exactly the rule in the HubSpot \u201cMeetings Booked\u201d report; pick Last 30 days to match it.</p>'+
     bookedTable(X))+
   card('E2','Qualified meetings held vs target',monthLbl+' to date',heldTarget(heldM,R)+'<h3 style="margin-top:18px;font-size:.85rem">First meetings held by week</h3>'+heldWeeks(S))+'</div>';
   html+='<div class="mt-two">'+card('E3','Cancellations and no-shows',rangeLabel(),
@@ -310,10 +311,10 @@ function drillContactsPer(ids,lbl){var X=compute();ids=ids||X.contacted.filter(f
   drill('Contacts reached per account'+(lbl?' \u00b7 '+lbl:''),[{h:'Company',t:'co'},{h:'SDR',t:'text'},{h:'Account Status',t:'text'},{h:'Contacts reached in period',t:'num'},{h:'Who',t:'text'},{h:'Contacts in HubSpot',t:'num'}],
     ids.map(function(id){var c=D.CO[id],cs=Object.keys(X.conBy[id]||{});return [coCell(id),sdrName(c[2]),c[1],cs.length,cs.map(conName).filter(Boolean).join(', '),c[5]];}));}
 function drillBooked(ids,lbl){
-  drill('Meetings booked'+(lbl?' \u00b7 '+lbl:''),[{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Moved to Meeting Booked',t:'date'},{h:'Current status',t:'text'},{h:'Meeting',t:'text'},{h:'Meeting date',t:'date'},{h:'Booked by',t:'text'},{h:'Outcome',t:'text'}],
-    ids.map(function(id){var c=D.CO[id],at=c[9];var ms=D.MEET.filter(function(m){return m.co===id;}).sort(function(a,b){return a.st-b.st;});var m=ms.filter(function(x){return x.st>=at-86400000;})[0]||ms[ms.length-1]||null;
+  drill('Meetings booked'+(lbl?' \u00b7 '+lbl:''),[{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Status last updated',t:'date'},{h:'Current status',t:'text'},{h:'Meeting',t:'text'},{h:'Meeting date',t:'date'},{h:'Booked by',t:'text'},{h:'Outcome',t:'text'}],
+    ids.map(function(id){var c=D.CO[id],at=c[10]!=null?c[10]:c[9];var ms=D.MEET.filter(function(m){return m.co===id;}).sort(function(a,b){return a.st-b.st;});var m=ms.filter(function(x){return x.st>=at-86400000;})[0]||ms[ms.length-1]||null;
       return [coCell(id),sdrName(c[2]),at,c[1],m?m.t:'No meeting logged in HubSpot',m?m.st:null,m?m.by:'\u2013',m?meetOut(m):'\u2013'];}),
-    'Companies whose Account Status moved to Meeting Booked in the period, with the matching meeting if one is logged.');}
+    'Companies at Meeting Booked now whose Account Status was last updated in the period (the HubSpot report rule), with the matching meeting if one is logged.');}
 function bookedTable(X){var cal=X.firstMeet.filter(function(m){return inR(m.cr);});
   return '<p class="mt-note" style="margin-top:12px">Meetings put in the calendar in the period: '+num(fmt(cal.length),function(){drillMeet('First meetings put in the calendar',cal,'Meeting records created in the period on SDR accounts, with the credited SDR (company SDR Owner) shown separately from the booker (meeting owner).');})+
     ' ('+cal.filter(function(m){return m.ty==='Discovery Call';}).length+' typed as Discovery Call, '+cal.filter(function(m){return !m.ty;}).length+' with no type).</p>';}
@@ -372,12 +373,13 @@ document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.targe
 
 function load(fresh){if(loading)return;loading=true;var key=cusKey();
   fetch('api/data?part=matt'+(api&&api.cus?'&from='+api.cus.from+'&to='+api.cus.to:'')+(fresh?'&t='+Date.now():'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){if(!r.ok||d.error)throw d;return d;});})
-  .then(function(d){D=d;err=null;loadedKey=key;if(key)range='cus';else if(range==='cus')range='mtd';}).catch(function(x){err=(x&&(x.error==='missing_token'?'the HubSpot key isn\u2019t set':x.error))||'network error';})
+  .then(function(d){D=d;err=null;loadedKey=key;if(key)range=api.cus&&api.cus.l30?'l30':'cus';else if(range==='cus')range='mtd';}).catch(function(x){err=(x&&(x.error==='missing_token'?'the HubSpot key isn\u2019t set':x.error))||'network error';})
   .then(function(){loading=false;if(api&&api.view==='matt')render();});}
 var rb=document.getElementById('refreshBtn');if(rb)rb.addEventListener('click',function(){if(D||err)load(true);});
 
 var lastPer=null;
-window.SDRMatt=function(a){api=a;var pk=a.per+'|'+cusKey();if(lastPer!==null&&pk!==lastPer){range=a.cus?'cus':a.per;try{localStorage.setItem('sdrMattRange',range);}catch(x){}}lastPer=pk;
+window.SDRMatt=function(a){api=a;var pk=a.per+'|'+cusKey();if(lastPer!==null&&pk!==lastPer){range=a.cus?(a.cus.l30?'l30':'cus'):a.per;try{localStorage.setItem('sdrMattRange',range);}catch(x){}}lastPer=pk;
   if(a.view==='matt'&&D&&!loading&&cusKey()!==loadedKey){D=null;load(false);}
-  if(range==='cus'&&D&&!D.R.cus)range='mtd';if(a.view!=='matt')return;if(!D&&!loading&&!err)load(false);render();};
+  if(range==='cus'&&D&&!D.R.cus)range='mtd';
+  if(range==='l30'&&D&&!D.R.l30)range='mtd';if(a.view!=='matt')return;if(!D&&!loading&&!err)load(false);render();};
 })();
