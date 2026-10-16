@@ -38,16 +38,17 @@ var range='mtd';try{var sr=localStorage.getItem('sdrMattRange');if(sr!=='cus'&&R
 
 function e(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function fmt(n){return Math.round(n).toLocaleString('en-GB');}
-function dnice(ms){var d=new Date(ms);return d.getDate()+' '+MON[d.getMonth()];}
-function isoD(ms){return ms?new Date(ms).toISOString().slice(0,10):'';}
+var LDAY=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short'}),LISO=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
+function dnice(ms){return LDAY.format(new Date(ms));}
+function isoD(ms){return ms?LISO.format(new Date(ms)):'';}
 function kfmt(v){return '\u00a3'+(Math.round(v/100)/10)+'k';}
 function pctS(a,b){return b?Math.round(a/b*100)+'%':'\u2013';}
 function reg(fn){var id='h'+(++hid);H[id]=fn;return id;}
 function rng(k){return D.R[k||range];}
 function inR(ts,k){var r=rng(k);return ts!=null&&ts>=r[0]&&ts<r[1];}
-function rangeLabel(k){k=k||range;var r=rng(k),a=new Date(r[0]+3*3600000),b=new Date(Math.min(r[1],D.today+86400000)-1);
+function rangeLabel(k){k=k||range;var r=rng(k),a=r[0],b=Math.min(r[1],D.today+86400000)-1,am=isoD(a).slice(0,7),bm=isoD(b).slice(0,7);
   var lbl=RANGES.filter(function(x){return x[0]===k;})[0][1];
-  return lbl+' \u00b7 '+(a.getMonth()===b.getMonth()?a.getDate()+'\u2013'+b.getDate()+' '+MON[b.getMonth()]:dnice(a.getTime())+' \u2013 '+dnice(b.getTime()));}
+  return lbl+' \u00b7 '+(am===bm?(+isoD(a).slice(8))+'\u2013'+dnice(b):dnice(a)+' \u2013 '+dnice(b));}
 function coName(id){var c=D.CO[id];return c?c[0]:'Company '+id;}
 function coCell(id){return id?[id,coName(id)]:null;}
 function sdrName(i){return i>=0&&D.SDRS[i]?D.SDRS[i].short:'\u2013';}
@@ -142,7 +143,7 @@ function render(){
     var rt=document.getElementById('mtRetry');if(rt)rt.addEventListener('click',function(){err=null;load(true);});return;}
   H={};hid=0;
   var X=compute(),R=sdrRows(),S=SI(),html='';
-  var monthLbl=MON[new Date(D.R.mtd[0]).getMonth()];
+  var monthLbl=MON[+isoD(D.R.mtd[0]).slice(5,7)-1];
 
   var cus=api&&api.cus;
   html+='<div class="card"><div class="mt-bar-top"><div class="mt-ranges" id="mtRanges">'+RANGES.map(function(r){return '<button data-r="'+r[0]+'" aria-pressed="'+(r[0]===range)+'"'+(r[0]==='cus'?' aria-expanded="'+showCus+'"':'')+'>'+r[1]+(r[0]==='cus'&&cus&&range==='cus'?' \u00b7 '+e(rangeLabel('cus').split(' \u00b7 ')[1]):'')+'</button>';}).join('')+'</div>'+

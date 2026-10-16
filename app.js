@@ -6,7 +6,7 @@ var co=function(id){return HS+'0-2/'+id;}, dl=function(id){return HS+'0-3/'+id;}
 var VIEWS=[
  {k:'overview',label:'Overview',title:'Overview'},
  {k:'matt',label:'Matt\u2019s dashboard',title:'Matt\u2019s dashboard'},
- {k:'meetings',label:'Meetings',title:'New first meetings'},
+ {k:'meetings',label:'Meetings',title:'Meetings booked'},
  {k:'calls',label:'Calls',title:'Calls'},
  {k:'outreach',label:'Emails & sequences',title:'Emails, sequences and channel mix'},
  {k:'accounts',label:'Accounts & engagement',title:'Accounts and engagement'},
@@ -34,7 +34,7 @@ function fmtK(v){return '\u00a3'+(Math.round(v*10)/10)+'k';}
 function pill(p){return '<span class="pill '+p[0]+'">'+esc(p[1])+'</span>';}
 function kpi(v,l,e){return '<div class="kpi"><span>'+l+'</span><b>'+v+'</b><em>'+(e||'&nbsp;')+'</em></div>';}
 /* clickable numbers: open the companies behind them (live data only) */
-var LISTS=null,CO=null,TRENDS=null;
+var LISTS=null,CO=null,TRENDS=null,MLIST={};
 function dn(v,m,per,sk){if(!LISTS||!m)return v;return '<button class="num" data-drill="'+m+'|'+per+'|'+(sk||'')+'" title="See the companies">'+v+'</button>';}
 
 /* filter box on every table and list section */
@@ -195,16 +195,59 @@ function render(){
   $('nfConBars').innerHTML='<h3>Contacts</h3>'+nfBars('c');
   $('nfNote').textContent=(all||state.pod==='matthew')?'Matthew\u2019s account numbers are understated because most of his calls aren\u2019t linked to a company in HubSpot. His contact numbers are complete.':'';
 
-  /* meetings */
-  var below=S.filter(function(s){return s.held<6;}).length;
-  $('meetPill').textContent=below===S.length?(S.length>1?'Below floor for every SDR':'Below floor'):below+' below floor';
-  $('targetBars').innerHTML=S.map(function(s){
-    return '<div class="t-row"><span style="font-size:.85rem;font-weight:600">'+esc(s.short)+'</span><div class="t-track"><div class="t-fill" style="width:'+(s.held/8*100)+'%"></div><div class="t-mark floor" style="left:75%"></div><div class="t-mark" style="left:calc(100% - 2px)"></div></div><span style="font-family:var(--f-data);text-align:right;font-size:.85rem">'+s.held+' / 8</span></div>';
-  }).join('')+'<div class="t-scale"><div></div><div><span style="left:0">0</span><span style="left:50%">4</span><span style="left:75%">6 floor</span><span style="left:calc(100% - 8px)">8</span></div><div></div></div>';
-  var mt=MEETINGS.filter(function(m){return (all||m.s===state.pod)&&(P==='mtd'||m.wk);});
+  /* meetings: counted by the date they were booked */
+  var pS=PERIODS[P].start,pE=PERIODS[P].end;
+  var inPer=function(d){return d&&d>=pS&&d<=pE;};
+  var mAll=MEETINGS.filter(function(m){return (all||m.s===state.pod)&&inPer(m.bs);});
+  var mB=mAll.filter(function(m){return /^Meeting booked/.test(m.kind||'');});
+  var mCal=mAll.filter(function(m){return !/^Meeting booked/.test(m.kind||'');});
+  var oc=function(m){return m.o?m.o[1]:'';};
+  var GR={held:function(m){return oc(m)==='Held';},up:function(m){return oc(m)==='Upcoming'||oc(m)==='Today';},ns:function(m){return oc(m)==='No show';},
+    cx:function(m){return oc(m)==='Cancelled'||oc(m)==='Rescheduled';},no:function(m){return oc(m)==='No outcome';},nl:function(m){return oc(m)==='No meeting logged';},
+    self:function(m){return m.by&&byK(m.s)&&m.by===byK(m.s).name;},other:function(m){return m.by&&m.by!=='\u2013'&&!(byK(m.s)&&m.by===byK(m.s).name);}};
+  MLIST={};var mk=function(list,title){var id='m'+Object.keys(MLIST).length;MLIST[id]=[list,title];return id;};
+  var mnum=function(list,title,txt){return list.length?'<button class="num" data-mlist="'+mk(list,title)+'">'+(txt==null?list.length:txt)+'</button>':'0';};
+  var tagTxt=(P==='wk'?'This week':PERIODS.mtd.custom?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(P)+' \u00b7 by date booked';
+  ['meetTag','meetTag2','meetDayTag','meetBdTag'].forEach(function(id){if($(id))$(id).textContent=tagTxt;});
+  var held=mB.filter(GR.held);
+  $('meetKpis').innerHTML=kpi(mnum(mB,'Meetings booked'),'Meetings booked','Companies moved to Meeting Booked')+
+    kpi(mnum(held,'Booked in the period and already held'),'Already held',pct(held.length,mB.length)+' of those booked')+
+    kpi(mnum(mB.filter(GR.up),'Booked, meeting still to come'),'Still to come','Meeting date today or later')+
+    kpi(mnum(mB.filter(function(m){return GR.ns(m)||GR.cx(m);}),'Booked: no show, cancelled or rescheduled'),'No show / cancelled','Includes rescheduled')+
+    kpi(mnum(mB.filter(function(m){return GR.no(m)||GR.nl(m);}),'Booked: outcome or meeting missing'),'Needs updating','Past with no outcome, or no meeting logged')+
+    kpi(mnum(mCal,'Other first meetings put in the calendar'),'Other calendar bookings','First meetings created in the period whose company isn\u2019t at Meeting Booked');
+  var per=P==='mtd'&&!PERIODS.mtd.custom;
+  var below=S.filter(function(s){return mB.filter(function(m){return m.s===s.k;}).length<6;}).length;
+  $('meetPill').hidden=!per;$('meetPill').textContent=below===S.length?(S.length>1?'Below floor for every SDR':'Below floor'):below+' below floor';
+  var pace1=8*PERIODS.dayOfMonth/PERIODS.daysInMonth;
+  $('paceNote').textContent=per?'Target 8 meetings booked a month, floor 6 (the two marks). Today is day '+PERIODS.dayOfMonth+' of '+PERIODS.daysInMonth+', so on pace is '+(Math.round(pace1*10)/10)+'. The faint bar is how many of those meetings have been held.':'Target is 8 meetings booked a month (floor 6); the period shown isn\u2019t a calendar month, so compare with care. The faint bar is how many have been held.';
+  var tMax=Math.max(8,Math.max.apply(null,S.map(function(s){return mB.filter(function(m){return m.s===s.k;}).length;})));
+  $('targetBars').innerHTML=S.map(function(s){var b=mB.filter(function(m){return m.s===s.k;}),h=b.filter(GR.held);
+    return '<div class="t-row"><span style="font-size:.85rem;font-weight:600">'+esc(s.short)+'</span><div class="t-track" style="cursor:pointer" data-mlist="'+mk(b,'Meetings booked \u00b7 '+s.short)+'" title="Click for the meetings">'+
+      '<div class="t-fill" style="width:'+(b.length/tMax*100)+'%;opacity:.35"></div><div class="t-fill" style="width:'+(h.length/tMax*100)+'%"></div>'+
+      '<div class="t-mark floor" style="left:'+(6/tMax*100)+'%"></div><div class="t-mark" style="left:calc('+(8/tMax*100)+'% - 2px)"></div></div>'+
+      '<span style="font-family:var(--f-data);text-align:right;font-size:.85rem">'+mnum(b,'Meetings booked \u00b7 '+s.short)+' / 8</span></div>';
+  }).join('')+'<div class="t-scale"><div></div><div><span style="left:0">0</span><span style="left:'+(4/tMax*100)+'%">4</span><span style="left:'+(6/tMax*100)+'%">6 floor</span><span style="left:calc('+(8/tMax*100)+'% - 8px)">8</span></div><div></div></div>'+
+    '<div class="legend" style="margin-top:10px"><span><i style="background:var(--accent);opacity:.35"></i>Booked</span><span><i style="background:var(--accent)"></i>Of which held</span></div>';
+  /* booked by day, stacked by SDR */
+  var days=[];for(var dd=new Date(pS+'T12:00:00Z');dd.toISOString().slice(0,10)<=pE;dd=new Date(dd.getTime()+86400000))days.push(dd.toISOString().slice(0,10));
+  var SC=['var(--s-conv)','var(--s-bot)','#E0A030','#7C97B0'];
+  var dMax=Math.max.apply(null,days.map(function(d){return mB.filter(function(m){return m.bs===d;}).length;}).concat([1]));
+  var every=days.length>20?Math.ceil(days.length/12):1;
+  $('meetDays').innerHTML='<div class="legend">'+S.map(function(s,i){return '<span><i style="background:'+SC[SDRS.indexOf(s)%4]+'"></i>'+esc(s.short)+'</span>';}).join('')+'</div>'+
+    '<div class="mt-cols">'+days.map(function(d){var l=mB.filter(function(m){return m.bs===d;});
+      return '<button data-mlist="'+mk(l,'Meetings booked on '+dnice(d))+'" title="'+esc(dnice(d))+': '+l.length+' booked'+(l.length?' \u00b7 '+S.map(function(s){var n=l.filter(function(m){return m.s===s.k;}).length;return n?s.short+' '+n:'';}).filter(Boolean).join(', '):'')+'"><span class="v">'+(l.length||'')+'</span><span class="mt-cs" style="height:'+(l.length/dMax*100)+'%">'+
+        S.map(function(s){var n=l.filter(function(m){return m.s===s.k;}).length;return n?'<span style="height:'+(n/l.length*100)+'%;background:'+SC[SDRS.indexOf(s)%4]+'"></span>':'';}).join('')+'</span></button>';}).join('')+'</div>'+
+    '<div class="mt-xl">'+days.map(function(d,i){return '<span>'+(i%every===0?esc(dnice(d)):'')+'</span>';}).join('')+'</div>';
+  /* breakdown */
+  var bdRow=function(lbl,b,team){var f=function(g,t){return mnum(b.filter(GR[g]),t+' \u00b7 '+lbl);};
+    return '<tr'+(team?' class="team"':'')+'><td>'+esc(lbl)+'</td><td class="n">'+mnum(b,'Meetings booked \u00b7 '+lbl)+'</td><td class="n">'+f('held','Held')+'</td><td class="n">'+f('up','Still to come')+'</td><td class="n">'+f('ns','No show')+'</td><td class="n">'+f('cx','Cancelled or rescheduled')+'</td><td class="n">'+f('no','Past, no outcome')+'</td><td class="n">'+f('nl','No meeting logged')+'</td><td class="n">'+f('self','Booked by the SDR')+'</td><td class="n">'+f('other','Booked by someone else')+'</td></tr>';};
+  $('meetBd').innerHTML=S.map(function(s){return bdRow(s.short,mB.filter(function(m){return m.s===s.k;}),false);}).join('')+(all?bdRow('Team',mB,true):'');
+  /* table: booked first, then other calendar bookings */
+  var mt=mB.concat(mCal).slice().sort(function(a,b){return a.bs<b.bs?1:a.bs>b.bs?-1:0;});
   $('meetBody').innerHTML=mt.length?mt.map(function(m){
-    return '<tr><td><a href="'+co(m.id)+'" data-co="'+m.id+'" target="_blank" rel="noopener">'+esc(m.c)+'</a></td><td class="l">'+esc(m.m)+'</td><td class="l">'+esc(byK(m.s).short)+'</td><td class="l">'+esc(m.by)+'</td><td class="n">'+esc(m.d)+'</td><td class="l">'+esc(m.kind)+'</td><td class="l">'+pill(m.o)+(m.x?' '+pill(m.x):'')+'</td></tr>';
-  }).join(''):'<tr><td colspan="7" class="empty">No meetings on this SDR\u2019s accounts in the period.</td></tr>';
+    return '<tr><td><a href="'+co(m.id)+'" data-co="'+m.id+'" target="_blank" rel="noopener">'+esc(m.c)+'</a></td><td class="l">'+esc(m.m)+(/^Meeting booked/.test(m.kind||'')?'':' <span class="pill info">In calendar only</span>')+'</td><td class="l">'+esc(byK(m.s).short)+'</td><td class="l">'+esc(m.by)+'</td><td class="n">'+esc(m.bs?dnice(m.bs):'\u2013')+'</td><td class="n">'+esc(m.d)+'</td><td class="l">'+pill(m.o)+(m.x?' '+pill(m.x):'')+'</td></tr>';
+  }).join(''):'<tr><td colspan="7" class="empty">No meetings booked on these accounts in the period.</td></tr>';
 
   /* calls */
   var cu=all?TEAM_CQ[P].unique:sum(S,function(s){return s.cq[P].unique;});
@@ -295,6 +338,7 @@ function render(){
 var DRILL_NAMES={assigned:'Assigned accounts',contacted:'Accounts contacted',calls:'Accounts called',conv:'Accounts with a real conversation',emails:'Accounts emailed',seq:'Accounts sent sequence emails',replies:'Accounts that replied',booked:'Meetings booked (moved to Meeting Booked)',booked30:'Meetings booked in the last 30 days',held:'First meetings held this month',deals:'Open SDR deals',pos:'Positive accounts',disq:'Disqualified',notint:'Not interested',work:'Still being worked',call_conv:'Calls: real conversation',call_noans:'Calls: no answer',call_bot:'Calls: AI screening bot',call_other:'Calls: gatekeeper, wrong number, bad timing, not interested',call_none:'Calls: no outcome logged',exh:'Exhausted accounts',eng:'Engaged accounts',stuck:'In Progress, not contacted in 14+ days',newAcc:'Accounts still at New',noOutcome:'Meetings with no outcome',noNext:'Open deals with no next step',newAccwk:'New accounts called',newAccmtd:'New accounts called',fuAccwk:'Follow-up accounts called',fuAccmtd:'Follow-up accounts called'};
 var DRILL_NOTES={calls:'Calls not linked to a company in HubSpot are not in this list, so it can be shorter than the number.',conv:'Calls not linked to a company in HubSpot are not in this list.',emails:'Each company is listed once, however many emails it got. Emails not linked to a company are left out.',seq:'Each company is listed once. Emails not linked to a company are left out.',replies:'Includes auto-replies. Emails not linked to a company are left out.',contacted:'Each company is listed once.'};
 var dr=null,drStack=[],jCache={};
+var LDAY=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short'}),LTIME=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}),LISO=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
 function fmtD(ms){if(!ms)return '';var d=new Date(ms);return d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear();}
 function fmtT(ms){var d=new Date(ms);return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
 function drOpen(){if(dr)return;dr=document.createElement('div');dr.className='dr';dr.innerHTML='<div class="dr-panel" role="dialog" aria-modal="true"><div class="dr-head" id="drHead"></div><div class="dr-body" id="drBody"></div></div>';
@@ -311,11 +355,11 @@ function showTable(title,sub,cols,rows,note){
   var f=function(){showTable(title,sub,cols,rows,note);};drOpen();drStack.push(f);
   var sortI=-1,sortD=1,q='',fsel={},fdate={};
   drHead(esc(title),esc(sub)+' \u00b7 '+rows.length+(rows.length===1?' row':' rows'));
-  function cellTxt(c,v){if(v==null)return '';if(c.t==='co')return v[1];if(c.t==='date')return v?new Date(v).toISOString().slice(0,10):'';return String(v);}
+  function cellTxt(c,v){if(v==null)return '';if(c.t==='co')return v[1];if(c.t==='date')return v?LISO.format(new Date(v))+(c.time?' '+LTIME.format(new Date(v)):''):'';return String(v);}
   function cellHtml(c,v){if(v==null||v==='')return '<span class="muted">\u2013</span>';
     if(c.t==='co')return v[0]?'<button class="num" data-co="'+esc(v[0])+'">'+esc(v[1])+'</button>':esc(v[1]);
     if(c.t==='link')return '<a href="'+esc(v[0])+'" target="_blank" rel="noopener">'+esc(v[1])+'</a>';
-    if(c.t==='date'){var d=new Date(v);return d.getDate()+' '+MON[d.getMonth()]+(c.time?' '+fmtT(v):'');}
+    if(c.t==='date')return LDAY.format(new Date(v))+(c.time?' '+LTIME.format(new Date(v)):'');
     if(c.t==='pill')return pill(v);
     if(c.t==='num')return typeof v==='number'?v.toLocaleString('en-GB'):esc(v);
     return esc(v);}
@@ -323,7 +367,7 @@ function showTable(title,sub,cols,rows,note){
   function catVal(c,v){return v==null||v===''?'(blank)':c.t==='pill'?v[1]:String(v);}
   function pass(r){
     for(var i in fsel){if(fsel[i]!==''&&catVal(cols[i],r[i])!==fsel[i])return false;}
-    for(var j in fdate){var d=fdate[j],v=r[j];if(!d[0]&&!d[1])continue;if(v==null)return false;var iso=new Date(v+3600000*3).toISOString().slice(0,10);if(d[0]&&iso<d[0])return false;if(d[1]&&iso>d[1])return false;}
+    for(var j in fdate){var d=fdate[j],v=r[j];if(!d[0]&&!d[1])continue;if(v==null)return false;var iso=LISO.format(new Date(v));if(d[0]&&iso<d[0])return false;if(d[1]&&iso>d[1])return false;}
     return true;}
   function draw(){
     var list=rows.filter(function(r){return pass(r)&&(!q||r.some(function(v,i){return cellTxt(cols[i],v).toLowerCase().indexOf(q)>=0;}));});
@@ -401,6 +445,11 @@ function renderJourney(j,filter){
   Array.prototype.forEach.call($('jFilter')?$('jFilter').children:[],function(b){b.addEventListener('click',function(){renderJourney(j,b.dataset.f);});});
 }
 document.addEventListener('click',function(e){
+  var ml=e.target.closest('[data-mlist]');if(ml&&MLIST[ml.dataset.mlist]){e.preventDefault();e.stopPropagation();drStack=[];var x=MLIST[ml.dataset.mlist];
+    showTable(x[1],(state.pod==='all'?'All SDRs':byK(state.pod).short)+' \u00b7 '+(state.per==='wk'?'This week':PERIODS.mtd.custom?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(state.per)+' \u00b7 by date booked',
+      [{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Booked by',t:'text'},{h:'Meeting',t:'text'},{h:'Booked on',t:'date'},{h:'Meeting date',t:'date'},{h:'Outcome',t:'text'},{h:'Note',t:'text'}],
+      x[0].map(function(m){return [[String(m.id),m.c],byK(m.s)?byK(m.s).short:'',m.by||'',m.m||'',m.bs?Date.parse(m.bs+'T12:00:00Z'):null,m.ds&&m.d!=='\u2013'?Date.parse(m.ds+'T12:00:00Z'):null,m.o?m.o[1]:'',(m.x?m.x[1]:'')+(/^Meeting booked/.test(m.kind||'')?'':(m.x?'; ':'')+'In calendar only: company not at Meeting Booked')];}),
+      'Counted by the date the meeting was booked: the day the company moved to Meeting Booked in HubSpot.');return;}
   var d=e.target.closest('[data-drill]');if(d&&LISTS){e.preventDefault();e.stopPropagation();drStack=[];openDrill(d.dataset.drill);return;}
   var w=e.target.closest('[data-ids]');if(w&&CO){e.preventDefault();drStack=[];var p=w.dataset.ttl.split(' \u00b7 ');showList(p[0],w.dataset.sub||(p[1]+' \u00b7 This week'),w.dataset.ids.split(','),'');return;}
   var c=e.target.closest('[data-co]');

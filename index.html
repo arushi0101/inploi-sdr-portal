@@ -239,22 +239,37 @@ dl.defs .caveat{color:var(--muted);font-size:.84rem}
 
   <!-- MEETINGS -->
   <div class="view" data-view="meetings" hidden>
+    <div class="kpis" id="meetKpis"></div>
     <div class="card">
-      <div class="sec-head"><h2>First meetings held vs target</h2>
-        <div class="right"><span class="pill bad" id="meetPill"></span><span class="tag">month to date</span></div></div>
+      <div class="sec-head"><h2>Meetings booked vs target</h2>
+        <div class="right"><span class="pill bad" id="meetPill"></span><span class="tag" id="meetTag2"></span></div></div>
       <p class="muted small" id="paceNote"></p>
-      <div class="bars" id="targetBars" role="img" aria-label="First meetings held month to date against the target of 8."></div>
+      <div class="bars" id="targetBars" role="img" aria-label="Meetings booked in the period against the monthly target of 8."></div>
     </div>
     <div class="card">
-      <div class="sec-head"><h2>New first meetings</h2>
+      <div class="sec-head"><h2>Meetings booked by day</h2><span class="tag" id="meetDayTag"></span></div>
+      <p class="muted small">By the date the meeting was booked (the company moved to Meeting Booked). Click a day for the meetings.</p>
+      <div id="meetDays"></div>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Breakdown by SDR</h2><span class="tag" id="meetBdTag"></span></div>
+      <p class="muted small">Meetings booked in the period and what has happened to them since. Click any number for the meetings behind it.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>SDR</th><th>Booked</th><th>Held</th><th>Upcoming</th><th>No show</th><th>Cancelled /<br>rescheduled</th><th>Past, no<br>outcome</th><th>No meeting<br>logged</th><th>Booked by<br>the SDR</th><th>Booked by<br>someone else</th></tr></thead>
+        <tbody id="meetBd"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="sec-head"><h2>Meetings booked</h2>
         <div class="right"><span class="tag" id="meetTag"></span><a class="hs-link" href="https://app-eu1.hubspot.com/reports-list/25735731/460416481" target="_blank" rel="noopener">Old report in HubSpot</a></div></div>
       <div class="tbl"><table>
-        <thead><tr><th>Company</th><th class="l">Meeting</th><th class="l">Credited SDR</th><th class="l">Booked by</th><th>Date</th><th class="l">Kind</th><th class="l">Outcome</th></tr></thead>
+        <thead><tr><th>Company</th><th class="l">Meeting</th><th class="l">Credited SDR</th><th class="l">Booked by</th><th>Booked on</th><th>Meeting date</th><th class="l">Outcome</th></tr></thead>
         <tbody id="meetBody"></tbody>
       </table></div>
       <div class="flag">
         <b>How these meetings are counted</b>
         <ul class="notes">
+          <li><b>Counted by the date the meeting was booked</b>, the day the company moved to Meeting Booked in HubSpot, the same rule as the HubSpot “Meetings Booked” report. The meeting date is shown alongside.</li>
           <li><b>First meetings only.</b> Once a company has a deal in the pipeline, follow-up calls belong to the AE and are left out.</li>
           <li><b>Credit goes to the company's SDR Owner.</b> Pod leads book many of these meetings, so the old "booked by SDR" report missed them.</li>
           <li><b>Some meetings are logged twice.</b> A second HubSpot record titled "[Gong] Google Meet: …" is added by the call-recording integration. The copy gets marked Completed while the original stays Scheduled.</li>
