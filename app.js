@@ -5,6 +5,7 @@ var co=function(id){return HS+'0-2/'+id;}, dl=function(id){return HS+'0-3/'+id;}
 
 var VIEWS=[
  {k:'overview',label:'Overview',title:'Overview'},
+ {k:'matt',label:'Matt\u2019s dashboard',title:'Matt\u2019s dashboard'},
  {k:'meetings',label:'Meetings',title:'New first meetings'},
  {k:'calls',label:'Calls',title:'Calls'},
  {k:'outreach',label:'Emails & sequences',title:'Emails, sequences and channel mix'},
@@ -15,6 +16,7 @@ var VIEWS=[
  {k:'defs',label:'Definitions',title:'Definitions',group:'res'}
 ];
 
+(function(){var ov=document.querySelector('.view[data-view="overview"]');if(ov&&!document.querySelector('.view[data-view="matt"]'))ov.insertAdjacentHTML('afterend','<div class="view" data-view="matt" hidden><div class="rp" id="mattRoot"><div class="card"><p class="muted">Loading Matt\u2019s dashboard\u2026</p></div></div></div>');})();
 var state={view:'overview',pod:'all',per:'mtd'};
 try{var h=(location.hash||'').slice(1);if(VIEWS.some(function(v){return v.k===h;}))state.view=h;}catch(e){}
 try{var sp=localStorage.getItem('sdrPortalPod');if(sp&&(sp==='all'||SDRS.some(function(s){return s.k===sp;})))state.pod=sp;
@@ -68,8 +70,27 @@ var pods=$('pods');
   var b=document.createElement('button');b.className='opt';b.id='pod-'+o.k;b.dataset.pod=o.k;
   b.innerHTML='<span>'+esc(o.label)+'</span><small>'+esc(o.sub)+'</small>';
   b.addEventListener('click',function(){setPod(o.k);});pods.appendChild(b);});
+/* custom date range: replaces month to date with any From / To period, for every section */
+state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to)state.cus=sc;}catch(e){}
+document.head.insertAdjacentHTML('beforeend','<style>.per .per-cus{grid-column:1/-1}.cus-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.cus-box label{display:grid;gap:3px;font-size:.7rem;color:var(--rail-muted);text-transform:uppercase;letter-spacing:.06em}.cus-box input{background:var(--rail-hi);border:1px solid #3a3734;color:var(--rail-fg);padding:5px 6px;font:inherit;font-size:.8rem;color-scheme:dark;min-width:0}.cus-box button{grid-column:1/-1;background:var(--rail-accent);color:var(--accent-fg);border:0;padding:6px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.cus-box .cus-err{grid-column:1/-1;font-size:.74rem;color:#FF9A70}</style>');
+$('per').insertAdjacentHTML('beforeend','<button data-per="cus" class="per-cus" aria-pressed="false" aria-expanded="false">Custom dates</button>');
+$('per').insertAdjacentHTML('afterend','<form class="cus-box" id="cusBox" hidden><label>From<input type="date" id="cusFrom" required></label><label>To<input type="date" id="cusTo" required></label><button type="submit">Apply dates</button><span class="cus-err" id="cusErr" hidden></span></form>');
+function todayIso(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function setCustom(from,to){
+  if(!from||!to||from>to){$('cusErr').textContent='Pick a From date on or before the To date.';$('cusErr').hidden=false;return false;}
+  if((Date.parse(to)-Date.parse(from))/86400000>366){$('cusErr').textContent='Pick a range of a year or less.';$('cusErr').hidden=false;return false;}
+  $('cusErr').hidden=true;state.cus={from:from,to:to};state.per='mtd';
+  try{localStorage.setItem('sdrPortalCus',JSON.stringify(state.cus));}catch(e){}
+  $('cusBox').hidden=true;load(true);render();return true;}
+function clearCustom(){if(!state.cus)return;state.cus=null;try{localStorage.removeItem('sdrPortalCus');}catch(e){}load(true);}
+window.SDRCustom={set:setCustom,clear:clearCustom,get:function(){return state.cus;}};
+$('cusBox').addEventListener('submit',function(e){e.preventDefault();setCustom($('cusFrom').value,$('cusTo').value);});
 Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){
-  b.addEventListener('click',function(){state.per=b.dataset.per;try{localStorage.setItem('sdrPortalPer',state.per);}catch(e){}render();});});
+  b.addEventListener('click',function(){
+    if(b.dataset.per==='cus'){var box=$('cusBox');box.hidden=!box.hidden;b.setAttribute('aria-expanded',String(!box.hidden));
+      if(!box.hidden){$('cusFrom').value=state.cus?state.cus.from:(PERIODS&&PERIODS.mtd?PERIODS.mtd.start:'');$('cusTo').value=state.cus?state.cus.to:todayIso();$('cusTo').max=todayIso();$('cusFrom').max=todayIso();$('cusFrom').focus();}return;}
+    $('cusBox').hidden=true;state.per=b.dataset.per;try{localStorage.setItem('sdrPortalPer',state.per);}catch(e){}
+    if(state.cus){clearCustom();}render();});});
 
 /* Not interested gets its own column, legend entry and definition */
 (function(){var leg=document.querySelector('#statusBars')&&document.querySelector('#statusBars').previousElementSibling;
@@ -92,7 +113,8 @@ function banner(html){var b=$('banner');b.hidden=!html;b.innerHTML=html||'';}
 function load(fresh){
   if(loading)return;loading=true;$('refreshBtn').disabled=true;
   if(SOURCE!=='live')status('','Connecting to HubSpot\u2026');
-  fetch('api/data'+(fresh?'?t='+Date.now():'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){return {ok:r.ok,d:d};});})
+  var qs=(state.cus?['from='+state.cus.from,'to='+state.cus.to]:[]).concat(fresh?['t='+Date.now()]:[]);
+  fetch('api/data'+(qs.length?'?'+qs.join('&'):'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){return {ok:r.ok,d:d};});})
   .then(function(x){
     if(!x.ok||x.d.error)throw x.d;var d=x.d;
     SDRS=d.SDRS;NF=d.NF;TEAM_CQ=d.TEAM_CQ;OUT=d.OUT;MEETINGS=d.MEETINGS;DEALS=d.DEALS;LEADS=d.LEADS;WINS=d.WINS;PERIODS=d.periods;PIPE=d.pipeline;GENERATED=d.generatedAt;LISTS=d.LISTS||null;CO=d.CO||null;TRENDS=d.TRENDS||null;
@@ -112,7 +134,7 @@ function setPod(k){state.pod=(state.pod===k&&k!=='all')?'all':k;try{localStorage
 
 function render(){
   var P=state.per,S=sel(),all=state.pod==='all';
-  var perLabel=(P==='wk'?'This week':'Month to date')+' \u00b7 '+rangeLabel(P);
+  var isCus=P==='mtd'&&PERIODS.mtd&&PERIODS.mtd.custom;var perLabel=(P==='wk'?'This week':isCus?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(P);
   $('winsTag').textContent=rangeLabel('wk')+' \u00b7 always this week';
   var pace1=8*PERIODS.dayOfMonth/PERIODS.daysInMonth;
   $('paceNote').textContent='Target 8 a month, floor 6. Today is day '+PERIODS.dayOfMonth+' of '+PERIODS.daysInMonth+', so the on-pace figure is '+(Math.round(pace1*10)/10)+'.';
@@ -122,12 +144,12 @@ function render(){
   syncRes();
   Array.prototype.forEach.call(nav.querySelectorAll('button[data-view]'),function(b){if(b.dataset.view===state.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   Array.prototype.forEach.call(pods.querySelectorAll('.opt'),function(b){b.setAttribute('aria-pressed',String(b.dataset.pod===state.pod));});
-  Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(b.dataset.per===P));});
+  Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(isCus?b.dataset.per==='cus':b.dataset.per===P));});
   $('viewTitle').textContent=V.title; $('crumbView').textContent=V.label;
   var who=all?'All SDRs':byK(state.pod).name+' \u00b7 '+byK(state.pod).pod;
   $('ctx').innerHTML='<span><b>'+esc(who)+'</b></span><span>'+esc(perLabel)+'</span>';
   ['scoreTag','callsTag','cqTag','meetTag'].forEach(function(id){$(id).textContent=perLabel;});
-  $('twHead').textContent='Two-way contacts ('+(P==='wk'?'week':'MTD')+')';
+  $('twHead').textContent='Two-way contacts ('+(P==='wk'?'week':isCus?'period':'MTD')+')';
 
   /* nav counts */
   $('cnt-meetings').textContent=sum(S,function(s){return s.first[P];});
@@ -266,6 +288,7 @@ function render(){
     '<tr><td>Calls with no outcome ('+(P==='wk'?'this week':'this month')+')</td>'+S.map(function(s){return '<td class="n">'+s.calls[P].none+'</td>';}).join('')+'</tr>'+
     '<tr><td>Same-day redials ('+(P==='wk'?'this week':'this month')+')</td>'+S.map(function(s){return '<td class="n">'+s.cq[P].same+'</td>';}).join('')+'</tr>';
   applyFilters();
+  if(window.SDRMatt)try{window.SDRMatt({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReports)try{window.SDRReports({view:state.view,P:P,S:S,all:all,pod:state.pod,byK:byK,dn:dn,fmtK:fmtK,ct:ct,DEALS:DEALS,LISTS:LISTS,TRENDS:TRENDS,PERIODS:PERIODS});}catch(err){console.error(err);}
 }
 /* drill-down panel: companies behind a number, then one company's journey */
@@ -288,10 +311,41 @@ function showList(title,sub,ids,note){
   $('drBody').innerHTML=html;$('drBody').scrollTop=0;dr.firstChild.scrollTop=0;
   if($('drSearch'))$('drSearch').addEventListener('input',function(){var q=this.value.toLowerCase();Array.prototype.forEach.call($('drList').children,function(li){li.hidden=q&&li.dataset.n.indexOf(q)<0;});});
 }
+/* generic drill table: any records, sortable, filterable, CSV export; company cells open the journey */
+function showTable(title,sub,cols,rows,note){
+  var f=function(){showTable(title,sub,cols,rows,note);};drOpen();drStack.push(f);
+  var sortI=-1,sortD=1,q='';
+  drHead(esc(title),esc(sub)+' \u00b7 '+rows.length+(rows.length===1?' row':' rows'));
+  function cellTxt(c,v){if(v==null)return '';if(c.t==='co')return v[1];if(c.t==='date')return v?new Date(v).toISOString().slice(0,10):'';return String(v);}
+  function cellHtml(c,v){if(v==null||v==='')return '<span class="muted">\u2013</span>';
+    if(c.t==='co')return v[0]?'<button class="num" data-co="'+esc(v[0])+'">'+esc(v[1])+'</button>':esc(v[1]);
+    if(c.t==='link')return '<a href="'+esc(v[0])+'" target="_blank" rel="noopener">'+esc(v[1])+'</a>';
+    if(c.t==='date'){var d=new Date(v);return d.getDate()+' '+MON[d.getMonth()]+(c.time?' '+fmtT(v):'');}
+    if(c.t==='pill')return pill(v);
+    if(c.t==='num')return typeof v==='number'?v.toLocaleString('en-GB'):esc(v);
+    return esc(v);}
+  function sortKey(c,v){if(v==null)return '';if(c.t==='co'||c.t==='link')return String(v[1]).toLowerCase();if(c.t==='pill')return v[1];return typeof v==='number'?v:String(v).toLowerCase();}
+  function draw(){
+    var list=rows.filter(function(r){return !q||r.some(function(v,i){return cellTxt(cols[i],v).toLowerCase().indexOf(q)>=0;});});
+    if(sortI>=0)list=list.slice().sort(function(a,b){var x=sortKey(cols[sortI],a[sortI]),y=sortKey(cols[sortI],b[sortI]);return (x<y?-1:x>y?1:0)*sortD;});
+    $('dtBody').innerHTML=list.length?list.map(function(r){return '<tr>'+r.map(function(v,i){return '<td'+(cols[i].t==='num'?' class="n"':' class="l"')+'>'+cellHtml(cols[i],v)+'</td>';}).join('')+'</tr>';}).join(''):'<tr><td colspan="'+cols.length+'" class="empty">Nothing matches.</td></tr>';
+    $('dtN').textContent=q?list.length+' matching':'';
+    Array.prototype.forEach.call($('dtHead').children,function(th,i){th.setAttribute('aria-sort',i===sortI?(sortD>0?'ascending':'descending'):'none');});
+  }
+  $('drBody').innerHTML=(note?'<p class="small muted">'+esc(note)+'</p>':'')+
+    '<div class="dt-tools"><input class="dr-search" id="dtQ" type="search" placeholder="Filter rows\u2026" aria-label="Filter rows"><span class="tag" id="dtN"></span><button class="rp-tog" id="dtCsv">Download CSV</button></div>'+
+    '<div class="tbl dt"><table><thead><tr id="dtHead">'+cols.map(function(c){return '<th class="'+(c.t==='num'?'':'l')+'" tabindex="0" title="Sort">'+esc(c.h)+'</th>';}).join('')+'</tr></thead><tbody id="dtBody"></tbody></table></div>';
+  Array.prototype.forEach.call($('dtHead').children,function(th,i){var go=function(){if(sortI===i)sortD=-sortD;else{sortI=i;sortD=cols[i].t==='num'||cols[i].t==='date'?-1:1;}draw();};th.addEventListener('click',go);th.addEventListener('keydown',function(e){if(e.key==='Enter')go();});});
+  $('dtQ').addEventListener('input',function(){q=this.value.toLowerCase().trim();draw();});
+  $('dtCsv').addEventListener('click',function(){var csv=[cols.map(function(c){return c.h;})].concat(rows.map(function(r){return r.map(function(v,i){return cellTxt(cols[i],v);});})).map(function(r){return r.map(function(x){return '"'+String(x).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+    var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=title.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.csv';document.body.appendChild(a);a.click();a.remove();});
+  draw();dr.firstChild.scrollTop=0;
+}
+window.SDRDrill={table:function(t,s,c,r,n){drStack=[];showTable(t,s,c,r,n);},names:function(m){CO=CO||{};Object.keys(m).forEach(function(id){if(!CO[id])CO[id]=m[id];});}};
 function openDrill(spec){var p=spec.split('|'),m=p[0],per=p[1],sk=p[2];
   var ids={};(sk?[byK(sk)]:sel()).forEach(function(s){var a=LISTS[m]&&LISTS[m][s.k]&&LISTS[m][s.k][per];(a||[]).forEach(function(id){ids[id]=1;});});
   var who=sk?byK(sk).short:(state.pod==='all'?'All SDRs':byK(state.pod).short);
-  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':'Month to date')),Object.keys(ids),DRILL_NOTES[m]);}
+  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?'Custom dates \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m]);}
 var J_TYPES=[['all','All'],['call','Calls'],['email','Emails'],['meeting','Meetings'],['note','Notes'],['deal','Deals']];
 var J_LABEL={call:'Call',email:'Email sent',reply:'Email received',meeting:'Meeting',note:'Note',deal:'Deal created'};
 function showJourney(id){
@@ -342,6 +396,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')drClose();})
 MEETINGS=MEETINGS.filter(function(m){return !m.kind||m.kind==='First meeting';});
 WINS=WINS.filter(function(w){return w.t!=='held'||!/proposal/i.test(w.x);});
 render();load(false);
+var ms=document.createElement('script');ms.src='matt.js';ms.onload=function(){render();};document.body.appendChild(ms);
 var rs=document.createElement('script');rs.src='reports.js';rs.onload=function(){render();};document.body.appendChild(rs);
 window.addEventListener('hashchange',function(){var h=(location.hash||'').slice(1);if(VIEWS.some(function(v){return v.k===h;})&&h!==state.view){state.view=h;render();}});
 })();

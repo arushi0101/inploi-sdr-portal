@@ -20,3 +20,16 @@ Set `HUBSPOT_TOKEN` in Vercel (Production) to a HubSpot private app token with r
 - **Meetings booked**: companies with an SDR Owner whose Account Status moved to Meeting Booked in the period, dated by when the status was set. This matches the HubSpot "Meetings Booked" report.
 - **First meetings held**: meetings on SDR-owned companies marked completed in HubSpot or in their Gong copy, excluding meetings once a deal is open and AE progression meetings (proposal, pricing, follow-up and similar).
 - Periods are UK time. This week runs Monday to today; month to date runs from the 1st.
+
+## Matt's dashboard
+
+`matt.js` renders the reports from Matt's SDR Dashboard spec (sections A–H plus the weekly review) from `api/data?part=matt`.
+Every bar, segment and number opens a sortable, filterable table of the records behind it (with CSV export), and any company opens its journey.
+
+- **New accounts reached (B3)** = Account Status first moved off New in the period, from HubSpot's status history (no new field or backfill needed).
+- **Meetings booked (E1)** = companies moved to Meeting Booked in the period, credited to the company SDR Owner.
+- **Accounts contacted (B2)** = an SDR call or email in the period, or Last Contacted in the period.
+
+## Custom date range
+
+The Period filter has **Custom dates**. It calls `api/data?from=YYYY-MM-DD&to=YYYY-MM-DD` (and `part=matt` with the same dates), which replaces month to date with that range across every section. Ranges are limited to a year.
