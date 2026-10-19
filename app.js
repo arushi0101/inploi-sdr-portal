@@ -113,11 +113,11 @@ var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'
 function dnice(s){var p=s.split('-');return (+p[2])+' '+MON[+p[1]-1];}
 function rangeLabel(p){var a=PERIODS[p].start.split('-'),b=PERIODS[p].end.split('-');return a[1]===b[1]?(+a[2])+'\u2013'+(+b[2])+' '+MON[+b[1]-1]:dnice(PERIODS[p].start)+' \u2013 '+dnice(PERIODS[p].end);}
 
-/* live data from HubSpot via /api/data; falls back to the 15 Oct snapshot */
+/* live data from HubSpot via /api/data; snapshot.js is only an empty placeholder */
 var SOURCE='loading',GENERATED=SNAPSHOT_AT,loading=false;
 function ago(iso){var m=Math.round((Date.now()-Date.parse(iso))/60000);if(m<1)return 'just now';if(m<60)return m+' min ago';var h=Math.round(m/60);return h<24?h+' h ago':new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
 function status(kind,text){$('statusDot').className=kind;$('statusText').textContent=text;}
-function stamp(){if(SOURCE==='live')status('live','Live from HubSpot \u00b7 updated '+ago(GENERATED));else if(SOURCE==='snapshot')status('snap','Snapshot \u00b7 HubSpot data from 15 Oct');}
+function stamp(){if(SOURCE==='live')status('live','Live from HubSpot \u00b7 updated '+ago(GENERATED));else if(SOURCE==='snapshot')status('err','Not connected to HubSpot');}
 function banner(html){var b=$('banner');b.hidden=!html;b.innerHTML=html||'';}
 function load(fresh){
   if(loading)return;loading=true;$('refreshBtn').disabled=true;
@@ -132,7 +132,8 @@ function load(fresh){
     var code=e&&e.error;
     if(SOURCE==='live'){status('err','Refresh failed \u00b7 showing data from '+ago(GENERATED));return;}
     SOURCE='snapshot';render();
-    banner('<b>Showing the 15 Oct snapshot, not live data.</b> '+(code==='missing_token'?'The HubSpot key hasn\u2019t been added to Vercel yet.':code==='bad_token'?'HubSpot rejected the key.':code==='missing_scope'?'The HubSpot key is missing a read permission.':'HubSpot couldn\u2019t be reached just now. Try Refresh now in a few minutes.'));
+    if(code==='locked'||code==='no_password')return;
+    banner('<b>Live data couldn\u2019t load.</b> '+(code==='missing_token'?'The HubSpot key hasn\u2019t been added to Vercel yet.':code==='bad_token'?'HubSpot rejected the key.':code==='missing_scope'?'The HubSpot key is missing a read permission.':'HubSpot couldn\u2019t be reached just now. Try Refresh now in a few minutes.'));
   }).then(function(){loading=false;$('refreshBtn').disabled=false;$('refreshBtn').hidden=false;stamp();});
 }
 $('refreshBtn').addEventListener('click',function(){load(true);});

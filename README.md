@@ -33,3 +33,12 @@ Every bar, segment and number opens a sortable, filterable table of the records 
 ## Custom date range
 
 The Period filter has **Custom dates**. It calls `api/data?from=YYYY-MM-DD&to=YYYY-MM-DD` (and `part=matt` with the same dates), which replaces month to date with that range across every section. Ranges are limited to a year.
+
+## Password
+
+The live site is public so it can be embedded in HubSpot, so the portal has its own password.
+
+- Set it in Vercel: Settings → Environment Variables → `PORTAL_PASSWORD` (Production), then redeploy.
+- Until it is set, the portal shows the sign-in screen and returns no data.
+- People sign in once per browser. Changing the password signs everyone out.
+- `snapshot.js` is an empty placeholder, so no HubSpot data sits in a public file.

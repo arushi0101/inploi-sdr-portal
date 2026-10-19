@@ -1,5 +1,6 @@
 // Live SDR data from HubSpot. Needs the HUBSPOT_TOKEN env var (a HubSpot private app token, read-only scopes).
 
+const { allowed } = require('./_auth');
 const API = 'https://api.hubapi.com';
 const SDRS = [
   { k: 'james', id: '29569627', name: 'James Crawford', short: 'James', pod: 'Sales Pod 1', lead: 'Jason Baaphy' },
@@ -806,6 +807,7 @@ async function buildCalls(q) {
 }
 
 module.exports = async (req, res) => {
+  if (!allowed(req, res)) return;
   TOKEN = process.env.HUBSPOT_TOKEN || '';
   if (!TOKEN) { res.statusCode = 503; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify({ error: 'missing_token' })); return; }
   try {

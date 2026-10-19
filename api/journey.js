@@ -1,5 +1,6 @@
 // One company's history with inploi, from HubSpot: calls, emails, meetings, notes, deals and contacts, newest first.
 
+const { allowed } = require('./_auth');
 const API = 'https://api.hubapi.com';
 const OWNER_NAMES = {
   '29569627': 'James Crawford', '32364701': 'Matthew Meehan', '29569628': 'Nikita Rohwer', '29569626': 'Evan Williams',
@@ -150,6 +151,7 @@ async function journey(id) {
 }
 
 module.exports = async (req, res) => {
+  if (!allowed(req, res)) return;
   res.setHeader('Content-Type', 'application/json');
   TOKEN = process.env.HUBSPOT_TOKEN || '';
   const id = String((req.query && req.query.id) || new URL(req.url, 'http://x').searchParams.get('id') || '');
