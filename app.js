@@ -78,7 +78,7 @@ function addDays(iso,n){var d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDa
 function presetRange(tag){var t=ukToday(),d=new Date(t+'T12:00:00Z'),dow=(d.getUTCDay()+6)%7;
   if(tag==='lwk'){var mon=addDays(t,-dow-7);return {from:mon,to:addDays(mon,6)};}
   if(tag==='lm'){var f=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-1,1)),l=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),0));return {from:f.toISOString().slice(0,10),to:l.toISOString().slice(0,10)};}
-  if(tag==='l30')return {from:addDays(t,-30),to:t};return null;}
+  if(tag==='l30')return {from:addDays(t,-30),to:addDays(t,-1)};return null;}
 state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to){if(sc.l30&&!sc.tag)sc.tag='l30';var pr=presetRange(sc.tag);if(pr){sc.from=pr.from;sc.to=pr.to;}state.cus=sc;}}catch(e){}
 function cusName(){return state.cus?DTAG[state.cus.tag||'custom']:'Custom dates';}
 function perName(P){return P==='wk'?'This week':PERIODS&&PERIODS.mtd&&PERIODS.mtd.custom?cusName():'Month to date';}
