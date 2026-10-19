@@ -130,7 +130,7 @@ function monthRange(m){var y=+m.slice(0,4),mo=+m.slice(5,7),last=new Date(Date.U
 function goMonth(m){var r=monthRange(m);if(window.SDRCustom)window.SDRCustom.set(r[0],r[1],'custom');}
 function mlabel(m){return LMON.format(new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7)-1,1)));}
 function monthCounts(M){var s=SI();if(s.length===D.SDRS.length)return M.o;var o={};s.forEach(function(i){var c=M.c[D.SDRS[i].k]||{};Object.keys(c).forEach(function(d){o[d]=(o[d]||0)+c[d];});});return o;}
-function trend(){var team=SI().length===D.SDRS.length,per=D.MONTHS.map(function(M){var o=monthCounts(M),t={};Object.keys(o).forEach(function(d){var k=key(d);t[k]=(t[k]||0)+o[d];});return t;});
+function trend(){var team=SI().length===D.SDRS.length,per=D.MONTHS.map(function(M){var o=monthCounts(M),t={};Object.keys(o).forEach(function(d){var k=key(d);if(k==='no outcome logged'||k==='left voicemail')return;t[k]=(t[k]||0)+o[d];});return t;});
   var ks=order(Object.keys(per.reduce(function(a,t){Object.keys(t).forEach(function(k){if(t[k])a[k]=1;});return a;},{}))),tot=per.map(function(t){return ks.reduce(function(a,k){return a+(t[k]||0);},0);}),mx=Math.max.apply(null,tot.concat([1]));
   return legend(ks)+'<div class="mt-cols">'+D.MONTHS.map(function(M,i){var t=per[i],conn=CONN.reduce(function(a,k){return a+(t[k]||0);},0);
     return '<button data-ck="'+reg(function(){goMonth(M.m);})+'" title="'+e(mlabel(M.m)+': '+tot[i]+' calls, '+conn+' connected ('+pct(conn,tot[i])+'). Click to view this month.')+'"><span class="v">'+(tot[i]?fmt(tot[i]):'')+'</span><span class="mt-cs" style="height:'+(tot[i]/mx*100)+'%">'+
@@ -163,7 +163,7 @@ function render(){var root=document.getElementById('callsRoot');if(!root)return;
     sec('Calls made per day','Every call, stacked by outcome. Long ranges are grouped by week.',daily(L))+
     sec('Calls connected → valuable conversations','How many calls reach someone, and how many of those turn into a valuable conversation or a meeting.',funnel(L))+
     '<h3 class="mt-h">This year</h3>'+
-    '<div class="mt-two">'+sec('Team calls vs connects trend','Every call by month since 1 Jan '+e(yr)+', stacked by outcome. Click a month to view it.',trend())+sec('Connected calls by SDR','Connected calls each month. Click a point to view that month.',lines())+'</div>'+
+    '<div class="mt-two">'+sec('Team calls vs connects trend','Calls by month since 1 Jan '+e(yr)+', stacked by outcome. Like HubSpot\u2019s report, it leaves out calls with no outcome or Left voicemail. Click a month to view it.',trend())+sec('Connected calls by SDR','Connected calls each month. Click a point to view that month.',lines())+'</div>'+
     '<div class="card"><ul class="notes muted small"><li><b>Connected</b> means the Call outcome is Connected, Valuable Conversation, Bad Timing or Not Interested, the same as HubSpot’s Connected Calls reports.</li>'+
     '<li>Calls are counted by <b>call owner</b> for the four SDRs. HubSpot’s “SDR Activity – By Calls” report counts by <b>created by</b> and also includes Annie, so its totals can be a little higher.</li>'+
     '<li>HubSpot’s daily reports leave out calls with no outcome. They are shown here in grey so they can be fixed.</li><li><b>Last 30 days</b> is the 30 full days before today, the same window as HubSpot\u2019s 30-day call reports. Pick This week or This month to include today.</li><li>Dates are UK time.</li></ul></div>';}
