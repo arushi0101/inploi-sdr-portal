@@ -740,13 +740,78 @@ async function buildMatt(q) {
   };
 }
 
+/* ---------- Call reports (?part=calls): replicas of the HubSpot call reports ---------- */
+const CALL_LABELS = {
+  'f240bbac-87c9-4f6e-bf70-924b57d47db7': 'Connected', 'cac480f0-a8c0-4042-a92a-7a00144842f2': 'Valuable Conversation',
+  '522f6325-eb24-4b15-a96d-378c8dab9af8': 'Meeting Booked', '73a0d17f-1163-4015-bdd5-ec830791da20': 'No answer',
+  '1595831b-ac6b-4d8d-bac9-2f711edd96a7': 'AI Screening Bot', 'e769fdeb-c488-428d-9a5a-f9a6391f8aaa': 'Gatekeeper',
+  '17b47fee-58de-441e-a44c-c6300d46f273': 'Wrong number', 'e4c946f0-5174-48ed-b1d9-9ea275fa754a': 'Bad Timing',
+  '40854b06-5e3f-4748-8eb5-03008d8303d0': 'Not Interested', 'b2cf5968-551e-4856-9783-52b3da59a7d0': 'Left voicemail',
+  '9d9162e7-6cf3-4944-bf63-4dff82258764': 'Busy', 'e6b1bf5c-9d60-490f-a55d-edee8a22564c': 'Left Company/Retired',
+  'a4c4c377-d246-4b32-a13b-75a56a4cd0ff': 'Left live message'
+};
+const NO_ANSWER = '73a0d17f-1163-4015-bdd5-ec830791da20';
+async function countCalls(filters) {
+  const r = await hs('/crm/v3/objects/calls/search', { filterGroups: [{ filters }], properties: ['hs_timestamp'], limit: 1 });
+  return r.total || 0;
+}
+async function buildCalls(q) {
+  const now = new Date();
+  const P = periods(now);
+  const CUS = customRange(q);
+  const t = londonParts(now);
+  const from = Math.min(P.wk.start, P.mtd.start, CUS ? CUS.start : Infinity);
+  const yearStart = londonMidnight(t.y, 1, 1);
+  const sdrBy = {}; SDRS.forEach((s, i) => { sdrBy[s.id] = i; });
+  const owner = { propertyName: 'hubspot_owner_id', operator: 'IN', values: SDR_IDS };
+  const labels = Object.assign({}, CALL_LABELS);
+  try { const d = await hs('/calling/v1/dispositions'); (Array.isArray(d) ? d : []).forEach(x => { if (x && x.id && x.label) labels[x.id] = x.label; }); } catch (e) { /* fall back to the known labels */ }
+
+  // Every SDR call in the selected period
+  const calls = [];
+  for (let f = from; f < now.getTime();) {
+    const d = new Date(f); const to = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+    calls.push(...await searchAll('calls', [{ filters: [owner, { propertyName: 'hs_timestamp', operator: 'GTE', value: String(f) }, { propertyName: 'hs_timestamp', operator: 'LT', value: String(to) }] }],
+      ['hs_timestamp', 'hs_call_disposition', 'hubspot_owner_id', 'hs_call_duration'], 'hs_timestamp'));
+    f = to;
+  }
+  const [cCo, cCon] = await Promise.all([calls.length ? assoc('calls', 'companies', calls.map(c => c.id)) : {}, calls.length ? assoc('calls', 'contacts', calls.map(c => c.id)) : {}]);
+  const CALLS = calls.map(c => { const p = c.properties; return [toMs(p.hs_timestamp), sdrBy[p.hubspot_owner_id] != null ? sdrBy[p.hubspot_owner_id] : -1, p.hs_call_disposition || '', (cCo[c.id] || [])[0] || null, (cCon[c.id] || [])[0] || null, p.hs_call_duration ? Math.round(Number(p.hs_call_duration) / 1000) : 0, c.id]; })
+    .filter(r => r[0] != null && r[1] >= 0);
+  const coIds = [...new Set(CALLS.map(r => r[3]).filter(Boolean))], conIds = [...new Set(CALLS.map(r => r[4]).filter(Boolean))];
+  const [coP, conP] = await Promise.all([coIds.length ? batchRead('companies', coIds, ['name']) : {}, conIds.length ? batchRead('contacts', conIds, ['firstname', 'lastname']) : {}]);
+  const CO = {}, CON = {};
+  Object.keys(coP).forEach(id => { CO[id] = (coP[id].name || 'Unnamed company').trim(); });
+  Object.keys(conP).forEach(id => { CON[id] = [conP[id].firstname, conP[id].lastname].filter(Boolean).join(' ') || 'Unnamed contact'; });
+
+  // This year by month: every outcome for the team, and connected calls by SDR (same filters as the HubSpot trend reports)
+  const months = [];
+  for (let m = 1; m <= t.m; m++) months.push([londonMidnight(t.y, m, 1), m === t.m ? now.getTime() + 1 : londonMidnight(t.y, m + 1, 1), t.y + '-' + String(m).padStart(2, '0')]);
+  const MONTHS = [];
+  for (let i = 0; i < months.length; i += 2) {
+    const part = await Promise.all(months.slice(i, i + 2).map(async ([a, b, key]) => {
+      const range = [{ propertyName: 'hs_timestamp', operator: 'GTE', value: String(a) }, { propertyName: 'hs_timestamp', operator: 'LT', value: String(b) }];
+      const [total, none] = [await countCalls([owner].concat(range)), await countCalls([owner, { propertyName: 'hs_call_disposition', operator: 'NOT_HAS_PROPERTY' }].concat(range))];
+      const rest = await searchAll('calls', [{ filters: [owner, { propertyName: 'hs_call_disposition', operator: 'HAS_PROPERTY' }, { propertyName: 'hs_call_disposition', operator: 'NEQ', value: NO_ANSWER }].concat(range) }], ['hs_call_disposition', 'hubspot_owner_id']);
+      const o = {}, c = {};
+      rest.forEach(x => { const d = x.properties.hs_call_disposition; o[d] = (o[d] || 0) + 1; const si = sdrBy[x.properties.hubspot_owner_id]; if (si != null) { const k = SDRS[si].k; (c[k] = c[k] || {})[d] = (c[k][d] || 0) + 1; } });
+      o[NO_ANSWER] = Math.max(0, total - none - rest.length); o[''] = none;
+      return { m: key, total, o, c };
+    }));
+    MONTHS.push(...part);
+  }
+  const R = { wk: [P.wk.start, P.today + 86400000], mtd: [P.mtd.start, P.today + 86400000] };
+  if (CUS) R.cus = [CUS.start, Math.min(CUS.end, P.today + 86400000)];
+  return { generatedAt: now.toISOString(), R, today: P.today, labels, SDRS: SDRS.map(s => ({ k: s.k, name: s.name, short: s.short, pod: s.pod })), CALLS, CO, CON, MONTHS, yearStart };
+}
+
 module.exports = async (req, res) => {
   TOKEN = process.env.HUBSPOT_TOKEN || '';
   if (!TOKEN) { res.statusCode = 503; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify({ error: 'missing_token' })); return; }
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
