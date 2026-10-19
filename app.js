@@ -70,29 +70,36 @@ var pods=$('pods');
   var b=document.createElement('button');b.className='opt';b.id='pod-'+o.k;b.dataset.pod=o.k;
   b.innerHTML='<span>'+esc(o.label)+'</span><small>'+esc(o.sub)+'</small>';
   b.addEventListener('click',function(){setPod(o.k);});pods.appendChild(b);});
-/* custom date range: replaces month to date with any From / To period, for every section */
-state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to)state.cus=sc;}catch(e){}
-document.head.insertAdjacentHTML('beforeend','<style>.per .per-cus{grid-column:auto}.cus-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.cus-box label{display:grid;gap:3px;font-size:.7rem;color:var(--rail-muted);text-transform:uppercase;letter-spacing:.06em}.cus-box input{background:var(--rail-hi);border:1px solid #3a3734;color:var(--rail-fg);padding:5px 6px;font:inherit;font-size:.8rem;color-scheme:dark;min-width:0}.cus-box button{grid-column:1/-1;background:var(--rail-accent);color:var(--accent-fg);border:0;padding:6px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.cus-box .cus-err{grid-column:1/-1;font-size:.74rem;color:#FF9A70}</style>');
-$('per').insertAdjacentHTML('beforeend','<button data-per="l30" class="per-cus" aria-pressed="false" title="Same window as the HubSpot Meetings Booked report">Last 30 days</button><button data-per="cus" class="per-cus" aria-pressed="false" aria-expanded="false">Custom dates</button>');
-$('per').insertAdjacentHTML('afterend','<form class="cus-box" id="cusBox" hidden><label>From<input type="date" id="cusFrom" required></label><label>To<input type="date" id="cusTo" required></label><button type="submit">Apply dates</button><span class="cus-err" id="cusErr" hidden></span></form>');
-function todayIso(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-function last30(){var t=LISO.format(new Date()),d=new Date(t+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-30);return {from:d.toISOString().slice(0,10),to:t,l30:true};}
-function setCustom(from,to,l30){
-  if(!from||!to||from>to){$('cusErr').textContent='Pick a From date on or before the To date.';$('cusErr').hidden=false;return false;}
-  if((Date.parse(to)-Date.parse(from))/86400000>366){$('cusErr').textContent='Pick a range of a year or less.';$('cusErr').hidden=false;return false;}
-  $('cusErr').hidden=true;state.cus={from:from,to:to,l30:!!l30};state.per='mtd';
+/* one date bar at the top of every page: presets plus any From / To range */
+var DTAG={wk:'This week',lwk:'Last week',mtd:'Month to date',lm:'Last month',l30:'Last 30 days',custom:'Custom dates'};
+var LISO0=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
+function ukToday(){return LISO0.format(new Date());}
+function addDays(iso,n){var d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function presetRange(tag){var t=ukToday(),d=new Date(t+'T12:00:00Z'),dow=(d.getUTCDay()+6)%7;
+  if(tag==='lwk'){var mon=addDays(t,-dow-7);return {from:mon,to:addDays(mon,6)};}
+  if(tag==='lm'){var f=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-1,1)),l=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),0));return {from:f.toISOString().slice(0,10),to:l.toISOString().slice(0,10)};}
+  if(tag==='l30')return {from:addDays(t,-30),to:t};return null;}
+state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to){if(sc.l30&&!sc.tag)sc.tag='l30';var pr=presetRange(sc.tag);if(pr){sc.from=pr.from;sc.to=pr.to;}state.cus=sc;}}catch(e){}
+function cusName(){return state.cus?DTAG[state.cus.tag||'custom']:'Custom dates';}
+function perName(P){return P==='wk'?'This week':PERIODS&&PERIODS.mtd&&PERIODS.mtd.custom?cusName():'Month to date';}
+document.head.insertAdjacentHTML('beforeend','<style>.rail-group:has(#per){display:none}.datebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--surface);border:1px solid var(--line);padding:10px 14px;margin:0 0 20px}.datebar .db-presets{display:flex;flex-wrap:wrap;gap:4px}.datebar .db-presets button{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 11px;font:inherit;font-size:.82rem;cursor:pointer}.datebar .db-presets button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}.datebar form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)}.datebar input{border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:5px 7px;font:inherit;font-size:.82rem}.datebar form button{background:var(--accent);color:var(--accent-fg);border:0;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.datebar .db-err{color:var(--bad-fg);font-size:.78rem}.datebar .db-lbl{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}</style>');
+document.querySelector('.topline').insertAdjacentHTML('afterend','<div class="datebar" id="dateBar"><span class="db-lbl">Dates</span><div class="db-presets">'+['wk','lwk','mtd','lm','l30'].map(function(k){return '<button data-p="'+k+'" aria-pressed="false">'+DTAG[k]+'</button>';}).join('')+'</div><form id="dbForm"><span>From</span><input type="date" id="dbFrom" required aria-label="From"><span>to</span><input type="date" id="dbTo" required aria-label="To"><button type="submit">Apply</button><span class="db-err" id="dbErr" hidden></span></form></div>');
+function setCustom(from,to,tag){
+  if(!from||!to||from>to){$('dbErr').textContent='Pick a From date on or before the To date.';$('dbErr').hidden=false;return false;}
+  if((Date.parse(to)-Date.parse(from))/86400000>366){$('dbErr').textContent='Pick a range of a year or less.';$('dbErr').hidden=false;return false;}
+  $('dbErr').hidden=true;state.cus={from:from,to:to,tag:tag||'custom'};state.per='mtd';
   try{localStorage.setItem('sdrPortalCus',JSON.stringify(state.cus));}catch(e){}
-  $('cusBox').hidden=true;load(true);render();return true;}
+  load(true);render();return true;}
 function clearCustom(){if(!state.cus)return;state.cus=null;try{localStorage.removeItem('sdrPortalCus');}catch(e){}load(true);}
-window.SDRCustom={set:setCustom,clear:clearCustom,get:function(){return state.cus;}};
-$('cusBox').addEventListener('submit',function(e){e.preventDefault();setCustom($('cusFrom').value,$('cusTo').value);});
-Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){
-  b.addEventListener('click',function(){
-    if(b.dataset.per==='l30'){$('cusBox').hidden=true;var r=last30();setCustom(r.from,r.to,true);return;}
-    if(b.dataset.per==='cus'){var box=$('cusBox');box.hidden=!box.hidden;b.setAttribute('aria-expanded',String(!box.hidden));
-      if(!box.hidden){$('cusFrom').value=state.cus?state.cus.from:(PERIODS&&PERIODS.mtd?PERIODS.mtd.start:'');$('cusTo').value=state.cus?state.cus.to:todayIso();$('cusTo').max=todayIso();$('cusFrom').max=todayIso();$('cusFrom').focus();}return;}
-    $('cusBox').hidden=true;state.per=b.dataset.per;try{localStorage.setItem('sdrPortalPer',state.per);}catch(e){}
-    if(state.cus){clearCustom();}render();});});
+window.SDRCustom={set:setCustom,clear:clearCustom,get:function(){return state.cus;},name:cusName};
+$('dbForm').addEventListener('submit',function(e){e.preventDefault();setCustom($('dbFrom').value,$('dbTo').value,'custom');});
+Array.prototype.forEach.call(document.querySelectorAll('#dateBar [data-p]'),function(b){b.addEventListener('click',function(){var k=b.dataset.p;
+  if(k==='wk'||k==='mtd'){state.per=k;try{localStorage.setItem('sdrPortalPer',k);}catch(e){}if(state.cus)clearCustom();render();return;}
+  var r=presetRange(k);setCustom(r.from,r.to,k);});});
+function syncDateBar(){if(!PERIODS)return;var cur=state.cus?(state.cus.tag||'custom'):state.per;
+  Array.prototype.forEach.call(document.querySelectorAll('#dateBar [data-p]'),function(b){b.setAttribute('aria-pressed',String(b.dataset.p===cur));});
+  var f=state.cus?state.cus.from:PERIODS[state.per].start,t=state.cus?state.cus.to:PERIODS[state.per].end;
+  if(document.activeElement!==$('dbFrom'))$('dbFrom').value=f;if(document.activeElement!==$('dbTo'))$('dbTo').value=t;$('dbFrom').max=$('dbTo').max=ukToday();}
 
 /* Not interested gets its own column, legend entry and definition */
 (function(){var leg=document.querySelector('#statusBars')&&document.querySelector('#statusBars').previousElementSibling;
@@ -136,7 +143,7 @@ function setPod(k){state.pod=(state.pod===k&&k!=='all')?'all':k;try{localStorage
 
 function render(){
   var P=state.per,S=sel(),all=state.pod==='all';
-  var isCus=P==='mtd'&&PERIODS.mtd&&PERIODS.mtd.custom,isL30=isCus&&state.cus&&state.cus.l30;var perLabel=(P==='wk'?'This week':isL30?'Last 30 days':isCus?'Custom dates':'Month to date')+' \u00b7 '+rangeLabel(P);
+  var isCus=P==='mtd'&&PERIODS.mtd&&PERIODS.mtd.custom;syncDateBar();var perLabel=perName(P)+' \u00b7 '+rangeLabel(P);
   $('winsTag').textContent=rangeLabel('wk')+' \u00b7 always this week';
   var pace1=8*PERIODS.dayOfMonth/PERIODS.daysInMonth;
   $('paceNote').textContent='Target 8 a month, floor 6. Today is day '+PERIODS.dayOfMonth+' of '+PERIODS.daysInMonth+', so the on-pace figure is '+(Math.round(pace1*10)/10)+'.';
@@ -146,7 +153,7 @@ function render(){
   syncRes();
   Array.prototype.forEach.call(nav.querySelectorAll('button[data-view]'),function(b){if(b.dataset.view===state.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   Array.prototype.forEach.call(pods.querySelectorAll('.opt'),function(b){b.setAttribute('aria-pressed',String(b.dataset.pod===state.pod));});
-  Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(isCus?b.dataset.per===(isL30?'l30':'cus'):b.dataset.per===P));});
+  Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(b.dataset.per===P));});
   $('viewTitle').textContent=V.title; $('crumbView').textContent=V.label;
   var who=all?'All SDRs':byK(state.pod).name+' \u00b7 '+byK(state.pod).pod;
   $('ctx').innerHTML='<span><b>'+esc(who)+'</b></span><span>'+esc(perLabel)+'</span>';
@@ -166,7 +173,7 @@ function render(){
   $('ovKpis').innerHTML=kpi(dn(tCtd,'contacted',P),'Accounts contacted',pct(tCtd,tAsg)+' of the '+tAsg.toLocaleString()+' assigned')+
     kpi(dn(tCalls,'calls',P),'Calls made',dn(tConv,'conv',P)+' were real conversations ('+pct(tConv,tCalls)+')')+
     kpi(dn(sum(S,function(s){return s.emails[P];}),'emails',P),'Emails sent','Includes logged calendar invites')+
-    kpi(dn(sum(S,function(s){return s.first[P];}),'booked',P),'Meetings booked',(S.some(function(s){return s.booked30!=null;})?dn(sum(S,function(s){return s.booked30||0;}),'booked30','all')+' in the last 30 days (matches the HubSpot report)':'Companies moved to Meeting Booked'))+
+    kpi(dn(sum(S,function(s){return s.first[P];}),'booked',P),'Meetings booked','Companies moved to Meeting Booked, even if they have since moved on')+
     kpi(dn(sum(S,function(s){return s.held;}),'held','all')+' <small style="font-size:.55em;color:var(--muted);font-weight:500">of '+(8*S.length)+'</small>','First meetings held \u00b7 month',(S.length>1?'Target is 8 per SDR ('+S.length+' SDRs)':'Target is 8 a month, floor 6'))+
     kpi(dn(oD.length,'deals','all'),'Open SDR deals',fmtK(sum(oD,function(d){return d.a;}))+' in total \u00b7 '+(PIPE.createdMtd||0)+' new this month');
 
@@ -209,10 +216,10 @@ function render(){
     self:function(m){return m.by&&byK(m.s)&&m.by===byK(m.s).name;},other:function(m){return m.by&&m.by!=='\u2013'&&!(byK(m.s)&&m.by===byK(m.s).name);}};
   MLIST={};var mk=function(list,title){var id='m'+Object.keys(MLIST).length;MLIST[id]=[list,title];return id;};
   var mnum=function(list,title,txt){return list.length?'<button class="num" data-mlist="'+mk(list,title)+'">'+(txt==null?list.length:txt)+'</button>':'0';};
-  var tagTxt=(P==='wk'?'This week':PERIODS.mtd.custom?(state.cus&&state.cus.l30?'Last 30 days':'Custom dates'):'Month to date')+' \u00b7 '+rangeLabel(P)+' \u00b7 by date booked';
+  var tagTxt=(P==='wk'?'This week':PERIODS.mtd.custom?cusName():'Month to date')+' \u00b7 '+rangeLabel(P)+' \u00b7 by date booked';
   ['meetTag','meetTag2','meetDayTag','meetBdTag'].forEach(function(id){if($(id))$(id).textContent=tagTxt;});
   var held=mB.filter(GR.held);
-  $('meetKpis').innerHTML=kpi(mnum(mB,'Meetings booked'),'Meetings booked','At Meeting Booked now, status updated in the period (the HubSpot report rule)')+
+  $('meetKpis').innerHTML=kpi(mnum(mB,'Meetings booked'),'Meetings booked','Moved to Meeting Booked in the period, even if since moved on')+
     kpi(mnum(held,'Booked in the period and already held'),'Already held',pct(held.length,mB.length)+' of those booked')+
     kpi(mnum(mB.filter(GR.up),'Booked, meeting still to come'),'Still to come','Meeting date today or later')+
     kpi(mnum(mB.filter(function(m){return GR.ns(m)||GR.cx(m);}),'Booked: no show, cancelled or rescheduled'),'No show / cancelled','Includes rescheduled')+
@@ -337,7 +344,7 @@ function render(){
   if(window.SDRReports)try{window.SDRReports({view:state.view,P:P,S:S,all:all,pod:state.pod,byK:byK,dn:dn,fmtK:fmtK,ct:ct,DEALS:DEALS,LISTS:LISTS,TRENDS:TRENDS,PERIODS:PERIODS});}catch(err){console.error(err);}
 }
 /* drill-down panel: companies behind a number, then one company's journey */
-var DRILL_NAMES={assigned:'Assigned accounts',contacted:'Accounts contacted',calls:'Accounts called',conv:'Accounts with a real conversation',emails:'Accounts emailed',seq:'Accounts sent sequence emails',replies:'Accounts that replied',booked:'Meetings booked (moved to Meeting Booked)',booked30:'Meetings booked in the last 30 days',held:'First meetings held this month',deals:'Open SDR deals',pos:'Positive accounts',disq:'Disqualified',notint:'Not interested',work:'Still being worked',call_conv:'Calls: real conversation',call_noans:'Calls: no answer',call_bot:'Calls: AI screening bot',call_other:'Calls: gatekeeper, wrong number, bad timing, not interested',call_none:'Calls: no outcome logged',exh:'Exhausted accounts',eng:'Engaged accounts',stuck:'In Progress, not contacted in 14+ days',newAcc:'Accounts still at New',noOutcome:'Meetings with no outcome',noNext:'Open deals with no next step',newAccwk:'New accounts called',newAccmtd:'New accounts called',fuAccwk:'Follow-up accounts called',fuAccmtd:'Follow-up accounts called'};
+var DRILL_NAMES={assigned:'Assigned accounts',contacted:'Accounts contacted',calls:'Accounts called',conv:'Accounts with a real conversation',emails:'Accounts emailed',seq:'Accounts sent sequence emails',replies:'Accounts that replied',booked:'Meetings booked (moved to Meeting Booked in the period)',booked30:'Meetings booked in the last 30 days',held:'First meetings held this month',deals:'Open SDR deals',pos:'Positive accounts',disq:'Disqualified',notint:'Not interested',work:'Still being worked',call_conv:'Calls: real conversation',call_noans:'Calls: no answer',call_bot:'Calls: AI screening bot',call_other:'Calls: gatekeeper, wrong number, bad timing, not interested',call_none:'Calls: no outcome logged',exh:'Exhausted accounts',eng:'Engaged accounts',stuck:'In Progress, not contacted in 14+ days',newAcc:'Accounts still at New',noOutcome:'Meetings with no outcome',noNext:'Open deals with no next step',newAccwk:'New accounts called',newAccmtd:'New accounts called',fuAccwk:'Follow-up accounts called',fuAccmtd:'Follow-up accounts called'};
 var DRILL_NOTES={calls:'Calls not linked to a company in HubSpot are not in this list, so it can be shorter than the number.',conv:'Calls not linked to a company in HubSpot are not in this list.',emails:'Each company is listed once, however many emails it got. Emails not linked to a company are left out.',seq:'Each company is listed once. Emails not linked to a company are left out.',replies:'Includes auto-replies. Emails not linked to a company are left out.',contacted:'Each company is listed once.'};
 var dr=null,drStack=[],jCache={};
 var LDAY=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short'}),LTIME=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}),LISO=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -405,7 +412,7 @@ window.SDRDrill={table:function(t,s,c,r,n){drStack=[];showTable(t,s,c,r,n);},nam
 function openDrill(spec){var p=spec.split('|'),m=p[0],per=p[1],sk=p[2];
   var ids={};(sk?[byK(sk)]:sel()).forEach(function(s){var a=LISTS[m]&&LISTS[m][s.k]&&LISTS[m][s.k][per];(a||[]).forEach(function(id){ids[id]=1;});});
   var who=sk?byK(sk).short:(state.pod==='all'?'All SDRs':byK(state.pod).short);
-  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?(state.cus&&state.cus.l30?'Last 30 days':'Custom dates')+' \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m]);}
+  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?cusName()+' \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m]);}
 var J_TYPES=[['all','All'],['call','Calls'],['email','Emails'],['meeting','Meetings'],['note','Notes'],['deal','Deals']];
 var J_LABEL={call:'Call',email:'Email sent',reply:'Email received',meeting:'Meeting',note:'Note',deal:'Deal created'};
 function showJourney(id){
@@ -448,10 +455,10 @@ function renderJourney(j,filter){
 }
 document.addEventListener('click',function(e){
   var ml=e.target.closest('[data-mlist]');if(ml&&MLIST[ml.dataset.mlist]){e.preventDefault();e.stopPropagation();drStack=[];var x=MLIST[ml.dataset.mlist];
-    showTable(x[1],(state.pod==='all'?'All SDRs':byK(state.pod).short)+' \u00b7 '+(state.per==='wk'?'This week':PERIODS.mtd.custom?(state.cus&&state.cus.l30?'Last 30 days':'Custom dates'):'Month to date')+' \u00b7 '+rangeLabel(state.per)+' \u00b7 by date booked',
-      [{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Booked by',t:'text'},{h:'Meeting',t:'text'},{h:'Booked on',t:'date'},{h:'Meeting date',t:'date'},{h:'Outcome',t:'text'},{h:'Note',t:'text'}],
-      x[0].map(function(m){return [[String(m.id),m.c],byK(m.s)?byK(m.s).short:'',m.by||'',m.m||'',m.bs?Date.parse(m.bs+'T12:00:00Z'):null,m.ds&&m.d!=='\u2013'?Date.parse(m.ds+'T12:00:00Z'):null,m.o?m.o[1]:'',(m.x?m.x[1]:'')+(/^Meeting booked/.test(m.kind||'')?'':(m.x?'; ':'')+'In calendar only: company not at Meeting Booked')];}),
-      'Counted by the date the meeting was booked: the day the company moved to Meeting Booked in HubSpot.');return;}
+    showTable(x[1],(state.pod==='all'?'All SDRs':byK(state.pod).short)+' \u00b7 '+(state.per==='wk'?'This week':PERIODS.mtd.custom?cusName():'Month to date')+' \u00b7 '+rangeLabel(state.per)+' \u00b7 by date booked',
+      [{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Booked by',t:'text'},{h:'Meeting',t:'text'},{h:'Booked on',t:'date'},{h:'Meeting date',t:'date'},{h:'Outcome',t:'text'},{h:'Status now',t:'text'},{h:'Note',t:'text'}],
+      x[0].map(function(m){return [[String(m.id),m.c],byK(m.s)?byK(m.s).short:'',m.by||'',m.m||'',m.bs?Date.parse(m.bs+'T12:00:00Z'):null,m.ds&&m.d!=='\u2013'?Date.parse(m.ds+'T12:00:00Z'):null,m.o?m.o[1]:'',m.now||'',(m.x?m.x[1]:'')+(/^Meeting booked/.test(m.kind||'')?'':(m.x?'; ':'')+'In calendar only: company not at Meeting Booked')];}),
+      'Counted by the date the meeting was booked: the day the company moved to Meeting Booked in HubSpot. Companies that have since moved on (for example to Open Opportunity) still count.');return;}
   var d=e.target.closest('[data-drill]');if(d&&LISTS){e.preventDefault();e.stopPropagation();drStack=[];openDrill(d.dataset.drill);return;}
   var w=e.target.closest('[data-ids]');if(w&&CO){e.preventDefault();drStack=[];var p=w.dataset.ttl.split(' \u00b7 ');showList(p[0],w.dataset.sub||(p[1]+' \u00b7 This week'),w.dataset.ids.split(','),'');return;}
   var c=e.target.closest('[data-co]');

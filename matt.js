@@ -47,7 +47,7 @@ function reg(fn){var id='h'+(++hid);H[id]=fn;return id;}
 function rng(k){return D.R[k||range];}
 function inR(ts,k){var r=rng(k);return ts!=null&&ts>=r[0]&&ts<r[1];}
 function rangeLabel(k){k=k||range;var r=rng(k),a=r[0],b=Math.min(r[1],D.today+86400000)-1,am=isoD(a).slice(0,7),bm=isoD(b).slice(0,7);
-  var lbl=RANGES.filter(function(x){return x[0]===k;})[0][1];
+  var lbl=k==='cus'&&window.SDRCustom?window.SDRCustom.name():k==='mtd'?'Month to date':RANGES.filter(function(x){return x[0]===k;})[0][1];
   return lbl+' \u00b7 '+(am===bm?(+isoD(a).slice(8))+'\u2013'+dnice(b):dnice(a)+' \u2013 '+dnice(b));}
 function coName(id){var c=D.CO[id];return c?c[0]:'Company '+id;}
 function coCell(id){return id?[id,coName(id)]:null;}
@@ -126,7 +126,7 @@ function compute(){
   X.conBy=conBy;
   X.newReached=sdrCos.filter(function(id){return inR(D.CO[id][7]);});
   // Same rule as the HubSpot “Meetings Booked” report: Account Status is Meeting Booked now and was last updated in the period
-  X.mb=sdrCos.filter(function(id){return /^meeting booked$/i.test(D.CO[id][1])&&inR(D.CO[id][10]!=null?D.CO[id][10]:D.CO[id][9]);});
+  X.mb=sdrCos.filter(function(id){return inR(D.CO[id][9]);});
   X.outcomeMoved=sdrCos.filter(function(id){return outcome(D.CO[id][1])!=='work'&&inR(D.CO[id][8]);});
   X.firstMeet=D.MEET.filter(function(m){return m.first&&D.CO[m.co]&&S.indexOf(D.CO[m.co][2])>=0;});
   X.deals=D.DEALS.filter(function(d){return S.indexOf(d.s)>=0;});
@@ -147,10 +147,8 @@ function render(){
   var monthLbl=MON[+isoD(D.R.mtd[0]).slice(5,7)-1];
 
   var cus=api&&api.cus;
-  html+='<div class="card"><div class="mt-bar-top"><div class="mt-ranges" id="mtRanges">'+RANGES.map(function(r){return '<button data-r="'+r[0]+'" aria-pressed="'+(r[0]===range)+'"'+(r[0]==='cus'?' aria-expanded="'+showCus+'"':'')+'>'+r[1]+(r[0]==='cus'&&cus&&range==='cus'?' \u00b7 '+e(rangeLabel('cus').split(' \u00b7 ')[1]):'')+'</button>';}).join('')+'</div>'+
-    '<span class="muted">'+e(who())+' \u00b7 '+e(rangeLabel())+' \u00b7 live from HubSpot, updated '+e(new Date(D.generatedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}))+'</span></div>'+
-    (showCus?'<form class="mt-cus" id="mtCus"><label>From <input type="date" id="mtFrom" required value="'+e(cus?cus.from:isoD(D.R.mtd[0]+3*3600000))+'"></label><label>To <input type="date" id="mtTo" required value="'+e(cus?cus.to:isoD(D.today+3*3600000))+'"></label><button type="submit">Apply dates</button>'+(cus?'<button type="button" id="mtCusClear" class="rp-tog">Clear custom dates</button>':'')+'<span class="muted" style="font-size:.76rem">Applies to the whole portal. Long ranges take longer to load.</span></form>':'')+
-    '<p class="mt-note">Built from Matt\u2019s SDR Dashboard spec. Codes (B3, C1\u2026) match the spec. Click any bar, segment or number to see the records behind it, then any company for its full journey. Use the Pod filter on the left for one SDR.</p></div>';
+  html+='<div class="card"><div class="mt-bar-top"><span><b>'+e(who())+' \u00b7 '+e(rangeLabel())+'</b></span><span class="muted">Live from HubSpot, updated '+e(new Date(D.generatedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}))+'</span></div>'+
+    '<p class="mt-note">Change the dates with the date bar at the top of the page; change the SDR with Pod on the left. Codes (B3, C1\u2026) match Matt\u2019s spec. Click any bar, segment or number to see the records behind it, then any company for its full journey.</p></div>';
 
   /* Friday row */
   var cpa=X.contacted.length?(X.contacted.reduce(function(t,id){return t+Object.keys(X.conBy[id]||{}).length;},0)/X.contacted.length):0;
@@ -159,7 +157,7 @@ function render(){
     kpiT('B3','New accounts reached',num(fmt(X.newReached.length),function(){drillCos('New accounts reached',X.newReached,'Accounts whose Account Status first moved off New in this period, from HubSpot\u2019s status history. This is the spec\u2019s \u201cSDR First Outreach Date\u201d, worked out without a new field or backfill.');}),'First moved from New to being worked')+
     kpiT('B4','Contacts per account',num(cpa.toFixed(1),function(){drillContactsPer();}),fmt(X.contacted.length)+' accounts contacted')+
     kpiT('B5','Accounts moved to an outcome',num(fmt(X.outcomeMoved.length),function(){drillCos('Accounts moved to an outcome',X.outcomeMoved,'Accounts whose Account Status changed in this period to Meeting Booked, Open Opportunity, Not Interested, Disqualified or Exhausted.');}),X.outcomeMoved.filter(function(id){return outcome(D.CO[id][1])==='pos';}).length+' handed to an AE')+
-    kpiT('E1','Meetings booked',num(fmt(X.mb.length),function(){drillBooked(X.mb);}),'At Meeting Booked, updated in period')+
+    kpiT('E1','Meetings booked',num(fmt(X.mb.length),function(){drillBooked(X.mb);}),'Moved to Meeting Booked')+
     kpiT('C1','Calls made',num(fmt(X.calls.length),function(){drillCalls('Calls made',X.calls);}),num(fmt(conv.length),function(){drillCalls('Real conversations',conv);})+' real conversations ('+pctS(conv.length,X.calls.length)+')')+
   '</div>';
 
@@ -263,7 +261,7 @@ function render(){
   var moBy=bySdr(past,function(m){return D.CO[m.co][2];});
   html+='<div class="mt-two">'+card('E1','Meetings booked',rangeLabel(),
     stack(R.map(function(r){return {l:r.l,sub:r.sub,v:{b:(mbBy[r.i]||[]).length}};}),[{k:'b',l:'Moved to Meeting Booked',c:COL.conv}],function(ri){drillBooked(mbBy[R[ri].i]||[],R[ri].l);},{noLegend:true})+
-    '<p class="mt-note">Companies at Meeting Booked now whose Account Status was last updated in the period, credited to the company SDR Owner (not the booker). This is exactly the rule in the HubSpot \u201cMeetings Booked\u201d report; pick Last 30 days to match it.</p>'+
+    '<p class="mt-note">Companies whose Account Status moved to Meeting Booked in the period, credited to the company SDR Owner (not the booker). They still count if they have since moved on, for example to Open Opportunity. HubSpot\u2019s \u201cMeetings Booked\u201d report drops those, so it can show fewer.</p>'+
     bookedTable(X))+
   card('E2','Qualified meetings held vs target',monthLbl+' to date',heldTarget(heldM,R)+'<h3 style="margin-top:18px;font-size:.85rem">First meetings held by week</h3>'+heldWeeks(S))+'</div>';
   html+='<div class="mt-two">'+card('E3','Cancellations and no-shows',rangeLabel(),
@@ -299,22 +297,16 @@ function render(){
   html+='<div class="mt-h">Weekly review</div>'+card('Review','What\u2019s stuck and what needs action','Live',reviewTable(X,R));
 
   root.innerHTML=html;
-  Array.prototype.forEach.call(root.querySelectorAll('#mtRanges button'),function(b){b.addEventListener('click',function(){
-    if(b.dataset.r==='cus'){if(api.cus&&range!=='cus'&&D.R.cus){range='cus';showCus=false;}else showCus=!showCus;render();return;}
-    showCus=false;range=b.dataset.r;try{localStorage.setItem('sdrMattRange',range);}catch(x){}render();});});
-  var cf=document.getElementById('mtCus');if(cf){cf.addEventListener('submit',function(ev){ev.preventDefault();var f=document.getElementById('mtFrom').value,t=document.getElementById('mtTo').value;
-      if(!f||!t||f>t){alert('Pick a From date on or before the To date.');return;}if(window.SDRCustom&&window.SDRCustom.set(f,t)!==false){showCus=false;range='cus';}});
-    var cc=document.getElementById('mtCusClear');if(cc)cc.addEventListener('click',function(){showCus=false;range='mtd';window.SDRCustom.clear();});}
 }
 
 function drillContactsPer(ids,lbl){var X=compute();ids=ids||X.contacted.filter(function(id){return X.conBy[id];});
   drill('Contacts reached per account'+(lbl?' \u00b7 '+lbl:''),[{h:'Company',t:'co'},{h:'SDR',t:'text'},{h:'Account Status',t:'text'},{h:'Contacts reached in period',t:'num'},{h:'Who',t:'text'},{h:'Contacts in HubSpot',t:'num'}],
     ids.map(function(id){var c=D.CO[id],cs=Object.keys(X.conBy[id]||{});return [coCell(id),sdrName(c[2]),c[1],cs.length,cs.map(conName).filter(Boolean).join(', '),c[5]];}));}
 function drillBooked(ids,lbl){
-  drill('Meetings booked'+(lbl?' \u00b7 '+lbl:''),[{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Status last updated',t:'date'},{h:'Current status',t:'text'},{h:'Meeting',t:'text'},{h:'Meeting date',t:'date'},{h:'Booked by',t:'text'},{h:'Outcome',t:'text'}],
-    ids.map(function(id){var c=D.CO[id],at=c[10]!=null?c[10]:c[9];var ms=D.MEET.filter(function(m){return m.co===id;}).sort(function(a,b){return a.st-b.st;});var m=ms.filter(function(x){return x.st>=at-86400000;})[0]||ms[ms.length-1]||null;
+  drill('Meetings booked'+(lbl?' \u00b7 '+lbl:''),[{h:'Company',t:'co'},{h:'Credited SDR',t:'text'},{h:'Moved to Meeting Booked',t:'date'},{h:'Status now',t:'text'},{h:'Meeting',t:'text'},{h:'Meeting date',t:'date'},{h:'Booked by',t:'text'},{h:'Outcome',t:'text'}],
+    ids.map(function(id){var c=D.CO[id],at=c[9];var ms=D.MEET.filter(function(m){return m.co===id;}).sort(function(a,b){return a.st-b.st;});var m=ms.filter(function(x){return x.st>=at-86400000;})[0]||ms[ms.length-1]||null;
       return [coCell(id),sdrName(c[2]),at,c[1],m?m.t:'No meeting logged in HubSpot',m?m.st:null,m?m.by:'\u2013',m?meetOut(m):'\u2013'];}),
-    'Companies at Meeting Booked now whose Account Status was last updated in the period (the HubSpot report rule), with the matching meeting if one is logged.');}
+    'Companies whose Account Status moved to Meeting Booked in the period, including any that have since moved on, with the matching meeting if one is logged.');}
 function bookedTable(X){var cal=X.firstMeet.filter(function(m){return inR(m.cr);});
   return '<p class="mt-note" style="margin-top:12px">Meetings put in the calendar in the period: '+num(fmt(cal.length),function(){drillMeet('First meetings put in the calendar',cal,'Meeting records created in the period on SDR accounts, with the credited SDR (company SDR Owner) shown separately from the booker (meeting owner).');})+
     ' ('+cal.filter(function(m){return m.ty==='Discovery Call';}).length+' typed as Discovery Call, '+cal.filter(function(m){return !m.ty;}).length+' with no type).</p>';}
@@ -373,12 +365,12 @@ document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.targe
 
 function load(fresh){if(loading)return;loading=true;var key=cusKey();
   fetch('api/data?part=matt'+(api&&api.cus?'&from='+api.cus.from+'&to='+api.cus.to:'')+(fresh?'&t='+Date.now():'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){if(!r.ok||d.error)throw d;return d;});})
-  .then(function(d){D=d;err=null;loadedKey=key;if(key)range=api.cus&&api.cus.l30?'l30':'cus';else if(range==='cus')range='mtd';}).catch(function(x){err=(x&&(x.error==='missing_token'?'the HubSpot key isn\u2019t set':x.error))||'network error';})
+  .then(function(d){D=d;err=null;loadedKey=key;range=api.cus?'cus':api.per;}).catch(function(x){err=(x&&(x.error==='missing_token'?'the HubSpot key isn\u2019t set':x.error))||'network error';})
   .then(function(){loading=false;if(api&&api.view==='matt')render();});}
 var rb=document.getElementById('refreshBtn');if(rb)rb.addEventListener('click',function(){if(D||err)load(true);});
 
 var lastPer=null;
-window.SDRMatt=function(a){api=a;var pk=a.per+'|'+cusKey();if(lastPer!==null&&pk!==lastPer){range=a.cus?(a.cus.l30?'l30':'cus'):a.per;try{localStorage.setItem('sdrMattRange',range);}catch(x){}}lastPer=pk;
+window.SDRMatt=function(a){api=a;range=a.cus?'cus':a.per;
   if(a.view==='matt'&&D&&!loading&&cusKey()!==loadedKey){D=null;load(false);}
   if(range==='cus'&&D&&!D.R.cus)range='mtd';
   if(range==='l30'&&D&&!D.R.l30)range='mtd';if(a.view!=='matt')return;if(!D&&!loading&&!err)load(false);render();};

@@ -76,6 +76,24 @@ async function batchRead(type, ids, properties) {
   }
   return out;
 }
+// Every time each company's Account Status changed to Meeting Booked (re-saves of the same value ignored).
+// A company counts as booked in a period if it moved to Meeting Booked then, even if it has since moved on
+// (e.g. to Open Opportunity) - HubSpot's Meetings Booked report drops those.
+async function mbTransitions(ids) {
+  const out = {}; const list = [...new Set(ids)]; const chunks = [];
+  for (let i = 0; i < list.length; i += 50) chunks.push(list.slice(i, i + 50));
+  const one = async ch => {
+    const r = await hs('/crm/v3/objects/companies/batch/read', { inputs: ch.map(id => ({ id: String(id) })), properties: ['account_status'], propertiesWithHistory: ['account_status'] });
+    (r.results || []).forEach(x => {
+      const h = ((x.propertiesWithHistory && x.propertiesWithHistory.account_status) || []).map(e => ({ v: String(e.value || ''), t: toMs(e.timestamp) })).filter(e => e.t != null).sort((a, b) => a.t - b.t);
+      const ts = []; let prev = null;
+      h.forEach(e => { if (/^meeting booked$/i.test(e.v) && !/^meeting booked$/i.test(prev || '')) ts.push(e.t); prev = e.v; });
+      if (ts.length) out[String(x.id)] = ts;
+    });
+  };
+  for (let i = 0; i < chunks.length; i += 4) await Promise.all(chunks.slice(i, i + 4).map(one));
+  return out;
+}
 async function statusSetAt(ids) {
   const out = {}; const list = [...new Set(ids)];
   for (let i = 0; i < list.length; i += 50) {
@@ -155,9 +173,9 @@ async function build(q) {
 
   // Companies with an SDR Owner
   const companies = await searchAll('companies', [{ filters: [{ propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }] }],
-    ['name', 'sdr_owner', 'account_status', 'call_outcome__account_engagement', 'notes_last_contacted', 'pod_catagory']);
+    ['name', 'sdr_owner', 'account_status', 'call_outcome__account_engagement', 'notes_last_contacted', 'pod_catagory', 'hs_lastmodifieddate']);
   const coById = {};
-  companies.forEach(c => { const p = c.properties; coById[c.id] = { name: (p.name || '').trim(), sdr: sdrFromCompany(p.sdr_owner), status: statusOpts[p.account_status] || p.account_status || '', eng: engOpts[p.call_outcome__account_engagement] || p.call_outcome__account_engagement || '', last: toMs(p.notes_last_contacted), pod: !!p.pod_catagory }; });
+  companies.forEach(c => { const p = c.properties; coById[c.id] = { name: (p.name || '').trim(), sdr: sdrFromCompany(p.sdr_owner), status: statusOpts[p.account_status] || p.account_status || '', eng: engOpts[p.call_outcome__account_engagement] || p.call_outcome__account_engagement || '', last: toMs(p.notes_last_contacted), pod: !!p.pod_catagory, lm: toMs(p.hs_lastmodifieddate) }; });
 
   // Contacts touched in the period (for contacts reached and two-way contacts)
   const contacts = await searchAll('contacts', [{ filters: [{ propertyName: 'notes_last_contacted', operator: 'GTE', value: String(minStart) }] }],
@@ -219,8 +237,11 @@ async function build(q) {
       review: { stuck: 0, newAcc: 0, noOutcome: 0, noNext: 0 }
     });
   });
-  const mbIds = Object.keys(coById).filter(id => coById[id].sdr && /^meeting booked$/i.test(coById[id].status));
-  const mbAt = mbIds.length ? await statusSetAt(mbIds) : {};
+  const tp = londonParts(now), d30 = londonMidnight(tp.y, tp.m, tp.d - 30);
+  const mbFrom = Math.min(minStart, d30);
+  const mbT = await mbTransitions(Object.keys(coById).filter(id => coById[id].sdr && (coById[id].lm == null || coById[id].lm >= mbFrom)));
+  const mbIds = Object.keys(mbT);
+  const mbIn = (id, k) => { let r = null; (mbT[id] || []).forEach(t => { if (inP(t, k)) r = t; }); return r; };
   const OUT = {}; SDRS.forEach(s => { OUT[s.k] = { seq: { wk: { enr: 0, em: 0 }, mtd: { enr: 0, em: 0 } }, rep: { wk: 0, mtd: 0 } }; });
   // Trends: 8 weeks by SDR, each day of this month, and calls by weekday x hour (7:00-19:00 UK)
   const z = n => new Array(n).fill(0);
@@ -250,11 +271,10 @@ async function build(q) {
     if (/connected|valuable|meeting booked/.test(e) && !/attempting/.test(e)) { x.eng++; add('eng', sk, 'all', id); }
     else if (/screening bot|attempting/.test(e)) x.bot++;
   });
-  const tp = londonParts(now), d30 = londonMidnight(tp.y, tp.m, tp.d - 30); // same lower bound as the HubSpot report (today minus 30 days, UK time)
   mbIds.forEach(id => {
-    const c = coById[id], at = mbAt[id], x = S[c.sdr.k]; if (at == null) return;
-    K.forEach(k => { if (inP(at, k)) { x.first[k]++; add('booked', c.sdr.k, k, id); } });
-    if (at >= d30) { x.booked30++; add('booked30', c.sdr.k, 'all', id); }
+    const c = coById[id], x = S[c.sdr.k];
+    K.forEach(k => { if (mbIn(id, k) != null) { x.first[k]++; add('booked', c.sdr.k, k, id); } });
+    if (mbT[id].some(t => t >= d30)) { x.booked30++; add('booked30', c.sdr.k, 'all', id); }
   });
   contacts.forEach(c => {
     const co = coById[c.properties.associatedcompanyid]; if (!co || !co.sdr) return;
@@ -394,7 +414,7 @@ async function build(q) {
     (meetCo[m.id] || []).forEach(co => { (meetByCo[co] = meetByCo[co] || []).push({ t, start: toMs(p.hs_meeting_start_time), owner: p.hubspot_owner_id, out: p.hs_meeting_outcome || '' }); }); });
   const inTable = {}; MEETINGS.forEach(m => { inTable[m.id] = m; });
   mbIds.forEach(id => {
-    const at = mbAt[id]; if (at == null || !(inP(at, 'wk') || inP(at, 'mtd'))) return;
+    const at = mbIn(id, 'mtd') != null ? mbIn(id, 'mtd') : mbIn(id, 'wk'); if (at == null) return;
     const c = coById[id];
     const ms = (meetByCo[id] || []).filter(x => x.start != null).sort((a, b) => a.start - b.start);
     const mt = ms.find(x => x.start >= at - 86400000) || ms[ms.length - 1] || null;
@@ -405,8 +425,8 @@ async function build(q) {
       title = mt.t; by = OWNER_NAMES[mt.owner] || 'Someone else'; d = nice(sIso); ds = sIso; heldWk = done && mt.start >= P.wk.start && mt.start < P.today + 86400000;
       if (gh && !/COMPLETED/i.test(mt.out)) xx = ['warn', 'Held per Gong; outcome not updated'];
     }
-    const row = { c: c.name, id: Number(id), m: title, s: c.sdr.k, by, d, ds, booked: nice(iso(at)), bs: iso(at), kind: 'Meeting booked ' + nice(iso(at)), o, x: xx, wk: at >= P.wk.start || (mt && mt.start >= P.wk.start && mt.start < P.wk.start + 7 * 86400000), bookedWk: at >= P.wk.start, heldWk: false };
-    if (inTable[id]) { inTable[id].kind = row.kind; inTable[id].bs = row.bs; inTable[id].booked = row.booked; inTable[id].bookedWk = row.bookedWk; inTable[id].wk = inTable[id].wk || row.wk; } else MEETINGS.push(row);
+    const row = { c: c.name, id: Number(id), now: c.status, m: title, s: c.sdr.k, by, d, ds, booked: nice(iso(at)), bs: iso(at), kind: 'Meeting booked ' + nice(iso(at)), o, x: xx, wk: at >= P.wk.start || (mt && mt.start >= P.wk.start && mt.start < P.wk.start + 7 * 86400000), bookedWk: at >= P.wk.start, heldWk: false };
+    if (inTable[id]) { inTable[id].now = row.now; inTable[id].kind = row.kind; inTable[id].bs = row.bs; inTable[id].booked = row.booked; inTable[id].bookedWk = row.bookedWk; inTable[id].wk = inTable[id].wk || row.wk; } else MEETINGS.push(row);
   });
   MEETINGS.sort((a, b) => a.ds < b.ds ? -1 : 1);
 
@@ -499,8 +519,8 @@ async function buildTrends() {
   SDRS.forEach(s => { TR[s.k] = { calls: z(8), conv: z(8), emails: z(8), replies: z(8), booked: z(8), held: z(8), dCalls: z(P.daysInMonth), dConv: z(P.daysInMonth), dEmails: z(P.daysInMonth), heat: Array.from({ length: 5 }, () => Array.from({ length: 12 }, () => [0, 0])) }; });
 
   const sdrOpts = await options('companies', 'sdr_owner');
-  const companies = await searchAll('companies', [{ filters: [{ propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }] }], ['sdr_owner']);
-  const coSdr = {}; companies.forEach(c => { const s = sdrOf(c.properties.sdr_owner) || sdrOf(sdrOpts[c.properties.sdr_owner]); if (s) coSdr[c.id] = s; });
+  const companies = await searchAll('companies', [{ filters: [{ propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }] }], ['sdr_owner', 'hs_lastmodifieddate']);
+  const coSdr = {}, coLm = {}; companies.forEach(c => { const s = sdrOf(c.properties.sdr_owner) || sdrOf(sdrOpts[c.properties.sdr_owner]); if (s) { coSdr[c.id] = s; coLm[c.id] = toMs(c.properties.hs_lastmodifieddate); } });
 
   const emails = await searchAll('emails', [{ filters: [{ propertyName: 'hs_timestamp', operator: 'GTE', value: String(trendStart) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: SDR_IDS }] }],
     ['hs_email_direction', 'hs_timestamp', 'hubspot_owner_id']);
@@ -562,9 +582,8 @@ async function buildTrends() {
     const sk = coSdr[coId].k;
     const hwi = wkIdx(start); if (done && hwi >= 0 && start < P.today + 86400000) TR[sk].held[hwi]++;
   });
-  const mb = await searchAll('companies', [{ filters: [{ propertyName: 'account_status', operator: 'EQ', value: 'Meeting Booked' }, { propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }] }], ['sdr_owner']);
-  const mbAt = mb.length ? await statusSetAt(mb.map(c => c.id)) : {};
-  mb.forEach(c => { const s = coSdr[c.id]; const wi = wkIdx(mbAt[c.id]); if (s && wi >= 0) TR[s.k].booked[wi]++; });
+  const mbT = await mbTransitions(Object.keys(coSdr).filter(id => coLm[id] == null || coLm[id] >= trendStart));
+  Object.keys(mbT).forEach(id => { const seen = {}; mbT[id].forEach(t => { const wi = wkIdx(t); if (wi >= 0 && !seen[wi]) { seen[wi] = 1; TR[coSdr[id].k].booked[wi]++; } }); });
   return { generatedAt: now.toISOString(), TRENDS: { weeks: P.weeks.map(iso), bySdr: TR } };
 }
 
