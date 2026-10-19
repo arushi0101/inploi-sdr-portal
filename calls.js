@@ -166,7 +166,7 @@ function render(){var root=document.getElementById('callsRoot');if(!root)return;
     '<div class="mt-two">'+sec('Team calls vs connects trend','Every call by month since 1 Jan '+e(yr)+', stacked by outcome. Click a month to view it.',trend())+sec('Connected calls by SDR','Connected calls each month. Click a point to view that month.',lines())+'</div>'+
     '<div class="card"><ul class="notes muted small"><li><b>Connected</b> means the Call outcome is Connected, Valuable Conversation, Bad Timing or Not Interested, the same as HubSpot’s Connected Calls reports.</li>'+
     '<li>Calls are counted by <b>call owner</b> for the four SDRs. HubSpot’s “SDR Activity – By Calls” report counts by <b>created by</b> and also includes Annie, so its totals can be a little higher.</li>'+
-    '<li>HubSpot’s daily reports leave out calls with no outcome. They are shown here in grey so they can be fixed.</li><li>Dates are UK time.</li></ul></div>';}
+    '<li>HubSpot’s daily reports leave out calls with no outcome. They are shown here in grey so they can be fixed.</li><li><b>Last 30 days</b> is the 30 full days before today, the same window as HubSpot\u2019s 30-day call reports. Pick This week or This month to include today.</li><li>Dates are UK time.</li></ul></div>';}
 
 document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('[data-ck]');if(!b||!document.getElementById('callsRoot').contains(b))return;
   ev.preventDefault();ev.stopPropagation();var fn=H[b.getAttribute('data-ck')];if(fn)fn();});
