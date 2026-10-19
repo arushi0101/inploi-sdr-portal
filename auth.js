@@ -1,4 +1,5 @@
-/* Password gate. Every api/ call carries the key from api/login as ?k=; without it the API returns 401 and this shows the sign-in screen.
+/* Optional password gate. If PORTAL_PASSWORD is set in Vercel, the API answers 401 without a key and this shows the sign-in screen;
+   after sign-in every api/ call carries the key from api/login as ?k=. With no password set, nothing here shows.
    The key is kept in this browser (localStorage), so people sign in once per browser. */
 (function(){
 var KEY='sdrPortalKey',mem=null;
@@ -8,8 +9,8 @@ var native=window.fetch.bind(window);
 function isApi(u){return typeof u==='string'&&/^\/?api\//.test(u)&&!/^\/?api\/login/.test(u);}
 window.fetch=function(u,o){
   if(!isApi(u))return native(u,o);
-  var k=get();if(!k){show();return Promise.resolve(new Response(JSON.stringify({error:'locked'}),{status:401,headers:{'Content-Type':'application/json'}}));}
-  return native(u+(u.indexOf('?')<0?'?':'&')+'k='+encodeURIComponent(k),o).then(function(r){if(r.status===401){set(null);show();}return r;});};
+  var k=get();
+  return native(k?u+(u.indexOf('?')<0?'?':'&')+'k='+encodeURIComponent(k):u,o).then(function(r){if(r.status===401){set(null);show();}return r;});};
 
 document.head.insertAdjacentHTML('beforeend','<style>'+
 '.gate{position:fixed;inset:0;z-index:1000;background:var(--bg,#f6f5f2);display:grid;place-items:center;padding:16px}'+
@@ -31,6 +32,5 @@ function show(){if(shown)return;shown=true;var go=function(){
       e.textContent=d.error==='no_password'?'The portal password hasn’t been set up in Vercel yet.':d.error==='wrong_password'?'That password isn’t right.':'Couldn’t sign in. Try again.';b.disabled=false;p.select();});})
     .catch(function(){e.textContent='Couldn’t reach the portal. Try again.';b.disabled=false;});});};
   if(document.body)go();else document.addEventListener('DOMContentLoaded',go);}
-if(!get())show();
 window.SDRAuth={signOut:function(){set(null);location.reload();}};
 })();
