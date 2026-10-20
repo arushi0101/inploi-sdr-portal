@@ -14,7 +14,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 '.rx-lbc{border:1px solid var(--line);background:var(--surface);padding:14px 16px}.rx-lbc h3{margin:0 0 10px;font-size:.78rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}'+
 '.rx-lbr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0}.rx-lbr .md{font-size:1.05rem;text-align:center}.rx-lbr .nm{font-weight:600;font-size:.88rem}'+
 '.rx-lbr .tr{grid-column:2/4;height:5px;background:color-mix(in oklab,var(--fg) 8%,transparent)}.rx-lbr .tr i{display:block;height:100%;background:var(--accent)}.rx-lbr.top .nm{color:var(--accent)}'+
-'.rx-gap td.n button.num{color:var(--warn-fg,#b8324f)}.rx-ok{color:var(--ok-fg,#2e7d4f);font-weight:600}'+
+'.rx-gf{display:inline-flex;align-items:center;gap:8px;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:10px}.rx-gf select{border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:6px 8px;font:inherit;font-size:.85rem;text-transform:none;letter-spacing:0;font-weight:400}.rx-gap td.n button.num{color:var(--warn-fg,#b8324f)}.rx-ok{color:var(--ok-fg,#2e7d4f);font-weight:600}'+
 '</style>');
 
 var api=null,cache={},loading={},errs={},state={},H={},hid=0;
@@ -140,20 +140,30 @@ function industries(D){var C=crunch(D,SI(D)),by={};C.coIds.forEach(function(id){
       '</div></div><button class="mt-tot" data-rx="'+reg(function(){drillCos(D,'Accounts reached · '+k,l,C);})+'">'+l.length+'</button></div>';}).join('')+'</div>'+
     '<div class="mt-legend" style="margin-top:10px"><span><i style="background:#65bc67"></i>Net new</span><span><i style="background:var(--oc-conn,#182d63)"></i>Follow-up</span></div>';}
 
-function gaps(D){var C=crunch(D,SI(D)),now=Date.now();
+var gapWho={};
+function gaps(D,view){var C=crunch(D,SI(D)),now=Date.now(),sdr=function(i){return D.SDRS[i].short;};
+  var full={};D.SDRS.forEach(function(x){full[x.name]=x.short;});var meetWho=function(r){return [full[r[8]]||r[8]||sdr(r[3])];},coWho=function(id){var by={};(C.cos[id]||[]).forEach(function(a){by[sdr(a[1])]=1;});return Object.keys(by);},actWho=function(a){return [sdr(a[1])];};
   var G=[
-    ['New meetings with no meeting type',C.meet.filter(function(r){return !r[6];}),'meet','Set Meeting type (e.g. Discovery Call) on the meeting.'],
-    ['Past meetings with no outcome',C.meet.filter(function(r){return r[5]&&r[5]<now&&(!r[7]||/SCHEDULED/i.test(r[7]));}),'meet','Set the meeting outcome (Completed, No show, Cancelled, Rescheduled) once it has happened.'],
-    ['Accounts worked with no SDR Owner',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][4];}),'co','Set SDR Owner on the company.'],
-    ['Accounts worked with no Account Status',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][3];}),'co','Set Account Status on the company.'],
-    ['Calls with no outcome',C.calls.filter(function(a){return !a[3];}),'act','Set Call outcome on the call.'],
-    ['Calls with no call type',C.calls.filter(function(a){return !a[6];}),'act','Set the activity (call) type on the call.'],
-    ['Calls and emails not linked to a contact',C.out.filter(function(a){return !a[5].length;}),'act','Associate the activity with the contact spoken to.'],
-    ['Calls and emails not linked to a company',C.out.filter(function(a){return !a[4].length;}),'act','Associate the activity (or its contact) with the company.']];
-  var total=G.reduce(function(t,g){return t+g[1].length;},0);
-  return (total?'':'<p class="rx-ok">No data gaps in this period. Nice work.</p>')+'<div class="tbl mt-tbl rx-gap"><table><thead><tr><th class="l">Gap</th><th>Count</th><th class="l">How to fix</th></tr></thead><tbody>'+
-    G.map(function(g){var l=g[1];return '<tr><td>'+e(g[0])+'</td><td class="n">'+(l.length?btn(fmt(l.length),function(){if(g[2]==='meet')drillMeet(D,g[0],l,g[3]);else if(g[2]==='co')drillCos(D,g[0],l,C,g[3]);else drillActs(D,g[0],l,g[3]);}):'<span class="rx-ok">0</span>')+'</td><td class="l muted">'+e(g[3])+'</td></tr>';}).join('')+'</tbody></table></div>';}
-
+    ['New meetings with no meeting type',C.meet.filter(function(r){return !r[6];}),'meet','Set Meeting type (e.g. Discovery Call) on the meeting.','Meeting owner',meetWho],
+    ['Past meetings with no outcome',C.meet.filter(function(r){return r[5]&&r[5]<now&&(!r[7]||/SCHEDULED/i.test(r[7]));}),'meet','Set the meeting outcome (Completed, No show, Cancelled, Rescheduled) once it has happened.','Meeting owner',meetWho],
+    ['Accounts worked with no SDR Owner',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][4];}),'co','Set SDR Owner on the company.','SDR who worked it',coWho],
+    ['Accounts worked with no Account Status',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][3];}),'co','Set Account Status on the company.','SDR who worked it',coWho],
+    ['Calls with no outcome',C.calls.filter(function(a){return !a[3];}),'act','Set Call outcome on the call.','SDR who made the call',actWho],
+    ['Calls with no call type',C.calls.filter(function(a){return !a[6];}),'act','Set the activity (call) type on the call.','SDR who made the call',actWho],
+    ['Calls and emails not linked to a contact',C.out.filter(function(a){return !a[5].length;}),'act','Associate the activity with the contact spoken to.','SDR who logged it',actWho],
+    ['Calls and emails not linked to a company',C.out.filter(function(a){return !a[4].length;}),'act','Associate the activity (or its contact) with the company.','SDR who logged it',actWho]];
+  // everyone with something to fix, for the filter
+  var people={};G.forEach(function(g){g[1].forEach(function(x){g[5](x).forEach(function(n){people[n]=(people[n]||0)+1;});});});
+  var names=Object.keys(people).sort(function(a,b){return people[b]-people[a]||(a<b?-1:1);}),f=gapWho[view]||'';if(f&&!people[f])f='';
+  var open=function(g,l,t){if(g[2]==='meet')drillMeet(D,t,l,g[3]);else if(g[2]==='co')drillCos(D,t,l,C,g[3]);else drillActs(D,t,l,g[3]);};
+  var total=0;
+  var rows=G.map(function(g){var l=f?g[1].filter(function(x){return g[5](x).indexOf(f)>=0;}):g[1];total+=l.length;
+    var per={};l.forEach(function(x){g[5](x).forEach(function(n){(per[n]=per[n]||[]).push(x);});});
+    var who=Object.keys(per).sort(function(a,b){return per[b].length-per[a].length||(a<b?-1:1);}).map(function(n){return '<span style="white-space:nowrap">'+btn(e(n)+' '+per[n].length,function(){open(g,per[n],g[0]+' · '+n);},'See '+n+'’s list')+'</span>';}).join(' · ');
+    return '<tr><td>'+e(g[0])+'</td><td class="n">'+(l.length?btn(fmt(l.length),function(){open(g,l,g[0]+(f?' · '+f:''));}):'<span class="rx-ok">0</span>')+'</td><td class="l">'+(who||'<span class="muted">–</span>')+'<div class="muted" style="font-size:.72rem">'+e(g[4])+'</div></td><td class="l muted">'+e(g[3])+'</td></tr>';}).join('');
+  var filter='<label class="rx-gf">Who fixes it <select id="rxGap-'+view+'"><option value="">Everyone ('+names.reduce(function(t,n){return t+people[n];},0)+')</option>'+names.map(function(n){return '<option value="'+e(n)+'"'+(n===f?' selected':'')+'>'+e(n)+' ('+people[n]+')</option>';}).join('')+'</select></label>';
+  return (names.length?filter:'')+(total?'':'<p class="rx-ok">'+(f?'Nothing for '+e(f)+' to fix in this period.':'No data gaps in this period. Nice work.')+'</p>')+
+    '<div class="tbl mt-tbl rx-gap"><table><thead><tr><th class="l">Gap</th><th>Count</th><th class="l">Who fixes it</th><th class="l">How to fix</th></tr></thead><tbody>'+rows+'</tbody></table></div>';}
 function leaderboard(D){var all=D.SDRS.map(function(s,i){return {i:i,C:crunch(D,[i])};});
   var M=[['Calls made',function(C){return C.calls;},'act'],['Connected calls',function(C){return C.conn;},'act'],['Emails sent',function(C){return C.ems;},'act'],['Replies received',function(C){return C.reps;},'act'],
     ['Accounts reached',function(C){return C.coIds;},'co'],['Net new accounts',function(C){return C.newCo;},'co'],['Contacts reached',function(C){return C.conIds;},'con'],['Meetings booked',function(C){return C.mb;},'mb']];
@@ -187,8 +197,9 @@ function render(view){var root=document.getElementById('rp-'+view);if(!root)retu
     '<h3 class="mt-h">Calls and accounts</h3>'+
     '<div class="mt-two">'+sec('Calls by outcome','Every call, split by Call outcome. Click a segment to see the calls.',outcomes(D))+sec('Industry of accounts reached','From the company’s Industry. field.',industries(D))+'</div>'+
     '<h3 class="mt-h">Leaderboard</h3>'+sec('Who’s leading','All four SDRs, whatever pod is selected. Click a number to see the records.',leaderboard(D))+
-    '<h3 class="mt-h">Data gaps</h3>'+sec('Fix these in HubSpot','Missing fields on the records worked in this period. Click a count for the list.',gaps(D));
+    '<h3 class="mt-h">Data gaps</h3>'+sec('Fix these in HubSpot','Missing fields on the records worked in this period, and who should fix each one. Click a count or a name for the list.',gaps(D,view));
   document.getElementById('rxSub-'+view).textContent=who(D)+' · '+periodName(view,D)+soFar(D)+' · UK time';
+  var gs=document.getElementById('rxGap-'+view);if(gs)gs.onchange=function(){gapWho[view]=gs.value;var y=window.scrollY;render(view);window.scrollTo(0,y);};
   wire(view);}
 
 function load(view,k,fresh){loading[k]=true;var p=k.split('|');
