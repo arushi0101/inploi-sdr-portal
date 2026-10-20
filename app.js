@@ -85,7 +85,7 @@ function presetRange(tag){var t=ukToday(),d=new Date(t+'T12:00:00Z'),dow=(d.getU
 state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to){if(sc.l30&&!sc.tag)sc.tag='l30';var pr=presetRange(sc.tag);if(pr){sc.from=pr.from;sc.to=pr.to;}state.cus=sc;}}catch(e){}
 function cusName(){return state.cus?DTAG[state.cus.tag||'custom']:'Custom dates';}
 function perName(P){return P==='wk'?'This week':PERIODS&&PERIODS.mtd&&PERIODS.mtd.custom?cusName():'Month to date';}
-document.head.insertAdjacentHTML('beforeend','<style>.rail-group:has(#per){display:none}.datebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--surface);border:1px solid var(--line);padding:10px 14px;margin:0 0 20px}.datebar .db-presets{display:flex;flex-wrap:wrap;gap:4px}.datebar .db-presets button{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 11px;font:inherit;font-size:.82rem;cursor:pointer}.datebar .db-presets button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}.datebar form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)}.datebar input{border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:5px 7px;font:inherit;font-size:.82rem}.datebar form button{background:var(--accent);color:var(--accent-fg);border:0;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.datebar .db-err{color:var(--bad-fg);font-size:.78rem}.datebar .db-lbl{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}</style>');
+document.head.insertAdjacentHTML('beforeend','<style>.rail-group:has(#per){display:none}body.sdr-wait .view:not([data-view=daily]):not([data-view=weekly]):not([data-view=monthly]):not([data-view=matt]):not([data-view=kb]):not([data-view=defs]),body.sdr-fail .view:not([data-view=daily]):not([data-view=weekly]):not([data-view=monthly]):not([data-view=matt]):not([data-view=kb]):not([data-view=defs]){display:none!important}.datebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--surface);border:1px solid var(--line);padding:10px 14px;margin:0 0 20px}.datebar .db-presets{display:flex;flex-wrap:wrap;gap:4px}.datebar .db-presets button{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 11px;font:inherit;font-size:.82rem;cursor:pointer}.datebar .db-presets button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}.datebar form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)}.datebar input{border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:5px 7px;font:inherit;font-size:.82rem}.datebar form button{background:var(--accent);color:var(--accent-fg);border:0;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.datebar .db-err{color:var(--bad-fg);font-size:.78rem}.datebar .db-lbl{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}</style>');
 document.querySelector('.topline').insertAdjacentHTML('afterend','<div class="datebar" id="dateBar"><span class="db-lbl">Dates</span><div class="db-presets">'+['wk','lwk','mtd','lm','l30'].map(function(k){return '<button data-p="'+k+'" aria-pressed="false">'+DTAG[k]+'</button>';}).join('')+'</div><form id="dbForm"><span>From</span><input type="date" id="dbFrom" required aria-label="From"><span>to</span><input type="date" id="dbTo" required aria-label="To"><button type="submit">Apply</button><span class="db-err" id="dbErr" hidden></span></form></div>');
 function setCustom(from,to,tag){
   if(!from||!to||from>to){$('dbErr').textContent='Pick a From date on or before the To date.';$('dbErr').hidden=false;return false;}
@@ -124,20 +124,20 @@ function stamp(){if(SOURCE==='live')status('live','Live from HubSpot \u00b7 upda
 function banner(html){var b=$('banner');b.hidden=!html;b.innerHTML=html||'';}
 function load(fresh){
   if(loading)return;loading=true;$('refreshBtn').disabled=true;
-  if(SOURCE!=='live')status('','Connecting to HubSpot\u2026');
+  if(SOURCE!=='live'){status('','Connecting to HubSpot\u2026');document.body.classList.add('sdr-wait');banner('<b>Loading live data from HubSpot\u2026</b> Longer date ranges can take up to a minute. The daily, weekly and monthly reports load on their own.');}
   var qs=(state.cus?['from='+state.cus.from,'to='+state.cus.to]:[]).concat(fresh?['t='+Date.now()]:[]);
   fetch('api/data'+(qs.length?'?'+qs.join('&'):'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){return {ok:r.ok,d:d};});})
   .then(function(x){
     if(!x.ok||x.d.error)throw x.d;var d=x.d;
     SDRS=d.SDRS;NF=d.NF;TEAM_CQ=d.TEAM_CQ;OUT=d.OUT;MEETINGS=d.MEETINGS;DEALS=d.DEALS;LEADS=d.LEADS;WINS=d.WINS;PERIODS=d.periods;PIPE=d.pipeline;GENERATED=d.generatedAt;LISTS=d.LISTS||null;CO=d.CO||null;TRENDS=d.TRENDS||null;
-    SOURCE='live';banner('');render();
+    SOURCE='live';document.body.classList.remove('sdr-wait','sdr-fail');banner('');render();
   }).catch(function(e){
     var code=e&&e.error;
     if(SOURCE==='live'){status('err','Refresh failed \u00b7 showing data from '+ago(GENERATED));return;}
     SOURCE='snapshot';render();
     if(code==='locked'||code==='no_password')return;
     banner('<b>Live data couldn\u2019t load.</b> '+(code==='missing_token'?'The HubSpot key hasn\u2019t been added to Vercel yet.':code==='bad_token'?'HubSpot rejected the key.':code==='missing_scope'?'The HubSpot key is missing a read permission.':'HubSpot couldn\u2019t be reached just now. Try Refresh now in a few minutes.'));
-  }).then(function(){loading=false;$('refreshBtn').disabled=false;$('refreshBtn').hidden=false;stamp();});
+  }).then(function(){loading=false;if(SOURCE!=='live'&&document.body.classList.contains('sdr-wait')){document.body.classList.remove('sdr-wait');document.body.classList.add('sdr-fail');}$('refreshBtn').disabled=false;$('refreshBtn').hidden=false;stamp();});
 }
 $('refreshBtn').addEventListener('click',function(){load(true);});
 setInterval(function(){if(SOURCE==='live'&&!loading)stamp();},60000);
