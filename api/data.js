@@ -806,14 +806,107 @@ async function buildCalls(q) {
   return { generatedAt: now.toISOString(), R, today: P.today, labels, SDRS: SDRS.map(s => ({ k: s.k, name: s.name, short: s.short, pod: s.pod })), CALLS, CO, CON, MONTHS, yearStart };
 }
 
+/* ---------- daily / weekly / monthly report: ?span=day|week|month&day=YYYY-MM-DD (any date in the period; default today) ---------- */
+async function batchReadPar(type, ids, properties) {
+  const out = {}; const list = [...new Set(ids)]; const chunks = [];
+  for (let i = 0; i < list.length; i += 100) chunks.push(list.slice(i, i + 100));
+  const one = async ch => { const r = await hs('/crm/v3/objects/' + type + '/batch/read', { inputs: ch.map(id => ({ id: String(id) })), properties }); (r.results || []).forEach(x => { out[String(x.id)] = x.properties || {}; }); };
+  for (let i = 0; i < chunks.length; i += 6) await Promise.all(chunks.slice(i, i + 6).map(one));
+  return out;
+}
+// Which of these contacts/companies had an SDR call (or, with emails, an outgoing email) earlier this year, before `start`
+async function touchedBefore(type, ids, start, yearStart, withEmails) {
+  const prior = {}; if (!ids.length) return prior;
+  const [ac, ae] = await Promise.all([assoc(type, 'calls', ids), withEmails ? assoc(type, 'emails', ids) : {}]);
+  const callIds = [...new Set(Object.values(ac).flat())], emIds = [...new Set(Object.values(ae).flat())];
+  const [cp, ep] = await Promise.all([callIds.length ? batchReadPar('calls', callIds, ['hs_timestamp', 'hubspot_owner_id']) : {}, emIds.length ? batchReadPar('emails', emIds, ['hs_timestamp', 'hubspot_owner_id', 'hs_email_direction']) : {}]);
+  const early = (p, isEmail) => { if (!p) return false; const t = toMs(p.hs_timestamp); return t != null && t >= yearStart && t < start && SDR_IDS.indexOf(String(p.hubspot_owner_id)) >= 0 && (!isEmail || p.hs_email_direction === 'EMAIL'); };
+  ids.forEach(id => { prior[id] = (ac[id] || []).some(x => early(cp[x], false)) || (ae[id] || []).some(x => early(ep[x], true)); });
+  return prior;
+}
+async function buildReport(q) {
+  const now = new Date();
+  const P = periods(now);
+  const span = q && (q.span === 'week' || q.span === 'month') ? q.span : 'day';
+  let anchor = P.today;
+  if (q && /^\d{4}-\d{2}-\d{2}$/.test(q.day || '')) { const [y, m, d] = q.day.split('-').map(Number); const s0 = londonMidnight(y, m, d); if (s0 <= P.today && s0 > P.today - 400 * 86400000) anchor = s0; }
+  const ap = londonParts(new Date(anchor + 3600000));
+  const wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(ap.wd);
+  const start = span === 'month' ? londonMidnight(ap.y, ap.m, 1) : span === 'week' ? londonMidnight(ap.y, ap.m, ap.d - wd) : anchor;
+  const sp = londonParts(new Date(start + 3600000));
+  const end = span === 'month' ? londonMidnight(sp.y, sp.m + 1, 1) : londonMidnight(sp.y, sp.m, sp.d + (span === 'week' ? 7 : 1));
+  const cut = Math.min(end, P.today + 86400000), ep = londonParts(new Date(cut - 3600000));
+  const yearStart = londonMidnight(sp.y, 1, 1), d30 = londonMidnight(ep.y, ep.m, ep.d - 29);
+  const sdrBy = {}; SDRS.forEach((s, i) => { sdrBy[s.id] = i; sdrBy[s.name.toLowerCase()] = i; });
+  const sdrIx = v => { if (!v) return -1; v = String(v); if (sdrBy[v] != null) return sdrBy[v]; if (sdrBy[v.toLowerCase()] != null) return sdrBy[v.toLowerCase()]; return SDRS.findIndex(s => v.toLowerCase().startsWith(s.short.toLowerCase())); };
+  const range = [{ propertyName: 'hs_timestamp', operator: 'GTE', value: String(start) }, { propertyName: 'hs_timestamp', operator: 'LT', value: String(end) }];
+  const owner = { propertyName: 'hubspot_owner_id', operator: 'IN', values: SDR_IDS };
+  const labels = Object.assign({}, CALL_LABELS);
+
+  const [sdrOpts, indOpts, statusOpts, disp, calls, emails, meetings, sdrCos] = await Promise.all([
+    options('companies', 'sdr_owner'), options('companies', 'industry_'), options('companies', 'account_status'),
+    hs('/calling/v1/dispositions').catch(() => []),
+    searchAll('calls', [{ filters: [owner].concat(range) }], ['hs_timestamp', 'hs_call_disposition', 'hubspot_owner_id', 'hs_activity_type', 'hs_call_duration'], 'hs_timestamp'),
+    searchAll('emails', [{ filters: [owner].concat(range) }], ['hs_timestamp', 'hs_email_direction', 'hubspot_owner_id', 'hs_email_subject', 'hs_sequence_id'], 'hs_timestamp'),
+    searchAll('meetings', [{ filters: [{ propertyName: 'hs_createdate', operator: 'GTE', value: String(start) }, { propertyName: 'hs_createdate', operator: 'LT', value: String(end) }] }], ['hs_meeting_title', 'hs_createdate', 'hs_meeting_start_time', 'hs_meeting_outcome', 'hubspot_owner_id', 'hs_activity_type']),
+    searchAll('companies', [{ filters: [{ propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }] }], ['name', 'sdr_owner', 'account_status', 'industry_', 'industry', 'notes_last_contacted', 'hs_lastmodifieddate'])
+  ]);
+  (Array.isArray(disp) ? disp : []).forEach(x => { if (x && x.id && x.label) labels[x.id] = x.label; });
+
+  // every SDR-owned company: assignment and 30-day coverage
+  const CO = {}; const COV = SDRS.map(() => ({ assigned: 0, l30: 0 }));
+  const coRow = p => { let si = sdrIx(p.sdr_owner); if (si < 0) si = sdrIx(sdrOpts[p.sdr_owner]); return [(p.name || 'Unnamed company').trim(), indOpts[p.industry_] || p.industry_ || p.industry || '', si, statusOpts[p.account_status] || p.account_status || '', p.sdr_owner ? 1 : 0]; };
+  sdrCos.forEach(c => { const r = coRow(c.properties); CO[c.id] = r; if (r[2] >= 0) { COV[r[2]].assigned++; const lc = toMs(c.properties.notes_last_contacted); if (lc != null && lc >= d30 && lc < cut) COV[r[2]].l30++; } });
+
+  // the day's activity, with its contacts and companies
+  const ids = calls.map(c => c.id), eids = emails.map(e => e.id);
+  const [cCo, cCon, eCo, eCon, mCo] = await Promise.all([
+    ids.length ? assoc('calls', 'companies', ids) : {}, ids.length ? assoc('calls', 'contacts', ids) : {},
+    eids.length ? assoc('emails', 'companies', eids) : {}, eids.length ? assoc('emails', 'contacts', eids) : {},
+    meetings.length ? assoc('meetings', 'companies', meetings.map(m => m.id)) : {}
+  ]);
+  const ACT = [];
+  calls.forEach(c => { const p = c.properties; ACT.push([toMs(p.hs_timestamp), sdrIx(p.hubspot_owner_id), 'c', p.hs_call_disposition || '', cCo[c.id] || [], cCon[c.id] || [], p.hs_activity_type || '', c.id, p.hs_call_duration ? Math.round(Number(p.hs_call_duration) / 1000) : 0]); });
+  emails.forEach(e => { const p = e.properties; const k = p.hs_email_direction === 'EMAIL' ? 'e' : p.hs_email_direction === 'INCOMING_EMAIL' ? 'r' : ''; if (k) ACT.push([toMs(p.hs_timestamp), sdrIx(p.hubspot_owner_id), k, p.hs_sequence_id ? 'seq' : '', eCo[e.id] || [], eCon[e.id] || [], (p.hs_email_subject || '').slice(0, 120), e.id, 0]); });
+  const acts = ACT.filter(a => a[0] != null && a[1] >= 0);
+
+  const conIds = [...new Set(acts.flatMap(a => a[5]))];
+  const conP = conIds.length ? await batchReadPar('contacts', conIds, ['firstname', 'lastname', 'jobtitle', 'associatedcompanyid']) : {};
+  const CON = {}; Object.keys(conP).forEach(id => { const p = conP[id]; CON[id] = [[p.firstname, p.lastname].filter(Boolean).join(' ') || 'Unnamed contact', p.jobtitle || '', p.associatedcompanyid || null]; });
+  // an activity with no company linked falls back to its contact's company
+  acts.forEach(a => { if (!a[4].length) a[4] = [...new Set(a[5].map(id => CON[id] && CON[id][2]).filter(Boolean))]; });
+  const meetCoIds = Object.values(mCo).flat();
+  const missing = [...new Set(acts.flatMap(a => a[4]).concat(meetCoIds))].filter(id => !CO[id]);
+  if (missing.length) { const mp = await batchReadPar('companies', missing, ['name', 'sdr_owner', 'account_status', 'industry_', 'industry']); Object.keys(mp).forEach(id => { CO[id] = coRow(mp[id]); }); }
+
+  // net new = no SDR call or outgoing email earlier this year
+  const outActs = acts.filter(a => a[2] !== 'r');
+  const reachCo = [...new Set(outActs.flatMap(a => a[4]))], reachCon = [...new Set(outActs.flatMap(a => a[5]))];
+  // contacts: earlier SDR calls and emails; companies: earlier SDR calls on the company, or an earlier touch on any of its contacts reached
+  const [priorCo, priorCon] = await Promise.all([touchedBefore('companies', reachCo, start, yearStart, false), touchedBefore('contacts', reachCon, start, yearStart, true)]);
+  outActs.forEach(a => { if (a[5].some(id => priorCon[id])) a[4].forEach(id => { priorCo[id] = true; }); });
+
+  // meetings booked: companies moved to Meeting Booked on the day, and meetings logged that day
+  const cand = sdrCos.filter(c => { const lm = toMs(c.properties.hs_lastmodifieddate); return lm != null && lm >= start; }).map(c => c.id);
+  const mb = cand.length ? await mbTransitions(cand) : {};
+  const MB = []; Object.keys(mb).forEach(id => { (mb[id] || []).forEach(t => { if (t >= start && t < end) MB.push([id, t, CO[id] ? CO[id][2] : -1]); }); });
+  const MEET = meetings.map(m => { const p = m.properties; const cos = mCo[m.id] || []; const coId = cos.find(id => CO[id] && CO[id][2] >= 0) || cos[0] || null; let si = coId && CO[coId] ? CO[coId][2] : -1; if (si < 0) si = sdrIx(p.hubspot_owner_id);
+    return [m.id, (p.hs_meeting_title || 'Meeting').slice(0, 120), coId, si, toMs(p.hs_createdate), toMs(p.hs_meeting_start_time), p.hs_activity_type || '', p.hs_meeting_outcome || '', OWNER_NAMES[p.hubspot_owner_id] || (SDRS[sdrIx(p.hubspot_owner_id)] || {}).name || ''];
+  }).filter(r => r[3] >= 0 && !/^\[gong\]/i.test(r[1]));
+
+  const COx = {}; [...new Set(acts.flatMap(a => a[4]).concat(MB.map(r => r[0])).concat(MEET.map(r => r[2]).filter(Boolean)))].forEach(id => { if (CO[id]) COx[id] = CO[id]; });
+  return { generatedAt: now.toISOString(), span, day: iso(start), last: iso(cut - 3600000), start, end, today: P.todayIso, labels, SDRS: SDRS.map(s => ({ k: s.k, name: s.name, short: s.short, pod: s.pod })),
+    ACT: acts, CO: COx, CON, NEWCO: reachCo.filter(id => !priorCo[id]), NEWCON: reachCon.filter(id => !priorCon[id]), MB, MEET, COV };
+}
+
 module.exports = async (req, res) => {
   if (!allowed(req, res)) return;
   TOKEN = process.env.HUBSPOT_TOKEN || '';
   if (!TOKEN) { res.statusCode = 503; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify({ error: 'missing_token' })); return; }
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
-    const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : await build(q);
+    const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');

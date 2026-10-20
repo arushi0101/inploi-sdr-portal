@@ -40,3 +40,15 @@ The live site is public so it can be embedded in HubSpot. There is no password b
 
 - To require one, set `PORTAL_PASSWORD` in Vercel (Settings → Environment Variables, Production) and redeploy. A sign-in screen then appears and the API returns no data without it.
 - `snapshot.js` is an empty placeholder, so no HubSpot data sits in a static file.
+
+## Daily, weekly and monthly reports
+
+Three pages in the left panel (`daily.js`, data from `api/data?part=report&span=day|week|month&day=YYYY-MM-DD`). Each has its own date picker.
+
+- **Reach:** accounts and contacts reached by SDR calls and outgoing emails, split into net new (no SDR call or email earlier this year) and follow-up, plus contacts per account.
+- **Activity:** calls by outcome, emails sent, replies received, meetings booked (Account Status moved to Meeting Booked).
+- **Rates:** connect rate, reply rate, meetings per account reached, account coverage (assigned accounts reached) and 30-day coverage.
+- **Industry** of accounts reached, from the company's `industry_` field ("Industry.").
+- **Leaderboard** for each activity.
+- **Data gaps:** new meetings with no type, past meetings with no outcome, accounts with no SDR Owner or Account Status, calls with no outcome or call type, activity not linked to a contact or company.
+- For weekly and monthly reports a company counts as follow-up if it had an earlier SDR call, or one of the contacts reached had an earlier SDR call or email.

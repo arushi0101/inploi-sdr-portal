@@ -5,6 +5,9 @@ var co=function(id){return HS+'0-2/'+id;}, dl=function(id){return HS+'0-3/'+id;}
 
 var VIEWS=[
  {k:'overview',label:'Overview',title:'Overview'},
+ {k:'daily',label:'Daily report',title:'Daily report'},
+ {k:'weekly',label:'Weekly report',title:'Weekly report'},
+ {k:'monthly',label:'Monthly report',title:'Monthly report'},
  {k:'matt',label:'Matt\u2019s dashboard',title:'Matt\u2019s dashboard'},
  {k:'meetings',label:'Meetings',title:'Meetings booked'},
  {k:'calls',label:'Calls',title:'Calls'},
@@ -342,6 +345,7 @@ function render(){
     '<tr><td>Same-day redials ('+(P==='wk'?'this week':'this month')+')</td>'+S.map(function(s){return '<td class="n">'+s.cq[P].same+'</td>';}).join('')+'</tr>';
   applyFilters();
   if(window.SDRMatt)try{window.SDRMatt({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
+  if(window.SDRReport)try{window.SDRReport({view:state.view,pod:state.pod,byK:byK});}catch(err){console.error(err);}
   if(window.SDRCalls)try{window.SDRCalls({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReports)try{window.SDRReports({view:state.view,P:P,S:S,all:all,pod:state.pod,byK:byK,dn:dn,fmtK:fmtK,ct:ct,DEALS:DEALS,LISTS:LISTS,TRENDS:TRENDS,PERIODS:PERIODS});}catch(err){console.error(err);}
 }
@@ -470,7 +474,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')drClose();})
 MEETINGS=MEETINGS.filter(function(m){return !m.kind||m.kind==='First meeting';});
 WINS=WINS.filter(function(w){return w.t!=='held'||!/proposal/i.test(w.x);});
 render();load(false);
-['matt.js','calls.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
+['matt.js','calls.js','daily.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
 var rs=document.createElement('script');rs.src='reports.js';rs.onload=function(){render();};document.body.appendChild(rs);
 window.addEventListener('hashchange',function(){var h=(location.hash||'').slice(1);if(VIEWS.some(function(v){return v.k===h;})&&h!==state.view){state.view=h;render();}});
 })();
