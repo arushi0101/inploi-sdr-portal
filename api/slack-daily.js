@@ -12,14 +12,18 @@ module.exports = async (req, res) => {
   const secret = process.env.CRON_SECRET || '';
   const auth = (req.headers && req.headers.authorization) || '';
   const ua = (req.headers && req.headers['user-agent']) || '';
-  if (secret ? auth !== 'Bearer ' + secret : !/^vercel-cron\//.test(ua)) { send(401, { error: 'not_cron' }); return; }
+  // manual runs: ?secret=<CRON_SECRET>, optionally &day=YYYY-MM-DD to send the report for another day (UK time)
+  const qs = new URL(req.url, 'http://x').searchParams;
+  const manual = !!secret && qs.get('secret') === secret;
+  if (!manual && (secret ? auth !== 'Bearer ' + secret : !/^vercel-cron\//.test(ua))) { send(401, { error: 'not_cron' }); return; }
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(qs.get('day') || '') ? qs.get('day') : undefined;
   const hooks = list(process.env.SLACK_WEBHOOK_URL), to = list(process.env.EMAIL_TO), key = process.env.RESEND_API_KEY || '', from = process.env.EMAIL_FROM || '';
   const userToken = process.env.SLACK_USER_TOKEN || '', chans = list(process.env.SLACK_CHANNEL_ID);
   if (!hooks.length && !(userToken && chans.length) && !(key && from && to.length)) { send(503, { error: 'nothing_to_send_to' }); return; }
   if (!process.env.HUBSPOT_TOKEN) { send(503, { error: 'missing_token' }); return; }
 
   let M = null, err = '';
-  try { data.setToken(process.env.HUBSPOT_TOKEN); M = await data.dailyModel(); } catch (e) { err = String(e.message || e).slice(0, 200); }
+  try { data.setToken(process.env.HUBSPOT_TOKEN); M = await data.dailyModel(day); } catch (e) { err = String(e.message || e).slice(0, 200); }
   const failText = 'Today\'s SDR daily report couldn\'t be generated (' + err + ').';
   const result = { slack: [], email: null };
 
