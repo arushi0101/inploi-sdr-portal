@@ -1,5 +1,6 @@
 // Weekday SDR daily report, sent to Slack and by email. Run by the Vercel cron in vercel.json.
 // SLACK_WEBHOOK_URL: one or more Slack incoming webhooks, comma-separated (e.g. your DM and the SDR Updates channel).
+// SLACK_USER_TOKEN + SLACK_CHANNEL_ID: post as you into a conversation webhooks can't reach, such as a group DM (needs the chat:write user scope).
 // RESEND_API_KEY + EMAIL_FROM + EMAIL_TO: send the same report by email through Resend (EMAIL_TO is comma-separated; everyone goes on the To line).
 // If CRON_SECRET is set, only Vercel's cron (which sends it) can trigger a send.
 const data = require('./data.js');
@@ -13,7 +14,8 @@ module.exports = async (req, res) => {
   const ua = (req.headers && req.headers['user-agent']) || '';
   if (secret ? auth !== 'Bearer ' + secret : !/^vercel-cron\//.test(ua)) { send(401, { error: 'not_cron' }); return; }
   const hooks = list(process.env.SLACK_WEBHOOK_URL), to = list(process.env.EMAIL_TO), key = process.env.RESEND_API_KEY || '', from = process.env.EMAIL_FROM || '';
-  if (!hooks.length && !(key && from && to.length)) { send(503, { error: 'nothing_to_send_to' }); return; }
+  const userToken = process.env.SLACK_USER_TOKEN || '', chans = list(process.env.SLACK_CHANNEL_ID);
+  if (!hooks.length && !(userToken && chans.length) && !(key && from && to.length)) { send(503, { error: 'nothing_to_send_to' }); return; }
   if (!process.env.HUBSPOT_TOKEN) { send(503, { error: 'missing_token' }); return; }
 
   let M = null, err = '';
@@ -25,6 +27,16 @@ module.exports = async (req, res) => {
     const msg = M ? { text: data.slackFallback(M), blocks: data.slackBlocks(M) } : { text: failText + ' <https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>' };
     try { const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ unfurl_links: false }, msg)) }); result.slack.push(r.status); }
     catch (e) { result.slack.push('error'); }
+  }
+  if (userToken && chans.length) {
+    const msg = M ? { text: data.slackFallback(M), blocks: data.slackBlocks(M) } : { text: failText };
+    for (const channel of chans) {
+      try {
+        const r = await fetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: 'Bearer ' + userToken, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(Object.assign({ channel, unfurl_links: false }, msg)) });
+        const j = await r.json().catch(() => ({}));
+        result.slack.push(j.ok ? 200 : (j.error || r.status));
+      } catch (e) { result.slack.push('error'); }
+    }
   }
   if (key && from && to.length) {
     const subject = M ? 'SDR daily report · ' + M.title : 'SDR daily report could not be generated';

@@ -59,6 +59,7 @@ Three pages in the left panel (`daily.js`, data from `api/data?part=report&span=
 
 Environment variables (Vercel → Settings → Environment Variables, Production; redeploy after changing):
 - `SLACK_WEBHOOK_URL`: one or more Slack incoming webhooks, comma-separated (for example your DM and the SDR Updates channel). Webhooks can't post into group DMs.
+- `SLACK_USER_TOKEN` + `SLACK_CHANNEL_ID`: post as you into a conversation webhooks can't reach, such as a group DM. The token is your Slack app's User OAuth Token with the `chat:write` user scope; the channel ID is the conversation's ID (comma-separated for several).
 - `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_TO`: send the same report as an HTML email through Resend. `EMAIL_FROM` must be on a domain verified in Resend (e.g. `SDR reports <hey@arushi-mittal.in>`); `EMAIL_TO` is comma-separated and everyone goes on the To line.
 - `CRON_SECRET` (recommended): Vercel's cron sends it, so nobody else can trigger a send.
 
