@@ -899,6 +899,74 @@ async function buildReport(q) {
     ACT: acts, CO: COx, CON, NEWCO: reachCo.filter(id => !priorCo[id]), NEWCON: reachCon.filter(id => !priorCon[id]), MB, MEET, COV };
 }
 
+/* ---------- the daily report as a Slack message (mrkdwn), from the same numbers as the Daily report page ---------- */
+function slackReport(R) {
+  const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
+  const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
+  const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+  const newCo = new Set(R.NEWCO), newCon = new Set(R.NEWCON);
+  const crunch = sis => {
+    const A = R.ACT.filter(a => sis.includes(a[1])), out = A.filter(a => a[2] !== 'r');
+    const calls = A.filter(a => a[2] === 'c'), ems = A.filter(a => a[2] === 'e'), reps = A.filter(a => a[2] === 'r');
+    const cos = [...new Set(out.flatMap(a => a[4]))], cons = [...new Set(out.flatMap(a => a[5]))];
+    const conn = calls.filter(a => CONNECTED.includes(lab(a[3]).toLowerCase()));
+    return { calls, ems, reps, conn, cos, cons, newCo: cos.filter(id => newCo.has(id)).length, newCon: cons.filter(id => newCon.has(id)).length,
+      mb: R.MB.filter(r => sis.includes(r[2])).length, out };
+  };
+  const all = R.SDRS.map((s, i) => i), T = crunch(all), per = R.SDRS.map((s, i) => ({ s, C: crunch([i]) }));
+  const d = new Date(R.day + 'T12:00:00Z'), title = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const L = [];
+  L.push('*:bar_chart: SDR daily report · ' + title + '*' + (R.last < R.day ? '' : R.day === R.today ? ' _(so far today)_' : ''));
+  L.push('');
+  L.push('*Team*');
+  L.push('• *' + T.cos.length + '* accounts reached (' + T.newCo + ' net new · ' + (T.cos.length - T.newCo) + ' follow-up) · *' + T.cons.length + '* contacts (' + T.newCon + ' net new) · ' + (T.cos.length ? (Math.round(T.cons.length / T.cos.length * 10) / 10) : '–') + ' contacts per account');
+  L.push('• *' + T.calls.length + '* calls · ' + T.conn.length + ' connected (' + pct(T.conn.length, T.calls.length) + ') · *' + T.ems.length + '* emails sent · *' + T.reps.length + '* replies (' + pct(T.reps.length, T.ems.length) + ')');
+  L.push('• *' + T.mb + '* meetings booked' + (T.cos.length ? ' (' + pct(T.mb, T.cos.length) + ' of accounts reached)' : ''));
+  const oc = {}; T.calls.forEach(a => { const k = lab(a[3]); oc[k] = (oc[k] || 0) + 1; });
+  const ocs = Object.keys(oc).sort((a, b) => oc[b] - oc[a]);
+  if (ocs.length) L.push('• Call outcomes: ' + ocs.map(k => k + ' ' + oc[k]).join(' · '));
+  const ind = {}; T.cos.forEach(id => { const k = (R.CO[id] && R.CO[id][1]) || 'No industry set'; ind[k] = (ind[k] || 0) + 1; });
+  const inds = Object.keys(ind).sort((a, b) => ind[b] - ind[a]).slice(0, 5);
+  if (inds.length) L.push('• Top industries: ' + inds.map(k => k + ' ' + ind[k]).join(' · '));
+  L.push('');
+  L.push('*By SDR*');
+  per.forEach(({ s, C }) => {
+    if (!C.calls.length && !C.ems.length && !C.reps.length && !C.mb) { L.push('• *' + s.short + '*: no activity logged'); return; }
+    L.push('• *' + s.short + '*: ' + C.cos.length + ' accounts (' + C.newCo + ' new) · ' + C.cons.length + ' contacts (' + C.newCon + ' new) · ' + C.calls.length + ' calls, ' + pct(C.conn.length, C.calls.length) + ' connect · ' + C.ems.length + ' emails · ' + C.reps.length + ' replies · ' + C.mb + ' meetings');
+  });
+  L.push('');
+  L.push('*:trophy: Leaderboard*');
+  const medal = [':first_place_medal:', ':second_place_medal:', ':third_place_medal:'];
+  [['Calls', C => C.calls.length], ['Connects', C => C.conn.length], ['Emails', C => C.ems.length], ['Replies', C => C.reps.length], ['Accounts reached', C => C.cos.length], ['Net new accounts', C => C.newCo], ['Meetings booked', C => C.mb]].forEach(([name, f]) => {
+    const rows = per.map(x => ({ n: x.s.short, v: f(x.C) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+    if (!rows.length) return;
+    let rank = 0, prev = null;
+    L.push('• *' + name + '*: ' + rows.slice(0, 3).map((x, j) => { if (x.v !== prev) { rank = j; prev = x.v; } return medal[rank] + ' ' + x.n + ' ' + x.v; }).join('  '));
+  });
+  // data gaps, with who fixes them
+  const sname = i => R.SDRS[i] ? R.SDRS[i].short : 'Unknown', full = {}; R.SDRS.forEach(x => { full[x.name] = x.short; });
+  const now = Date.now(), coBy = {}; T.out.forEach(a => a[4].forEach(id => { (coBy[id] = coBy[id] || new Set()).add(sname(a[1])); }));
+  const G = [
+    ['New meetings with no meeting type', R.MEET.filter(r => !r[6]).map(r => [full[r[8]] || r[8] || sname(r[3])])],
+    ['Past meetings with no outcome', R.MEET.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).map(r => [full[r[8]] || r[8] || sname(r[3])])],
+    ['Accounts worked with no SDR Owner', T.cos.filter(id => R.CO[id] && !R.CO[id][4]).map(id => [...(coBy[id] || [])])],
+    ['Accounts worked with no Account Status', T.cos.filter(id => R.CO[id] && !R.CO[id][3]).map(id => [...(coBy[id] || [])])],
+    ['Calls with no outcome', T.calls.filter(a => !a[3]).map(a => [sname(a[1])])],
+    ['Calls with no call type', T.calls.filter(a => !a[6]).map(a => [sname(a[1])])],
+    ['Calls/emails not linked to a contact', T.out.filter(a => !a[5].length).map(a => [sname(a[1])])],
+    ['Calls/emails not linked to a company', T.out.filter(a => !a[4].length).map(a => [sname(a[1])])]
+  ].filter(g => g[1].length);
+  L.push('');
+  if (!G.length) L.push('*:white_check_mark: Data gaps:* none today. Nice work.');
+  else {
+    L.push('*:warning: Data gaps to fix*');
+    G.forEach(([name, rows]) => { const c = {}; rows.forEach(w => w.forEach(n => { c[n] = (c[n] || 0) + 1; })); L.push('• ' + name + ': *' + rows.length + '* (' + Object.keys(c).sort((a, b) => c[b] - c[a]).map(n => n + ' ' + c[n]).join(', ') + ')'); });
+  }
+  L.push('');
+  L.push('<https://inploi-sdr-portal.vercel.app/#daily|Open the daily report> · UK time · net new = no SDR call or email earlier this year');
+  return L.join('\n');
+}
+
 module.exports = async (req, res) => {
   if (!allowed(req, res)) return;
   TOKEN = process.env.HUBSPOT_TOKEN || '';
@@ -906,7 +974,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slack' ? { text: slackReport(await buildReport({ span: 'day', day: q.day })) } : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
