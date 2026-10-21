@@ -963,8 +963,9 @@ function slackReport(R) {
     G.forEach(([name, rows]) => { const c = {}; rows.forEach(w => w.forEach(n => { c[n] = (c[n] || 0) + 1; })); L.push('• ' + name + ': *' + rows.length + '* (' + Object.keys(c).sort((a, b) => c[b] - c[a]).map(n => n + ' ' + c[n]).join(', ') + ')'); });
   }
   L.push('');
-  L.push('<https://inploi-sdr-portal.vercel.app/#daily|Open the daily report> · UK time · net new = no SDR call or email earlier this year');
-  return L.join('\n');
+  L.push('[Open the daily report](https://inploi-sdr-portal.vercel.app/#daily) · UK time · net new = no SDR call or email earlier this year');
+  // Slack mrkdwn bold (*x*) to standard markdown bold (**x**)
+  return L.join('\n').replace(/\*([^*\n]+)\*/g, '**$1**');
 }
 
 module.exports = async (req, res) => {
