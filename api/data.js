@@ -1007,10 +1007,36 @@ function slackMarkdown(M) {
 }
 
 // the day's report plus the open data fixes from the last 30 days
-async function slackPayload(day, mrkdwn) {
+async function dailyModel(day) {
   const R = await buildReport({ span: 'day', day });
   let R30 = null; try { R30 = await buildReport({ span: 'd30' }); } catch (e) { /* fall back to today's gaps only */ }
-  const M = slackModel(R, R30);
+  return slackModel(R, R30);
+}
+// the same report as an HTML email (tables with inline styles, which email clients need)
+function emailHtml(M) {
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const th = 'style="text-align:left;padding:6px 10px;border-bottom:2px solid #222;font-size:12px;color:#555;text-transform:uppercase;letter-spacing:.04em"';
+  const td = (v, i, bold, left) => '<td style="padding:6px 10px;border-bottom:1px solid #e5e5e5;' + (i && !left ? 'text-align:right;' : '') + (bold ? 'font-weight:700;' : '') + '">' + esc(v) + '</td>';
+  const table = (head, rows, lastBold, left) => '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;margin:6px 0 18px">' +
+    '<tr>' + head.map((h, i) => '<th ' + (i && !left ? th.replace('text-align:left', 'text-align:right') : th) + '>' + esc(h) + '</th>').join('') + '</tr>' +
+    rows.map((r, ri) => '<tr>' + r.map((v, i) => td(v, i, lastBold && ri === rows.length - 1, left)).join('') + '</tr>').join('') + '</table>';
+  const h2 = t => '<h2 style="font-size:15px;margin:22px 0 4px;color:#111">' + esc(t) + '</h2>';
+  const others = [...new Set(M.gaps.flatMap(g => g.otherNames))], hasOther = M.gaps.some(g => g.other);
+  return '<div style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:820px">' +
+    '<h1 style="font-size:20px;margin:0 0 4px">SDR daily report · ' + esc(M.title) + '</h1>' +
+    '<p style="margin:0 0 14px;color:#666;font-size:13px">' + (M.soFar ? 'So far today · ' : '') + 'UK time · <a href="' + PORTAL + '/#daily">Open the daily report</a></p>' +
+    h2('Team') + table(M.team.map(r => r[0]), [M.team.map(r => r[1])]) +
+    (M.industries.length ? '<p style="margin:-10px 0 14px;color:#666;font-size:13px">Top industries: ' + esc(M.industries.join(', ')) + '</p>' : '') +
+    h2('By SDR') + table(['SDR', 'Accounts', 'Net new', 'Contacts', 'Calls', 'Connect', 'Emails', 'Replies', 'Meetings'],
+      M.per.map(x => [x.n, x.C.cos, x.C.newCo, x.C.cons, x.C.calls, M.pct(x.C.conn, x.C.calls), x.C.ems, x.C.reps, x.C.mb]).concat([['Team', M.T.cos, M.T.newCo, M.T.cons, M.T.calls, M.pct(M.T.conn, M.T.calls), M.T.ems, M.T.reps, M.T.mb]]), true) +
+    h2('Call outcomes') + (M.outcomes.length ? table(['Outcome', 'Calls', 'Share'], M.outcomes) : '<p>No calls logged.</p>') +
+    h2('Leaderboard') + (M.leaders.length ? table(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || '']), false, true) : '<p>No activity yet.</p>') +
+    h2('Open data fixes') + (M.windowed ? '<p style="margin:0 0 4px;color:#666;font-size:13px">Records worked in the last 30 days, as they are in HubSpot now.</p>' : '') +
+    (M.gaps.length ? table(['Open fix', 'Open', 'New today'].concat(M.sdrNames).concat(hasOther ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(hasOther ? [g.other] : []))) : '<p>Nothing open.</p>') +
+    '<p style="color:#666;font-size:13px">' + (others.length ? 'Other = ' + esc(others.join(', ')) + '. ' : '') + 'Each person\u2019s list, with where and why: <a href="' + PORTAL + '/#fixes">Data fixes</a></p></div>';
+}
+async function slackPayload(day, mrkdwn) {
+  const M = await dailyModel(day);
   return mrkdwn ? { text: slackFallback(M), blocks: slackBlocks(M) } : { text: slackMarkdown(M) };
 }
 
@@ -1036,4 +1062,8 @@ module.exports = async (req, res) => {
 // for api/slack-daily.js
 module.exports.buildReport = buildReport;
 module.exports.slackPayload = slackPayload;
+module.exports.dailyModel = dailyModel;
+module.exports.slackBlocks = slackBlocks;
+module.exports.slackFallback = slackFallback;
+module.exports.emailHtml = emailHtml;
 module.exports.setToken = t => { TOKEN = t; };
