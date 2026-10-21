@@ -5,9 +5,9 @@ var co=function(id){return HS+'0-2/'+id;}, dl=function(id){return HS+'0-3/'+id;}
 
 var VIEWS=[
  {k:'overview',label:'Overview',title:'Overview'},
- {k:'daily',label:'Daily report',title:'Daily report'},
- {k:'weekly',label:'Weekly report',title:'Weekly report'},
- {k:'monthly',label:'Monthly report',title:'Monthly report'},
+ {k:'daily',label:'Daily report',title:'Daily report',group:'ov'},
+ {k:'weekly',label:'Weekly report',title:'Weekly report',group:'ov'},
+ {k:'monthly',label:'Monthly report',title:'Monthly report',group:'ov'},
  {k:'fixes',label:'Data fixes',title:'Data fixes'},
  {k:'matt',label:'Matt\u2019s dashboard',title:'Matt\u2019s dashboard'},
  {k:'meetings',label:'Meetings',title:'Meetings booked'},
@@ -59,15 +59,26 @@ function filterCard(c,q){q=(q||'').toLowerCase().trim();var shown=0;
 var nav=$('nav');
 var resOpen=false;try{resOpen=localStorage.getItem('sdrPortalRes')==='1';}catch(e){}
 var resBtn=null,resBox=null;
+var ovOpen=true;try{ovOpen=localStorage.getItem('sdrPortalOv')!=='0';}catch(e){}
+var ovBox=null,ovChev=null;
 VIEWS.forEach(function(v){var b=document.createElement('button');b.id='nav-'+v.k;b.dataset.view=v.k;b.innerHTML='<span>'+esc(v.label)+'</span><span class="count" id="cnt-'+v.k+'"></span>';
-  b.addEventListener('click',function(){setView(v.k);});
+  b.addEventListener('click',function(){if(v.k==='overview'){ovOpen=true;try{localStorage.setItem('sdrPortalOv','1');}catch(e){}}setView(v.k);});
+  if(v.k==='overview'){
+    // Overview opens its page and shows the daily, weekly and monthly reports underneath; the arrow folds them away
+    ovChev=document.createElement('span');ovChev.className='chev ov-chev';ovChev.setAttribute('role','button');ovChev.setAttribute('tabindex','0');ovChev.setAttribute('aria-label','Show or hide the reports');ovChev.textContent='\u25be';
+    var tog=function(ev){ev.stopPropagation();ev.preventDefault();ovOpen=!ovOpen;try{localStorage.setItem('sdrPortalOv',ovOpen?'1':'0');}catch(e){}syncOv();};
+    ovChev.addEventListener('click',tog);ovChev.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' ')tog(ev);});
+    b.querySelector('.count').replaceWith(ovChev);
+    nav.appendChild(b);ovBox=document.createElement('div');ovBox.className='nav-sub';nav.appendChild(ovBox);return;}
+  if(v.group==='ov'){ovBox.appendChild(b);return;}
   if(v.group==='res'){
     if(!resBox){resBtn=document.createElement('button');resBtn.className='nav-group';resBtn.setAttribute('aria-expanded','false');resBtn.innerHTML='<span>Resources</span><span class="chev" aria-hidden="true">\u25be</span>';
       resBox=document.createElement('div');resBox.className='nav-sub';
-      resBtn.addEventListener('click',function(){resOpen=!resOpen;try{localStorage.setItem('sdrPortalRes',resOpen?'1':'0');}catch(e){}syncRes();});
+      resBtn.addEventListener('click',function(){resOpen=!resOpen;try{localStorage.setItem('sdrPortalRes',resOpen?'1':'0');}catch(e){}syncRes();syncOv();});
       nav.appendChild(resBtn);nav.appendChild(resBox);}
     resBox.appendChild(b);
   } else nav.appendChild(b);});
+function syncOv(){if(!ovBox)return;var cur=VIEWS.some(function(v){return v.group==='ov'&&v.k===state.view;});var open=ovOpen||cur;ovBox.hidden=!open;ovChev.style.transform=open?'':'rotate(-90deg)';$('nav-overview').setAttribute('aria-expanded',String(open));}
 function syncRes(){if(!resBox)return;var cur=VIEWS.some(function(v){return v.group==='res'&&v.k===state.view;});var open=resOpen||cur;resBox.hidden=!open;resBtn.setAttribute('aria-expanded',String(open));resBtn.classList.toggle('has-current',cur);}
 var pods=$('pods');
 [{k:'all',label:'All pods',sub:'Team'}].concat(SDRS.map(function(s){return {k:s.k,label:s.pod,sub:s.short};})).forEach(function(o){
@@ -86,7 +97,7 @@ function presetRange(tag){var t=ukToday(),d=new Date(t+'T12:00:00Z'),dow=(d.getU
 state.cus=null;try{var sc=JSON.parse(localStorage.getItem('sdrPortalCus')||'null');if(sc&&sc.from&&sc.to){if(sc.l30&&!sc.tag)sc.tag='l30';var pr=presetRange(sc.tag);if(pr){sc.from=pr.from;sc.to=pr.to;}state.cus=sc;}}catch(e){}
 function cusName(){return state.cus?DTAG[state.cus.tag||'custom']:'Custom dates';}
 function perName(P){return P==='wk'?'This week':PERIODS&&PERIODS.mtd&&PERIODS.mtd.custom?cusName():'Month to date';}
-document.head.insertAdjacentHTML('beforeend','<style>.rail-group:has(#per){display:none}body.sdr-wait .view:not([data-view=daily]):not([data-view=weekly]):not([data-view=monthly]):not([data-view=matt]):not([data-view=kb]):not([data-view=defs]),body.sdr-fail .view:not([data-view=daily]):not([data-view=weekly]):not([data-view=monthly]):not([data-view=matt]):not([data-view=kb]):not([data-view=defs]){display:none!important}.datebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--surface);border:1px solid var(--line);padding:10px 14px;margin:0 0 20px}.datebar .db-presets{display:flex;flex-wrap:wrap;gap:4px}.datebar .db-presets button{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 11px;font:inherit;font-size:.82rem;cursor:pointer}.datebar .db-presets button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}.datebar form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)}.datebar input{border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:5px 7px;font:inherit;font-size:.82rem}.datebar form button{background:var(--accent);color:var(--accent-fg);border:0;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.datebar .db-err{color:var(--bad-fg);font-size:.78rem}.datebar .db-lbl{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}</style>');
+document.head.insertAdjacentHTML('beforeend','<style>.rail-group:has(#per){display:none}.ov-chev{margin-left:auto;padding:0 4px;opacity:.7;cursor:pointer;transition:transform .15s}.ov-chev:hover{opacity:1}body.sdr-wait .view:not([data-view=daily]):not([data-view=weekly]):not([data-view=monthly]):not([data-view=matt]):not([data-view=kb]):not([data-view=defs]),body.sdr-fail .view:not([data-view=daily]):not([data-view=weekly]):not([data-view=monthly]):not([data-view=matt]):not([data-view=kb]):not([data-view=defs]){display:none!important}.datebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--surface);border:1px solid var(--line);padding:10px 14px;margin:0 0 20px}.datebar .db-presets{display:flex;flex-wrap:wrap;gap:4px}.datebar .db-presets button{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 11px;font:inherit;font-size:.82rem;cursor:pointer}.datebar .db-presets button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}.datebar form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)}.datebar input{border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:5px 7px;font:inherit;font-size:.82rem}.datebar form button{background:var(--accent);color:var(--accent-fg);border:0;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.datebar .db-err{color:var(--bad-fg);font-size:.78rem}.datebar .db-lbl{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}</style>');
 document.querySelector('.topline').insertAdjacentHTML('afterend','<div class="datebar" id="dateBar"><span class="db-lbl">Dates</span><div class="db-presets">'+['wk','lwk','mtd','lm','l30'].map(function(k){return '<button data-p="'+k+'" aria-pressed="false">'+DTAG[k]+'</button>';}).join('')+'</div><form id="dbForm"><span>From</span><input type="date" id="dbFrom" required aria-label="From"><span>to</span><input type="date" id="dbTo" required aria-label="To"><button type="submit">Apply</button><span class="db-err" id="dbErr" hidden></span></form></div>');
 function setCustom(from,to,tag){
   if(!from||!to||from>to){$('dbErr').textContent='Pick a From date on or before the To date.';$('dbErr').hidden=false;return false;}
@@ -155,7 +166,7 @@ function render(){
   $('defPeriods').textContent='This week is '+dnice(PERIODS.wk.start)+' to '+dnice(PERIODS.wk.end)+'. Month to date is '+dnice(PERIODS.mtd.start)+' to '+dnice(PERIODS.mtd.end)+'. Dates are UK time.';
   var V=VIEWS.filter(function(v){return v.k===state.view;})[0];
   Array.prototype.forEach.call(document.querySelectorAll('.view'),function(el){el.hidden=el.dataset.view!==state.view;});
-  syncRes();
+  syncRes();syncOv();
   Array.prototype.forEach.call(nav.querySelectorAll('button[data-view]'),function(b){if(b.dataset.view===state.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   Array.prototype.forEach.call(pods.querySelectorAll('.opt'),function(b){b.setAttribute('aria-pressed',String(b.dataset.pod===state.pod));});
   Array.prototype.forEach.call(document.querySelectorAll('#per button'),function(b){b.setAttribute('aria-pressed',String(b.dataset.per===P));});

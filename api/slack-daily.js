@@ -11,13 +11,13 @@ module.exports = async (req, res) => {
   const hook = process.env.SLACK_WEBHOOK_URL || '';
   if (!hook) { send(503, { error: 'missing_slack_webhook' }); return; }
   if (!process.env.HUBSPOT_TOKEN) { send(503, { error: 'missing_token' }); return; }
-  let text;
+  let msg;
   try {
     data.setToken(process.env.HUBSPOT_TOKEN);
-    text = (await data.slackPayload(undefined, true)).text;
+    msg = await data.slackPayload(undefined, true);
   } catch (e) {
-    text = ':warning: Today\'s SDR daily report couldn\'t be generated (' + String(e.message || e).slice(0, 200) + '). <https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>';
+    msg = { text: 'Today\'s SDR daily report couldn\'t be generated (' + String(e.message || e).slice(0, 200) + '). <https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>' };
   }
-  const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, unfurl_links: false }) });
+  const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ unfurl_links: false }, msg)) });
   send(r.ok ? 200 : 502, { sent: r.ok, slackStatus: r.status });
 };

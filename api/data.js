@@ -901,8 +901,11 @@ async function buildReport(q) {
     ACT: acts, CO: COx, CON, NEWCO: reachCo.filter(id => !priorCo[id]), NEWCON: reachCon.filter(id => !priorCon[id]), MB, MEET, COV };
 }
 
-/* ---------- the daily report as a Slack message (mrkdwn), from the same numbers as the Daily report page ---------- */
-function slackReport(R, mrkdwn, R30) {
+/* ---------- the daily report for Slack, from the same numbers as the Daily report page ----------
+   slackModel() works out the numbers; slackBlocks() lays them out as Slack Block Kit (header, fields, monospace tables)
+   for the incoming webhook; slackMarkdown() gives the same content as markdown with tables. */
+const PORTAL = 'https://inploi-sdr-portal.vercel.app';
+function slackModel(R, R30) {
   const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
   const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
@@ -912,82 +915,103 @@ function slackReport(R, mrkdwn, R30) {
     const calls = A.filter(a => a[2] === 'c'), ems = A.filter(a => a[2] === 'e'), reps = A.filter(a => a[2] === 'r');
     const cos = [...new Set(out.flatMap(a => a[4]))], cons = [...new Set(out.flatMap(a => a[5]))];
     const conn = calls.filter(a => CONNECTED.includes(lab(a[3]).toLowerCase()));
-    return { calls, ems, reps, conn, cos, cons, newCo: cos.filter(id => newCo.has(id)).length, newCon: cons.filter(id => newCon.has(id)).length,
-      mb: R.MB.filter(r => sis.includes(r[2])).length, out };
+    return { calls: calls.length, ems: ems.length, reps: reps.length, conn: conn.length, cos: cos.length, cons: cons.length,
+      newCo: cos.filter(id => newCo.has(id)).length, newCon: cons.filter(id => newCon.has(id)).length, mb: R.MB.filter(r => sis.includes(r[2])).length, callList: calls, cosList: cos };
   };
-  const all = R.SDRS.map((s, i) => i), T = crunch(all), per = R.SDRS.map((s, i) => ({ s, C: crunch([i]) }));
-  const d = new Date(R.day + 'T12:00:00Z'), title = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-  const L = [];
-  L.push('*:bar_chart: SDR daily report · ' + title + '*' + (R.last < R.day ? '' : R.day === R.today ? ' _(so far today)_' : ''));
-  L.push('');
-  L.push('*Team*');
-  L.push('• *' + T.cos.length + '* accounts reached (' + T.newCo + ' net new · ' + (T.cos.length - T.newCo) + ' follow-up) · *' + T.cons.length + '* contacts (' + T.newCon + ' net new) · ' + (T.cos.length ? (Math.round(T.cons.length / T.cos.length * 10) / 10) : '–') + ' contacts per account');
-  L.push('• *' + T.calls.length + '* calls · ' + T.conn.length + ' connected (' + pct(T.conn.length, T.calls.length) + ') · *' + T.ems.length + '* emails sent · *' + T.reps.length + '* replies (' + pct(T.reps.length, T.ems.length) + ')');
-  L.push('• *' + T.mb + '* meetings booked' + (T.cos.length ? ' (' + pct(T.mb, T.cos.length) + ' of accounts reached)' : ''));
-  const oc = {}; T.calls.forEach(a => { const k = lab(a[3]); oc[k] = (oc[k] || 0) + 1; });
-  const ocs = Object.keys(oc).sort((a, b) => oc[b] - oc[a]);
-  if (ocs.length) L.push('• Call outcomes: ' + ocs.map(k => k + ' ' + oc[k]).join(' · '));
-  const ind = {}; T.cos.forEach(id => { const k = (R.CO[id] && R.CO[id][1]) || 'No industry set'; ind[k] = (ind[k] || 0) + 1; });
-  const inds = Object.keys(ind).sort((a, b) => ind[b] - ind[a]).slice(0, 5);
-  if (inds.length) L.push('• Top industries: ' + inds.map(k => k + ' ' + ind[k]).join(' · '));
-  L.push('');
-  L.push('*By SDR*');
-  per.forEach(({ s, C }) => {
-    if (!C.calls.length && !C.ems.length && !C.reps.length && !C.mb) { L.push('• *' + s.short + '*: no activity logged'); return; }
-    L.push('• *' + s.short + '*: ' + C.cos.length + (C.cos.length === 1 ? ' account (' : ' accounts (') + C.newCo + ' new) · ' + C.cons.length + (C.cons.length === 1 ? ' contact (' : ' contacts (') + C.newCon + ' new) · ' + C.calls.length + ' calls, ' + pct(C.conn.length, C.calls.length) + ' connect · ' + C.ems.length + (C.ems.length === 1 ? ' email · ' : ' emails · ') + C.reps.length + (C.reps.length === 1 ? ' reply · ' : ' replies · ') + C.mb + (C.mb === 1 ? ' meeting' : ' meetings'));
-  });
-  L.push('');
-  L.push('*:trophy: Leaderboard*');
-  const medal = [':first_place_medal:', ':second_place_medal:', ':third_place_medal:'];
-  [['Calls', C => C.calls.length], ['Connects', C => C.conn.length], ['Emails', C => C.ems.length], ['Replies', C => C.reps.length], ['Accounts reached', C => C.cos.length], ['Net new accounts', C => C.newCo], ['Meetings booked', C => C.mb]].forEach(([name, f]) => {
-    const rows = per.map(x => ({ n: x.s.short, v: f(x.C) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
-    if (!rows.length) return;
-    let rank = 0, prev = null;
-    L.push('• *' + name + '*: ' + rows.slice(0, 3).map((x, j) => { if (x.v !== prev) { rank = j; prev = x.v; } return medal[rank] + ' ' + x.n + ' ' + x.v; }).join('  '));
-  });
-  // data gaps: everything still open from the last 30 days (records are checked as they are now), and how many are new today
-  const gapsOf = (X, sis) => {
-    const sname = i => X.SDRS[i] ? X.SDRS[i].short : 'Unknown', full = {}; X.SDRS.forEach(x => { full[x.name] = x.short; });
-    const A = X.ACT.filter(a => sis.includes(a[1])), out = A.filter(a => a[2] !== 'r'), calls = A.filter(a => a[2] === 'c');
-    const cos = [...new Set(out.flatMap(a => a[4]))], now = Date.now(), coBy = {};
-    out.forEach(a => a[4].forEach(id => { (coBy[id] = coBy[id] || new Set()).add(sname(a[1])); }));
-    const meet = X.MEET.filter(r => sis.includes(r[3])), mw = r => [full[r[8]] || r[8] || sname(r[3])];
+  const all = R.SDRS.map((s, i) => i), T = crunch(all), per = R.SDRS.map((s, i) => ({ n: s.short, C: crunch([i]) }));
+  const title = new Date(R.day + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const oc = {}; T.callList.forEach(a => { const k = lab(a[3]); oc[k] = (oc[k] || 0) + 1; });
+  const outcomes = Object.keys(oc).sort((a, b) => oc[b] - oc[a]).map(k => [k, oc[k], pct(oc[k], T.calls)]);
+  const ind = {}; T.cosList.forEach(id => { const k = (R.CO[id] && R.CO[id][1]) || 'No industry set'; ind[k] = (ind[k] || 0) + 1; });
+  const industries = Object.keys(ind).sort((a, b) => ind[b] - ind[a]).slice(0, 5).map(k => k + ' ' + ind[k]);
+  const leaders = [['Calls', C => C.calls], ['Connects', C => C.conn], ['Emails', C => C.ems], ['Replies', C => C.reps], ['Accounts', C => C.cos], ['Net new accts', C => C.newCo], ['Meetings', C => C.mb]]
+    .map(([name, f]) => [name].concat(per.map(x => ({ n: x.n, v: f(x.C) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 3).map(x => x.n + ' ' + x.v)))
+    .filter(r => r.length > 1);
+  // open data fixes: records worked in the last 30 days, as they are in HubSpot now; plus what's new today
+  const gapsOf = X => {
+    const sname = i => X.SDRS[i] ? X.SDRS[i].short : 'Other', full = {}; X.SDRS.forEach(x => { full[x.name] = x.short; });
+    const out = X.ACT.filter(a => a[2] !== 'r'), calls = X.ACT.filter(a => a[2] === 'c'), now = Date.now(), coBy = {};
+    const cos = [...new Set(out.flatMap(a => a[4]))]; out.forEach(a => a[4].forEach(id => { (coBy[id] = coBy[id] || new Set()).add(sname(a[1])); }));
+    const mw = r => [full[r[8]] || r[8] || sname(r[3])];
     return [
-      ['New meetings with no meeting type', meet.filter(r => !r[6]).map(r => ['m' + r[0], mw(r)])],
-      ['Past meetings with no outcome', meet.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).map(r => ['m' + r[0], mw(r)])],
-      ['Accounts worked with no SDR Owner', cos.filter(id => X.CO[id] && !X.CO[id][4]).map(id => ['o' + id, [...(coBy[id] || [])]])],
-      ['Accounts worked with no Account Status', cos.filter(id => X.CO[id] && !X.CO[id][3]).map(id => ['s' + id, [...(coBy[id] || [])]])],
-      ['Calls with no outcome', calls.filter(a => !a[3]).map(a => ['c' + a[7], [sname(a[1])]])],
-      ['Calls with no call type', calls.filter(a => !a[6]).map(a => ['t' + a[7], [sname(a[1])]])],
-      ['Calls/emails not linked to a contact', out.filter(a => !a[5].length).map(a => ['n' + a[7], [sname(a[1])]])],
-      ['Calls/emails not linked to a company', out.filter(a => !a[4].length).map(a => ['k' + a[7], [sname(a[1])]])]
+      ['Meeting: no type', X.MEET.filter(r => !r[6]).map(r => ['m' + r[0], mw(r)])],
+      ['Meeting: no outcome', X.MEET.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).map(r => ['m' + r[0], mw(r)])],
+      ['Account: no SDR Owner', cos.filter(id => X.CO[id] && !X.CO[id][4]).map(id => ['o' + id, [...(coBy[id] || [])]])],
+      ['Account: no status', cos.filter(id => X.CO[id] && !X.CO[id][3]).map(id => ['s' + id, [...(coBy[id] || [])]])],
+      ['Call: no outcome', calls.filter(a => !a[3]).map(a => ['c' + a[7], [sname(a[1])]])],
+      ['Call: no call type', calls.filter(a => !a[6]).map(a => ['t' + a[7], [sname(a[1])]])],
+      ['Activity: no contact', out.filter(a => !a[5].length).map(a => ['n' + a[7], [sname(a[1])]])],
+      ['Activity: no company', out.filter(a => !a[4].length).map(a => ['k' + a[7], [sname(a[1])]])]
     ];
   };
-  const todayG = gapsOf(R, all), openG = R30 ? gapsOf(R30, all) : todayG;
-  const todayIds = new Set(todayG.flatMap(g => g[1].map(x => x[0])));
-  // anything flagged today is also open, even if the 30-day pull missed it
+  const todayG = gapsOf(R), openG = R30 ? gapsOf(R30) : todayG, todayIds = new Set(todayG.flatMap(g => g[1].map(x => x[0])));
   openG.forEach((g, gi) => { const have = new Set(g[1].map(x => x[0])); todayG[gi][1].forEach(x => { if (!have.has(x[0])) g[1].push(x); }); });
-  const G = openG.filter(g => g[1].length);
-  L.push('');
-  if (!G.length) L.push('*:white_check_mark: Data gaps:* nothing open. Nice work.');
-  else {
-    L.push('*:warning: Data gaps still open*' + (R30 ? ' _(records worked in the last 30 days, as they are in HubSpot now)_' : ''));
-    G.forEach(([name, rows]) => { const c = {}; rows.forEach(r => r[1].forEach(n => { c[n] = (c[n] || 0) + 1; })); const nw = rows.filter(r => todayIds.has(r[0])).length;
-      L.push('• ' + name + ': *' + rows.length + '*' + (R30 ? ' (' + nw + ' new today)' : '') + ' · ' + Object.keys(c).sort((a, b) => c[b] - c[a]).map(n => n + ' ' + c[n]).join(', ')); });
-    L.push('Fix list by person: ' + (mrkdwn ? '<https://inploi-sdr-portal.vercel.app/#fixes|Data fixes>' : '[Data fixes](https://inploi-sdr-portal.vercel.app/#fixes)'));
-  }
-  L.push('');
-  if (mrkdwn) { L.push('<https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>'); return L.join('\n'); }
-  L.push('[Open the daily report](https://inploi-sdr-portal.vercel.app/#daily)');
-  // Slack mrkdwn bold (*x*) to standard markdown bold (**x**)
-  return L.join('\n').replace(/\*([^*\n]+)\*/g, '**$1**');
+  const sdrNames = R.SDRS.map(s => s.short);
+  const gaps = openG.filter(g => g[1].length).map(([name, rows]) => {
+    const c = {}; rows.forEach(r => r[1].forEach(n => { c[n] = (c[n] || 0) + 1; }));
+    const other = Object.keys(c).filter(n => !sdrNames.includes(n)).reduce((t, n) => t + c[n], 0);
+    return { name, open: rows.length, fresh: rows.filter(r => todayIds.has(r[0])).length, by: sdrNames.map(n => c[n] || 0), other, otherNames: Object.keys(c).filter(n => !sdrNames.includes(n)) };
+  });
+  return { title, soFar: R.day === R.today, T, per, sdrNames, pct, outcomes, industries, leaders, gaps, windowed: !!R30,
+    team: [['Accounts reached', T.cos + '  (' + T.newCo + ' net new)'], ['Contacts reached', T.cons + '  (' + T.newCon + ' net new)'], ['Calls', T.calls + '  (' + pct(T.conn, T.calls) + ' connect)'],
+      ['Emails sent', String(T.ems)], ['Replies', T.reps + '  (' + pct(T.reps, T.ems) + ' reply rate)'], ['Meetings booked', String(T.mb)], ['Contacts per account', T.cos ? String(Math.round(T.cons / T.cos * 10) / 10) : '–']] };
+}
+// a fixed-width table for a Slack code block
+function monoTable(head, rows, right) {
+  const all = [head].concat(rows).map(r => r.map(String)), w = head.map((h, i) => Math.max(...all.map(r => (r[i] || '').length)));
+  const line = r => r.map((v, i) => i === 0 || !right ? v.padEnd(w[i]) : v.padStart(w[i])).join('  ').replace(/\s+$/, '');
+  return '```\n' + [line(all[0]), w.map(n => '-'.repeat(n)).join('  ')].concat(all.slice(1).map(line)).join('\n') + '\n```';
+}
+function slackTables(M) {
+  const sdr = monoTable(['SDR', 'Accts', 'New', 'Contacts', 'Calls', 'Conn', 'Emails', 'Replies', 'Mtgs'],
+    M.per.map(x => [x.n, x.C.cos, x.C.newCo, x.C.cons, x.C.calls, M.pct(x.C.conn, x.C.calls), x.C.ems, x.C.reps, x.C.mb])
+      .concat([['Team', M.T.cos, M.T.newCo, M.T.cons, M.T.calls, M.pct(M.T.conn, M.T.calls), M.T.ems, M.T.reps, M.T.mb]]), true);
+  const out = M.outcomes.length ? monoTable(['Outcome', 'Calls', 'Share'], M.outcomes, true) : '_No calls logged._';
+  const lead = M.leaders.length ? monoTable(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || '']), false) : '_No activity yet._';
+  const gaps = M.gaps.length ? monoTable(['Open fix', 'Open', 'New'].concat(M.sdrNames).concat(M.gaps.some(g => g.other) ? ['Other'] : []),
+    M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(M.gaps.some(x => x.other) ? [g.other] : [])), true) : '_Nothing open. Nice work._';
+  const others = [...new Set(M.gaps.flatMap(g => g.otherNames))];
+  return { sdr, out, lead, gaps, others };
+}
+function slackBlocks(M) {
+  const t = slackTables(M), sec = text => ({ type: 'section', text: { type: 'mrkdwn', text } });
+  const fields = M.team.map(([k, v]) => ({ type: 'mrkdwn', text: '*' + k + '*\n' + v }));
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: 'SDR daily report · ' + M.title } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: (M.soFar ? 'So far today · ' : '') + 'UK time · <' + PORTAL + '/#daily|Open the daily report>' }] },
+    { type: 'section', text: { type: 'mrkdwn', text: '*Team*' }, fields: fields.slice(0, 6) },
+    fields[6] ? { type: 'context', elements: [{ type: 'mrkdwn', text: 'Contacts per account: *' + M.team[6][1] + '*' + (M.industries.length ? '   ·   Top industries: ' + M.industries.join(', ') : '') }] } : null,
+    { type: 'divider' }, sec('*By SDR*\n' + t.sdr),
+    sec('*Call outcomes*\n' + t.out),
+    sec('*Leaderboard*\n' + t.lead),
+    { type: 'divider' }, sec('*Open data fixes*' + (M.windowed ? '  _(records worked in the last 30 days, as they are in HubSpot now)_' : '') + '\n' + t.gaps),
+    { type: 'context', elements: [{ type: 'mrkdwn', text: (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + 'Each person’s list, with where and why: <' + PORTAL + '/#fixes|Data fixes>' }] }
+  ].filter(Boolean);
+  return blocks;
+}
+function slackFallback(M) {
+  return 'SDR daily report · ' + M.title + ': ' + M.T.calls + ' calls, ' + M.T.ems + ' emails, ' + M.T.cos + ' accounts reached, ' + M.T.mb + ' meetings booked.';
+}
+function slackMarkdown(M) {
+  const t = slackTables(M), tbl = (head, rows) => '| ' + head.join(' | ') + ' |\n|' + head.map(() => ' --- ').join('|') + '|\n' + rows.map(r => '| ' + r.join(' | ') + ' |').join('\n');
+  const L = ['**SDR daily report · ' + M.title + '**' + (M.soFar ? ' (so far today)' : ''), '',
+    tbl(M.team.map(r => r[0]), [M.team.map(r => r[1])]), '',
+    '**By SDR**', tbl(['SDR', 'Accounts', 'Net new', 'Contacts', 'Calls', 'Connect', 'Emails', 'Replies', 'Meetings'],
+      M.per.map(x => [x.n, x.C.cos, x.C.newCo, x.C.cons, x.C.calls, M.pct(x.C.conn, x.C.calls), x.C.ems, x.C.reps, x.C.mb]).concat([['**Team**', M.T.cos, M.T.newCo, M.T.cons, M.T.calls, M.pct(M.T.conn, M.T.calls), M.T.ems, M.T.reps, M.T.mb]])), '',
+    '**Call outcomes**', M.outcomes.length ? tbl(['Outcome', 'Calls', 'Share'], M.outcomes) : '_No calls logged._', '',
+    '**Leaderboard**', M.leaders.length ? tbl(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || ''])) : '_No activity yet._', '',
+    '**Open data fixes**' + (M.windowed ? ' _(records worked in the last 30 days, as they are in HubSpot now)_' : ''),
+    M.gaps.length ? tbl(['Open fix', 'Open', 'New today'].concat(M.sdrNames).concat(t.others.length ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(t.others.length ? [g.other] : []))) : '_Nothing open._',
+    (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + '[Data fixes](' + PORTAL + '/#fixes) · [Open the daily report](' + PORTAL + '/#daily)'];
+  return L.join('\n');
 }
 
 // the day's report plus the open data fixes from the last 30 days
 async function slackPayload(day, mrkdwn) {
   const R = await buildReport({ span: 'day', day });
   let R30 = null; try { R30 = await buildReport({ span: 'd30' }); } catch (e) { /* fall back to today's gaps only */ }
-  return { text: slackReport(R, mrkdwn, R30) };
+  const M = slackModel(R, R30);
+  return mrkdwn ? { text: slackFallback(M), blocks: slackBlocks(M) } : { text: slackMarkdown(M) };
 }
 
 module.exports = async (req, res) => {
@@ -1011,6 +1035,5 @@ module.exports = async (req, res) => {
 
 // for api/slack-daily.js
 module.exports.buildReport = buildReport;
-module.exports.slackReport = slackReport;
 module.exports.slackPayload = slackPayload;
 module.exports.setToken = t => { TOKEN = t; };
