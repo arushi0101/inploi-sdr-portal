@@ -900,7 +900,7 @@ async function buildReport(q) {
 }
 
 /* ---------- the daily report as a Slack message (mrkdwn), from the same numbers as the Daily report page ---------- */
-function slackReport(R) {
+function slackReport(R, mrkdwn) {
   const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
   const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
@@ -932,7 +932,7 @@ function slackReport(R) {
   L.push('*By SDR*');
   per.forEach(({ s, C }) => {
     if (!C.calls.length && !C.ems.length && !C.reps.length && !C.mb) { L.push('• *' + s.short + '*: no activity logged'); return; }
-    L.push('• *' + s.short + '*: ' + C.cos.length + ' accounts (' + C.newCo + ' new) · ' + C.cons.length + ' contacts (' + C.newCon + ' new) · ' + C.calls.length + ' calls, ' + pct(C.conn.length, C.calls.length) + ' connect · ' + C.ems.length + ' emails · ' + C.reps.length + ' replies · ' + C.mb + ' meetings');
+    L.push('• *' + s.short + '*: ' + C.cos.length + (C.cos.length === 1 ? ' account (' : ' accounts (') + C.newCo + ' new) · ' + C.cons.length + (C.cons.length === 1 ? ' contact (' : ' contacts (') + C.newCon + ' new) · ' + C.calls.length + ' calls, ' + pct(C.conn.length, C.calls.length) + ' connect · ' + C.ems.length + (C.ems.length === 1 ? ' email · ' : ' emails · ') + C.reps.length + (C.reps.length === 1 ? ' reply · ' : ' replies · ') + C.mb + (C.mb === 1 ? ' meeting' : ' meetings'));
   });
   L.push('');
   L.push('*:trophy: Leaderboard*');
@@ -963,6 +963,7 @@ function slackReport(R) {
     G.forEach(([name, rows]) => { const c = {}; rows.forEach(w => w.forEach(n => { c[n] = (c[n] || 0) + 1; })); L.push('• ' + name + ': *' + rows.length + '* (' + Object.keys(c).sort((a, b) => c[b] - c[a]).map(n => n + ' ' + c[n]).join(', ') + ')'); });
   }
   L.push('');
+  if (mrkdwn) { L.push('<https://inploi-sdr-portal.vercel.app/#daily|Open the daily report> · UK time · net new = no SDR call or email earlier this year'); return L.join('\n'); }
   L.push('[Open the daily report](https://inploi-sdr-portal.vercel.app/#daily) · UK time · net new = no SDR call or email earlier this year');
   // Slack mrkdwn bold (*x*) to standard markdown bold (**x**)
   return L.join('\n').replace(/\*([^*\n]+)\*/g, '**$1**');
@@ -986,3 +987,8 @@ module.exports = async (req, res) => {
     res.end(JSON.stringify({ error: e.status === 401 ? 'bad_token' : e.status === 403 ? 'missing_scope' : 'hubspot_error', message: String(e.message || e).slice(0, 400) }));
   }
 };
+
+// for api/slack-daily.js
+module.exports.buildReport = buildReport;
+module.exports.slackReport = slackReport;
+module.exports.setToken = t => { TOKEN = t; };

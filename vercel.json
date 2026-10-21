@@ -1,1 +1,1 @@
-{"functions":{"api/data.js":{"maxDuration":60},"api/journey.js":{"maxDuration":30}}}
+{"functions": {"api/data.js": {"maxDuration": 60}, "api/journey.js": {"maxDuration": 30}, "api/slack-daily.js": {"maxDuration": 60}}, "crons": [{"path": "/api/slack-daily", "schedule": "0 17 * * 1-5"}]}

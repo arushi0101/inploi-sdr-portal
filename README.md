@@ -52,3 +52,13 @@ Three pages in the left panel (`daily.js`, data from `api/data?part=report&span=
 - **Leaderboard** for each activity.
 - **Data gaps:** new meetings with no type, past meetings with no outcome, accounts with no SDR Owner or Account Status, calls with no outcome or call type, activity not linked to a contact or company.
 - For weekly and monthly reports a company counts as follow-up if it had an earlier SDR call, or one of the contacts reached had an earlier SDR call or email.
+
+## Daily report on Slack
+
+`api/slack-daily.js` posts the daily report (team totals, each SDR, leaderboard, data gaps) to Slack every weekday. The Vercel cron in `vercel.json` runs at `0 17 * * 1-5` (UTC). On the Hobby plan it can fire any time in that hour, which is 17:00–18:00 UK time in winter and 18:00–19:00 in summer.
+
+Setup, in Vercel → Settings → Environment Variables (Production), then redeploy:
+- `SLACK_WEBHOOK_URL`: a Slack incoming webhook pointed at the DM or channel to post to.
+- `CRON_SECRET` (recommended): any long random string. Vercel's cron sends it, so nobody else can trigger a post.
+
+The same text, in standard markdown, is at `api/data?part=slack`.
