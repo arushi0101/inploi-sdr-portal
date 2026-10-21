@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
   const result = { slack: [], email: null };
 
   for (const hook of hooks) {
-    const msg = M ? { text: data.slackFallback(M), blocks: data.slackBlocks(M) } : { text: failText + ' <https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>' };
+    const msg = M ? { text: data.slackFallback(M), blocks: data.slackBlocks(M) } : { text: failText + ' <https://app-eu1.hubspot.com/reports-dashboard/25735731/view/115946730|Open the HubSpot dashboard>' };
     try { const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ unfurl_links: false }, msg)) }); result.slack.push(r.status); }
     catch (e) { result.slack.push('error'); }
   }

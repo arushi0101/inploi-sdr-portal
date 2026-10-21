@@ -905,6 +905,7 @@ async function buildReport(q) {
    slackModel() works out the numbers; slackBlocks() lays them out as Slack Block Kit (header, fields, monospace tables)
    for the incoming webhook; slackMarkdown() gives the same content as markdown with tables. */
 const PORTAL = 'https://inploi-sdr-portal.vercel.app';
+const HS_DASH = 'https://app-eu1.hubspot.com/reports-dashboard/25735731/view/115946730'; // the link sent in Slack
 function slackModel(R, R30) {
   const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
   const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
@@ -978,14 +979,14 @@ function slackBlocks(M) {
   const fields = M.team.map(([k, v]) => ({ type: 'mrkdwn', text: '*' + k + '*\n' + v }));
   const blocks = [
     { type: 'header', text: { type: 'plain_text', text: 'SDR daily report · ' + M.title } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: (M.soFar ? 'So far today · ' : '') + 'UK time · <' + PORTAL + '/#daily|Open the daily report>' }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: (M.soFar ? 'So far today · ' : '') + 'UK time · <' + HS_DASH + '|Open the HubSpot dashboard>' }] },
     { type: 'section', text: { type: 'mrkdwn', text: '*Team*' }, fields: fields.slice(0, 6) },
     fields[6] ? { type: 'context', elements: [{ type: 'mrkdwn', text: 'Contacts per account: *' + M.team[6][1] + '*' + (M.industries.length ? '   ·   Top industries: ' + M.industries.join(', ') : '') }] } : null,
     { type: 'divider' }, sec('*By SDR*\n' + t.sdr),
     sec('*Call outcomes*\n' + t.out),
     sec('*Leaderboard*\n' + t.lead),
     { type: 'divider' }, sec('*Open data fixes*' + (M.windowed ? '  _(records worked in the last 30 days, as they are in HubSpot now)_' : '') + '\n' + t.gaps),
-    { type: 'context', elements: [{ type: 'mrkdwn', text: (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + 'Each person’s list, with where and why: <' + PORTAL + '/#fixes|Data fixes>' }] }
+    { type: 'context', elements: [{ type: 'mrkdwn', text: (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + 'Fix these in HubSpot.' }] }
   ].filter(Boolean);
   return blocks;
 }
@@ -1002,7 +1003,7 @@ function slackMarkdown(M) {
     '**Leaderboard**', M.leaders.length ? tbl(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || ''])) : '_No activity yet._', '',
     '**Open data fixes**' + (M.windowed ? ' _(records worked in the last 30 days, as they are in HubSpot now)_' : ''),
     M.gaps.length ? tbl(['Open fix', 'Open', 'New today'].concat(M.sdrNames).concat(t.others.length ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(t.others.length ? [g.other] : []))) : '_Nothing open._',
-    (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + '[Data fixes](' + PORTAL + '/#fixes) · [Open the daily report](' + PORTAL + '/#daily)'];
+    (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + '[Open the HubSpot dashboard](' + HS_DASH + ')'];
   return L.join('\n');
 }
 
