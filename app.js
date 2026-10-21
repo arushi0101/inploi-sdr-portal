@@ -8,6 +8,7 @@ var VIEWS=[
  {k:'daily',label:'Daily report',title:'Daily report'},
  {k:'weekly',label:'Weekly report',title:'Weekly report'},
  {k:'monthly',label:'Monthly report',title:'Monthly report'},
+ {k:'fixes',label:'Data fixes',title:'Data fixes'},
  {k:'matt',label:'Matt\u2019s dashboard',title:'Matt\u2019s dashboard'},
  {k:'meetings',label:'Meetings',title:'Meetings booked'},
  {k:'calls',label:'Calls',title:'Calls'},

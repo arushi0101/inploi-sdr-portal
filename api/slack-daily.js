@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   let text;
   try {
     data.setToken(process.env.HUBSPOT_TOKEN);
-    text = data.slackReport(await data.buildReport({ span: 'day' }), true);
+    text = (await data.slackPayload(undefined, true)).text;
   } catch (e) {
     text = ':warning: Today\'s SDR daily report couldn\'t be generated (' + String(e.message || e).slice(0, 200) + '). <https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>';
   }

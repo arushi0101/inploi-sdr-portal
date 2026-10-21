@@ -827,14 +827,16 @@ async function touchedBefore(type, ids, start, yearStart, withEmails) {
 async function buildReport(q) {
   const now = new Date();
   const P = periods(now);
-  const span = q && (q.span === 'week' || q.span === 'month') ? q.span : 'day';
+  const span = q && (q.span === 'week' || q.span === 'month' || q.span === 'd30') ? q.span : 'day';
   let anchor = P.today;
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q.day || '')) { const [y, m, d] = q.day.split('-').map(Number); const s0 = londonMidnight(y, m, d); if (s0 <= P.today && s0 > P.today - 400 * 86400000) anchor = s0; }
   const ap = londonParts(new Date(anchor + 3600000));
   const wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(ap.wd);
-  const start = span === 'month' ? londonMidnight(ap.y, ap.m, 1) : span === 'week' ? londonMidnight(ap.y, ap.m, ap.d - wd) : anchor;
+  // d30 = the 30 days up to and including today: the rolling window for open data fixes
+  const tp = londonParts(new Date(P.today + 3600000));
+  const start = span === 'd30' ? londonMidnight(tp.y, tp.m, tp.d - 29) : span === 'month' ? londonMidnight(ap.y, ap.m, 1) : span === 'week' ? londonMidnight(ap.y, ap.m, ap.d - wd) : anchor;
   const sp = londonParts(new Date(start + 3600000));
-  const end = span === 'month' ? londonMidnight(sp.y, sp.m + 1, 1) : londonMidnight(sp.y, sp.m, sp.d + (span === 'week' ? 7 : 1));
+  const end = span === 'd30' ? P.today + 86400000 : span === 'month' ? londonMidnight(sp.y, sp.m + 1, 1) : londonMidnight(sp.y, sp.m, sp.d + (span === 'week' ? 7 : 1));
   const cut = Math.min(end, P.today + 86400000), ep = londonParts(new Date(cut - 3600000));
   const yearStart = londonMidnight(sp.y, 1, 1), d30 = londonMidnight(ep.y, ep.m, ep.d - 29);
   const sdrBy = {}; SDRS.forEach((s, i) => { sdrBy[s.id] = i; sdrBy[s.name.toLowerCase()] = i; });
@@ -900,7 +902,7 @@ async function buildReport(q) {
 }
 
 /* ---------- the daily report as a Slack message (mrkdwn), from the same numbers as the Daily report page ---------- */
-function slackReport(R, mrkdwn) {
+function slackReport(R, mrkdwn, R30) {
   const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
   const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
@@ -943,30 +945,49 @@ function slackReport(R, mrkdwn) {
     let rank = 0, prev = null;
     L.push('• *' + name + '*: ' + rows.slice(0, 3).map((x, j) => { if (x.v !== prev) { rank = j; prev = x.v; } return medal[rank] + ' ' + x.n + ' ' + x.v; }).join('  '));
   });
-  // data gaps, with who fixes them
-  const sname = i => R.SDRS[i] ? R.SDRS[i].short : 'Unknown', full = {}; R.SDRS.forEach(x => { full[x.name] = x.short; });
-  const now = Date.now(), coBy = {}; T.out.forEach(a => a[4].forEach(id => { (coBy[id] = coBy[id] || new Set()).add(sname(a[1])); }));
-  const G = [
-    ['New meetings with no meeting type', R.MEET.filter(r => !r[6]).map(r => [full[r[8]] || r[8] || sname(r[3])])],
-    ['Past meetings with no outcome', R.MEET.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).map(r => [full[r[8]] || r[8] || sname(r[3])])],
-    ['Accounts worked with no SDR Owner', T.cos.filter(id => R.CO[id] && !R.CO[id][4]).map(id => [...(coBy[id] || [])])],
-    ['Accounts worked with no Account Status', T.cos.filter(id => R.CO[id] && !R.CO[id][3]).map(id => [...(coBy[id] || [])])],
-    ['Calls with no outcome', T.calls.filter(a => !a[3]).map(a => [sname(a[1])])],
-    ['Calls with no call type', T.calls.filter(a => !a[6]).map(a => [sname(a[1])])],
-    ['Calls/emails not linked to a contact', T.out.filter(a => !a[5].length).map(a => [sname(a[1])])],
-    ['Calls/emails not linked to a company', T.out.filter(a => !a[4].length).map(a => [sname(a[1])])]
-  ].filter(g => g[1].length);
+  // data gaps: everything still open from the last 30 days (records are checked as they are now), and how many are new today
+  const gapsOf = (X, sis) => {
+    const sname = i => X.SDRS[i] ? X.SDRS[i].short : 'Unknown', full = {}; X.SDRS.forEach(x => { full[x.name] = x.short; });
+    const A = X.ACT.filter(a => sis.includes(a[1])), out = A.filter(a => a[2] !== 'r'), calls = A.filter(a => a[2] === 'c');
+    const cos = [...new Set(out.flatMap(a => a[4]))], now = Date.now(), coBy = {};
+    out.forEach(a => a[4].forEach(id => { (coBy[id] = coBy[id] || new Set()).add(sname(a[1])); }));
+    const meet = X.MEET.filter(r => sis.includes(r[3])), mw = r => [full[r[8]] || r[8] || sname(r[3])];
+    return [
+      ['New meetings with no meeting type', meet.filter(r => !r[6]).map(r => ['m' + r[0], mw(r)])],
+      ['Past meetings with no outcome', meet.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).map(r => ['m' + r[0], mw(r)])],
+      ['Accounts worked with no SDR Owner', cos.filter(id => X.CO[id] && !X.CO[id][4]).map(id => ['o' + id, [...(coBy[id] || [])]])],
+      ['Accounts worked with no Account Status', cos.filter(id => X.CO[id] && !X.CO[id][3]).map(id => ['s' + id, [...(coBy[id] || [])]])],
+      ['Calls with no outcome', calls.filter(a => !a[3]).map(a => ['c' + a[7], [sname(a[1])]])],
+      ['Calls with no call type', calls.filter(a => !a[6]).map(a => ['t' + a[7], [sname(a[1])]])],
+      ['Calls/emails not linked to a contact', out.filter(a => !a[5].length).map(a => ['n' + a[7], [sname(a[1])]])],
+      ['Calls/emails not linked to a company', out.filter(a => !a[4].length).map(a => ['k' + a[7], [sname(a[1])]])]
+    ];
+  };
+  const todayG = gapsOf(R, all), openG = R30 ? gapsOf(R30, all) : todayG;
+  const todayIds = new Set(todayG.flatMap(g => g[1].map(x => x[0])));
+  // anything flagged today is also open, even if the 30-day pull missed it
+  openG.forEach((g, gi) => { const have = new Set(g[1].map(x => x[0])); todayG[gi][1].forEach(x => { if (!have.has(x[0])) g[1].push(x); }); });
+  const G = openG.filter(g => g[1].length);
   L.push('');
-  if (!G.length) L.push('*:white_check_mark: Data gaps:* none today. Nice work.');
+  if (!G.length) L.push('*:white_check_mark: Data gaps:* nothing open. Nice work.');
   else {
-    L.push('*:warning: Data gaps to fix*');
-    G.forEach(([name, rows]) => { const c = {}; rows.forEach(w => w.forEach(n => { c[n] = (c[n] || 0) + 1; })); L.push('• ' + name + ': *' + rows.length + '* (' + Object.keys(c).sort((a, b) => c[b] - c[a]).map(n => n + ' ' + c[n]).join(', ') + ')'); });
+    L.push('*:warning: Data gaps still open*' + (R30 ? ' _(records worked in the last 30 days, as they are in HubSpot now)_' : ''));
+    G.forEach(([name, rows]) => { const c = {}; rows.forEach(r => r[1].forEach(n => { c[n] = (c[n] || 0) + 1; })); const nw = rows.filter(r => todayIds.has(r[0])).length;
+      L.push('• ' + name + ': *' + rows.length + '*' + (R30 ? ' (' + nw + ' new today)' : '') + ' · ' + Object.keys(c).sort((a, b) => c[b] - c[a]).map(n => n + ' ' + c[n]).join(', ')); });
+    L.push('Fix list by person: ' + (mrkdwn ? '<https://inploi-sdr-portal.vercel.app/#fixes|Data fixes>' : '[Data fixes](https://inploi-sdr-portal.vercel.app/#fixes)'));
   }
   L.push('');
   if (mrkdwn) { L.push('<https://inploi-sdr-portal.vercel.app/#daily|Open the daily report>'); return L.join('\n'); }
   L.push('[Open the daily report](https://inploi-sdr-portal.vercel.app/#daily)');
   // Slack mrkdwn bold (*x*) to standard markdown bold (**x**)
   return L.join('\n').replace(/\*([^*\n]+)\*/g, '**$1**');
+}
+
+// the day's report plus the open data fixes from the last 30 days
+async function slackPayload(day, mrkdwn) {
+  const R = await buildReport({ span: 'day', day });
+  let R30 = null; try { R30 = await buildReport({ span: 'd30' }); } catch (e) { /* fall back to today's gaps only */ }
+  return { text: slackReport(R, mrkdwn, R30) };
 }
 
 module.exports = async (req, res) => {
@@ -976,7 +997,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slack' ? { text: slackReport(await buildReport({ span: 'day', day: q.day })) } : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slack' ? await slackPayload(q.day, false) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
@@ -991,4 +1012,5 @@ module.exports = async (req, res) => {
 // for api/slack-daily.js
 module.exports.buildReport = buildReport;
 module.exports.slackReport = slackReport;
+module.exports.slackPayload = slackPayload;
 module.exports.setToken = t => { TOKEN = t; };
