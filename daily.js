@@ -147,6 +147,8 @@ function gaps(D,view){var C=crunch(D,SI(D)),now=Date.now(),sdr=function(i){retur
   var G=[
     ['New meetings with no meeting type',C.meet.filter(function(r){return !r[6];}),'meet','Set Meeting type (e.g. Discovery Call) on the meeting.','Meeting owner',meetWho],
     ['Past meetings with no outcome',C.meet.filter(function(r){return r[5]&&r[5]<now&&(!r[7]||/SCHEDULED/i.test(r[7]));}),'meet','Set the meeting outcome (Completed, No show, Cancelled, Rescheduled) once it has happened.','Meeting owner',meetWho],
+    ['Meetings on accounts with no SDR Owner',C.meet.filter(function(r){return r[2]&&D.CO[r[2]]&&!D.CO[r[2]][4];}),'meet','Set SDR Owner on the meeting’s company.','Meeting owner',meetWho],
+    ['Meetings where Account Status isn’t Meeting Booked',C.meet.filter(function(r){var c=r[2]&&D.CO[r[2]];return c&&!C.mb.some(function(m){return m[0]===r[2];})&&!/meeting booked|opportunit|customer|client|disqualif|closed/i.test(c[3]);}),'meet','Set Account Status to Meeting Booked on the company.','Meeting owner',meetWho],
     ['Accounts worked with no SDR Owner',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][4];}),'co','Set SDR Owner on the company.','SDR who worked it',coWho],
     ['Accounts worked with no Account Status',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][3];}),'co','Set Account Status on the company.','SDR who worked it',coWho],
     ['Calls with no outcome',C.calls.filter(function(a){return !a[3];}),'act','Set Call outcome on the call.','SDR who made the call',actWho],
@@ -195,6 +197,8 @@ function fixKey(){return FIX.span==='d30'?'d30|'+ukToday():FIX.span+'|'+norm(FIX
 var FIX_INFO={
   'New meetings with no meeting type':['Meeting record → Meeting type','First meetings booked and held are counted from Meeting type. A meeting with no type doesn’t count towards the target.'],
   'Past meetings with no outcome':['Meeting record → Outcome','Held, no-show and cancelled numbers come from the outcome. Without it the meeting counts as “no outcome”.'],
+  'Meetings on accounts with no SDR Owner':['Company record → SDR Owner','The meeting is credited to its SDR for now, but the account won’t show in that SDR’s assigned accounts or coverage until SDR Owner is set.'],
+  'Meetings where Account Status isn’t Meeting Booked':['Company record → Account Status','Meetings booked are counted when Account Status changes to Meeting Booked. If it isn’t updated, the meeting isn’t counted.'],
   'Accounts worked with no SDR Owner':['Company record → SDR Owner','Accounts with no SDR Owner don’t count towards anyone’s assigned accounts, coverage or meetings booked.'],
   'Accounts worked with no Account Status':['Company record → Account Status','Account Status drives coverage, Meeting Booked counts and the stuck-account lists.'],
   'Calls with no outcome':['Call → Call outcome','Connect rate, conversations and the call reports only count calls with an outcome.'],
@@ -219,7 +223,8 @@ function fixRows(D){var L=gapList(D),rows=[];
     else{var con=x[5].map(function(id){return D.CON[id]?D.CON[id][0]:'';}).filter(Boolean).join(', ');rec=[HS+(x[2]==='c'?'0-48/':'0-49/')+x[7],(x[2]==='c'?'Call':'Email')+(con?' with '+con:'')+(x[2]!=='c'&&x[6]?': '+x[6]:'')];co=x[4][0];when=x[0];}
     g[5](x).forEach(function(w){rows.push({who:w,gap:g[0],rec:rec,co:co,when:when,where:info[0],why:info[1],how:g[3]});});});});
   return rows;}
-function renderFixes(){var root=document.getElementById('rp-fixes');if(!root)return;cur='fixes';H={};hid=0;
+function renderFixes(){try{renderFixes0();}catch(x){var r=document.getElementById('rp-fixes');if(r)r.innerHTML='<div class="card"><p class="muted">Couldn’t show data fixes ('+e(x&&x.message||String(x))+'). Try Refresh now.</p></div>';if(window.console)console.error(x);}}
+function renderFixes0(){var root=document.getElementById('rp-fixes');if(!root)return;cur='fixes';H={};hid=0;
   var k=fixKey(),D=cache[k];
   var spans=[['d30','Still open'],['day','Today'],['week','This week'],['month','This month']];
   var head='<div class="card"><div class="rx-bar"><h2>Data fixes</h2><div class="rx-pick">'+spans.map(function(x){return '<button data-fspan="'+x[0]+'" class="'+(FIX.span===x[0]?'now':'')+'">'+x[1]+'</button>';}).join('')+'</div></div><p class="rx-sub">Every HubSpot record that\u2019s missing something, who should fix it, where, and why it matters. <b>Still open</b> covers everything worked in the last 30 days: records are checked as they are in HubSpot right now, so an item stays here until it\u2019s fixed and drops off once it is. Click a record to open it in HubSpot.</p></div>';
@@ -247,6 +252,7 @@ function render(view){var root=document.getElementById('rp-'+view);if(!root)retu
   var k=SPANS[view]+'|'+sel(view),D=cache[k];
   var head='<div class="card"><div class="rx-bar"><h2>'+e(TITLES[view])+'</h2>'+picker(view)+'</div><p class="rx-sub" id="rxSub-'+view+'"></p></div>';
   if(!D){root.innerHTML=head+'<div class="card"><p class="muted">'+(errs[k]?'Couldn’t load this report ('+e(errs[k])+'). Try Refresh now.':'Loading from HubSpot… weekly and monthly reports can take up to a minute.')+'</p></div>';wire(view);if(!loading[k]&&!errs[k])load(view,k);return;}
+  try{
   var C=crunch(D,SI(D));
   root.innerHTML=head+
     kpis(D,C)+
@@ -257,12 +263,14 @@ function render(view){var root=document.getElementById('rp-'+view);if(!root)retu
     '<h3 class="mt-h">Data gaps</h3>'+sec('Fix these in HubSpot','Missing fields on the records worked in this period, and who should fix each one. Click a count or a name for the list.',gaps(D,view));
   document.getElementById('rxSub-'+view).textContent=who(D)+' · '+periodName(view,D)+soFar(D)+' · UK time';
   var gs=document.getElementById('rxGap-'+view);if(gs)gs.onchange=function(){gapWho[view]=gs.value;var y=window.scrollY;render(view);window.scrollTo(0,y);};
+  }catch(x){root.innerHTML=head+'<div class="card"><p class="muted">Couldn’t show this report ('+e(x&&x.message||String(x))+'). Try Refresh now.</p></div>';if(window.console)console.error(x);}
   wire(view);}
 
 function load(view,k,fresh){loading[k]=true;var p=k.split('|');
-  fetch('api/data?part=report&span='+p[0]+'&day='+p[1]+(fresh?'&t='+Date.now():'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){if(!r.ok||d.error)throw d;return d;});})
-  .then(function(d){cache[k]=d;delete errs[k];}).catch(function(x){errs[k]=(x&&(x.error==='missing_token'?'the HubSpot key isn’t set':x.message||x.error))||'network error';})
-  .then(function(){loading[k]=false;if(api&&api.view===view){if(view==='fixes')renderFixes();else render(view);}});}
+  var ctl=window.AbortController?new AbortController():null,tm=setTimeout(function(){if(ctl)ctl.abort();},75000);
+  fetch('api/data?part=report&span='+p[0]+'&day='+p[1]+(fresh?'&t='+Date.now():''),ctl?{signal:ctl.signal}:{}).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){if(!r.ok||d.error)throw d;return d;});})
+  .then(function(d){cache[k]=d;delete errs[k];}).catch(function(x){errs[k]=(x&&(x.name==='AbortError'?'HubSpot took too long':x.error==='missing_token'?'the HubSpot key isn’t set':x.message||x.error))||'network error';})
+  .then(function(){clearTimeout(tm);loading[k]=false;if(api&&api.view===view){if(view==='fixes')renderFixes();else render(view);}});}
 
 document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('[data-rx]');if(!b)return;ev.preventDefault();ev.stopPropagation();var fn=H[b.getAttribute('data-rx')];if(fn)fn();});
 var rb=document.getElementById('refreshBtn');if(rb)rb.addEventListener('click',function(){if(api&&api.view==='fixes'){var fk=fixKey();delete cache[fk];delete errs[fk];load('fixes',fk,true);renderFixes();return;}if(api&&SPANS[api.view]){var k=SPANS[api.view]+'|'+sel(api.view);delete cache[k];delete errs[k];load(api.view,k,true);render(api.view);}});

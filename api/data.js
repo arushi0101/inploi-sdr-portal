@@ -889,12 +889,16 @@ async function buildReport(q) {
   outActs.forEach(a => { if (a[5].some(id => priorCon[id])) a[4].forEach(id => { priorCo[id] = true; }); });
 
   // meetings booked: companies moved to Meeting Booked on the day, and meetings logged that day
-  const cand = sdrCos.filter(c => { const lm = toMs(c.properties.hs_lastmodifieddate); return lm != null && lm >= start; }).map(c => c.id);
-  const mb = cand.length ? await mbTransitions(cand) : {};
-  const MB = []; Object.keys(mb).forEach(id => { (mb[id] || []).forEach(t => { if (t >= start && t < end) MB.push([id, t, CO[id] ? CO[id][2] : -1]); }); });
   const MEET = meetings.map(m => { const p = m.properties; const cos = mCo[m.id] || []; const coId = cos.find(id => CO[id] && CO[id][2] >= 0) || cos[0] || null; let si = coId && CO[coId] ? CO[coId][2] : -1; if (si < 0) si = sdrIx(p.hubspot_owner_id);
     return [m.id, (p.hs_meeting_title || 'Meeting').slice(0, 120), coId, si, toMs(p.hs_createdate), toMs(p.hs_meeting_start_time), p.hs_activity_type || '', p.hs_meeting_outcome || '', OWNER_NAMES[p.hubspot_owner_id] || (SDRS[sdrIx(p.hubspot_owner_id)] || {}).name || ''];
   }).filter(r => r[3] >= 0 && !/^\[gong\]/i.test(r[1]));
+  // meetings booked: companies moved to Meeting Booked in the period, one per company. Includes companies on meetings
+  // logged in the period even when they have no SDR Owner, credited to the meeting's SDR.
+  const meetSdr = {}; MEET.forEach(r => { if (r[2] && meetSdr[r[2]] == null) meetSdr[r[2]] = r[3]; });
+  const cand = [...new Set(sdrCos.filter(c => { const lm = toMs(c.properties.hs_lastmodifieddate); return lm != null && lm >= start; }).map(c => c.id).concat(Object.keys(meetSdr)))];
+  const mb = cand.length ? await mbTransitions(cand) : {};
+  const MB = []; Object.keys(mb).forEach(id => { const t = (mb[id] || []).filter(t => t >= start && t < end).sort((a, b) => a - b)[0]; if (t == null) return;
+    let si = CO[id] ? CO[id][2] : -1; if (si < 0 && meetSdr[id] != null) si = meetSdr[id]; if (si >= 0) MB.push([id, t, si]); });
 
   const COx = {}; [...new Set(acts.flatMap(a => a[4]).concat(MB.map(r => r[0])).concat(MEET.map(r => r[2]).filter(Boolean)))].forEach(id => { if (CO[id]) COx[id] = CO[id]; });
   return { generatedAt: now.toISOString(), span, day: iso(start), last: iso(cut - 3600000), start, end, today: P.todayIso, labels, SDRS: SDRS.map(s => ({ k: s.k, name: s.name, short: s.short, pod: s.pod })),
