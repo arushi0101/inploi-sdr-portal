@@ -910,7 +910,8 @@ async function buildReport(q) {
    for the incoming webhook; slackMarkdown() gives the same content as markdown with tables. */
 const PORTAL = 'https://inploi-sdr-portal.vercel.app';
 const HS_DASH = 'https://app-eu1.hubspot.com/reports-dashboard/25735731/view/115946730'; // the link sent in Slack
-function slackModel(R, R30) {
+function slackModel(R, R30, kind) {
+  const weekly = kind === 'weekly';
   const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
   const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
@@ -924,7 +925,8 @@ function slackModel(R, R30) {
       newCo: cos.filter(id => newCo.has(id)).length, newCon: cons.filter(id => newCon.has(id)).length, mb: R.MB.filter(r => sis.includes(r[2])).length, callList: calls, cosList: cos };
   };
   const all = R.SDRS.map((s, i) => i), T = crunch(all), per = R.SDRS.map((s, i) => ({ n: s.short, C: crunch([i]) }));
-  const title = new Date(R.day + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const title = weekly ? 'w/c ' + new Date(R.day + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+    : new Date(R.day + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
   const oc = {}; T.callList.forEach(a => { const k = lab(a[3]); oc[k] = (oc[k] || 0) + 1; });
   const outcomes = Object.keys(oc).sort((a, b) => oc[b] - oc[a]).map(k => [k, oc[k], pct(oc[k], T.calls)]);
   const ind = {}; T.cosList.forEach(id => { const k = (R.CO[id] && R.CO[id][1]) || 'No industry set'; ind[k] = (ind[k] || 0) + 1; });
@@ -957,7 +959,7 @@ function slackModel(R, R30) {
     const other = Object.keys(c).filter(n => !sdrNames.includes(n)).reduce((t, n) => t + c[n], 0);
     return { name, open: rows.length, fresh: rows.filter(r => todayIds.has(r[0])).length, by: sdrNames.map(n => c[n] || 0), other, otherNames: Object.keys(c).filter(n => !sdrNames.includes(n)) };
   });
-  return { title, soFar: R.day === R.today, T, per, sdrNames, pct, outcomes, industries, leaders, gaps, windowed: !!R30,
+  return { kind: weekly ? 'weekly' : 'daily', name: weekly ? 'SDR weekly report' : 'SDR daily report', newLabel: weekly ? 'New this week' : 'New today', title, soFar: weekly ? R.today <= R.last : R.day === R.today, T, per, sdrNames, pct, outcomes, industries, leaders, gaps, windowed: !!R30,
     team: [['Accounts reached', T.cos + '  (' + T.newCo + ' net new)'], ['Contacts reached', T.cons + '  (' + T.newCon + ' net new)'], ['Calls', T.calls + '  (' + pct(T.conn, T.calls) + ' connect)'],
       ['Emails sent', String(T.ems)], ['Replies', T.reps + '  (' + pct(T.reps, T.ems) + ' reply rate)'], ['Meetings booked', String(T.mb)], ['Contacts per account', T.cos ? String(Math.round(T.cons / T.cos * 10) / 10) : '–']] };
 }
@@ -982,8 +984,8 @@ function slackBlocks(M) {
   const t = slackTables(M), sec = text => ({ type: 'section', text: { type: 'mrkdwn', text } });
   const fields = M.team.map(([k, v]) => ({ type: 'mrkdwn', text: '*' + k + '*\n' + v }));
   const blocks = [
-    { type: 'header', text: { type: 'plain_text', text: 'SDR daily report · ' + M.title } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: (M.soFar ? 'So far today · ' : '') + 'UK time · <' + HS_DASH + '|Open the HubSpot dashboard>' }] },
+    { type: 'header', text: { type: 'plain_text', text: M.name + ' · ' + M.title } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: (M.soFar ? (M.kind === 'weekly' ? 'So far this week · ' : 'So far today · ') : '') + 'UK time · <' + HS_DASH + '|Open the HubSpot dashboard>' }] },
     { type: 'section', text: { type: 'mrkdwn', text: '*Team*' }, fields: fields.slice(0, 6) },
     fields[6] ? { type: 'context', elements: [{ type: 'mrkdwn', text: 'Contacts per account: *' + M.team[6][1] + '*' + (M.industries.length ? '   ·   Top industries: ' + M.industries.join(', ') : '') }] } : null,
     { type: 'divider' }, sec('*By SDR*\n' + t.sdr),
@@ -995,23 +997,28 @@ function slackBlocks(M) {
   return blocks;
 }
 function slackFallback(M) {
-  return 'SDR daily report · ' + M.title + ': ' + M.T.calls + ' calls, ' + M.T.ems + ' emails, ' + M.T.cos + ' accounts reached, ' + M.T.mb + ' meetings booked.';
+  return M.name + ' · ' + M.title + ': ' + M.T.calls + ' calls, ' + M.T.ems + ' emails, ' + M.T.cos + ' accounts reached, ' + M.T.mb + ' meetings booked.';
 }
 function slackMarkdown(M) {
   const t = slackTables(M), tbl = (head, rows) => '| ' + head.join(' | ') + ' |\n|' + head.map(() => ' --- ').join('|') + '|\n' + rows.map(r => '| ' + r.join(' | ') + ' |').join('\n');
-  const L = ['**SDR daily report · ' + M.title + '**' + (M.soFar ? ' (so far today)' : ''), '',
+  const L = ['**' + M.name + ' · ' + M.title + '**' + (M.soFar ? (M.kind === 'weekly' ? ' (so far this week)' : ' (so far today)') : ''), '',
     tbl(M.team.map(r => r[0]), [M.team.map(r => r[1])]), '',
     '**By SDR**', tbl(['SDR', 'Accounts', 'Net new', 'Contacts', 'Calls', 'Connect', 'Emails', 'Replies', 'Meetings'],
       M.per.map(x => [x.n, x.C.cos, x.C.newCo, x.C.cons, x.C.calls, M.pct(x.C.conn, x.C.calls), x.C.ems, x.C.reps, x.C.mb]).concat([['**Team**', M.T.cos, M.T.newCo, M.T.cons, M.T.calls, M.pct(M.T.conn, M.T.calls), M.T.ems, M.T.reps, M.T.mb]])), '',
     '**Call outcomes**', M.outcomes.length ? tbl(['Outcome', 'Calls', 'Share'], M.outcomes) : '_No calls logged._', '',
     '**Leaderboard**', M.leaders.length ? tbl(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || ''])) : '_No activity yet._', '',
     '**Open data fixes**' + (M.windowed ? ' _(records worked in the last 30 days, as they are in HubSpot now)_' : ''),
-    M.gaps.length ? tbl(['Open fix', 'Open', 'New today'].concat(M.sdrNames).concat(t.others.length ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(t.others.length ? [g.other] : []))) : '_Nothing open._',
+    M.gaps.length ? tbl(['Open fix', 'Open', M.newLabel].concat(M.sdrNames).concat(t.others.length ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(t.others.length ? [g.other] : []))) : '_Nothing open._',
     (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + '[Open the HubSpot dashboard](' + HS_DASH + ')'];
   return L.join('\n');
 }
 
 // the day's report plus the open data fixes from the last 30 days
+async function weeklyModel(day) {
+  // both in parallel so the pair stays inside the 60s function limit
+  const [R, R30] = await Promise.all([buildReport({ span: 'week', day }), buildReport({ span: 'd30' }).catch(() => null)]);
+  return slackModel(R, R30, 'weekly');
+}
 async function dailyModel(day) {
   const R = await buildReport({ span: 'day', day });
   let R30 = null; try { R30 = await buildReport({ span: 'd30' }); } catch (e) { /* fall back to today's gaps only */ }
@@ -1037,7 +1044,7 @@ function emailHtml(M) {
     h2('Call outcomes') + (M.outcomes.length ? table(['Outcome', 'Calls', 'Share'], M.outcomes) : '<p>No calls logged.</p>') +
     h2('Leaderboard') + (M.leaders.length ? table(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || '']), false, true) : '<p>No activity yet.</p>') +
     h2('Open data fixes') + (M.windowed ? '<p style="margin:0 0 4px;color:#666;font-size:13px">Records worked in the last 30 days, as they are in HubSpot now.</p>' : '') +
-    (M.gaps.length ? table(['Open fix', 'Open', 'New today'].concat(M.sdrNames).concat(hasOther ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(hasOther ? [g.other] : []))) : '<p>Nothing open.</p>') +
+    (M.gaps.length ? table(['Open fix', 'Open', M.newLabel].concat(M.sdrNames).concat(hasOther ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(hasOther ? [g.other] : []))) : '<p>Nothing open.</p>') +
     '<p style="color:#666;font-size:13px">' + (others.length ? 'Other = ' + esc(others.join(', ')) + '. ' : '') + 'Each person\u2019s list, with where and why: <a href="' + PORTAL + '/#fixes">Data fixes</a></p></div>';
 }
 async function slackPayload(day, mrkdwn) {
@@ -1068,6 +1075,7 @@ module.exports = async (req, res) => {
 module.exports.buildReport = buildReport;
 module.exports.slackPayload = slackPayload;
 module.exports.dailyModel = dailyModel;
+module.exports.weeklyModel = weeklyModel;
 module.exports.slackBlocks = slackBlocks;
 module.exports.slackFallback = slackFallback;
 module.exports.emailHtml = emailHtml;

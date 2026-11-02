@@ -55,7 +55,7 @@ Three pages in the left panel (`daily.js`, data from `api/data?part=report&span=
 
 ## Daily report on Slack and email
 
-`api/slack-daily.js` sends the daily report (team totals, each SDR, call outcomes, leaderboard, open data fixes) every weekday. The Vercel cron in `vercel.json` runs at `0 17 * * 1-5` (UTC). On the Hobby plan it can fire any time in that hour.
+`api/slack-daily.js` sends the daily report (team totals, each SDR, call outcomes, leaderboard, open data fixes) every weekday, and a weekly report (Monday to Friday) every Friday with `?kind=week`. The Vercel crons in `vercel.json` run at `0 17 * * 1-5` and `30 17 * * 5` (UTC). On the Hobby plan they can fire any time in that hour. Both go to every destination below (currently your DM, the SDR Updates group DM and #sdr-hub).
 
 Environment variables (Vercel → Settings → Environment Variables, Production; redeploy after changing):
 - `SLACK_WEBHOOK_URL`: one or more Slack incoming webhooks, comma-separated (for example your DM and the SDR Updates channel). Webhooks can't post into group DMs.
