@@ -1047,8 +1047,8 @@ function emailHtml(M) {
     (M.gaps.length ? table(['Open fix', 'Open', M.newLabel].concat(M.sdrNames).concat(hasOther ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(hasOther ? [g.other] : []))) : '<p>Nothing open.</p>') +
     '<p style="color:#666;font-size:13px">' + (others.length ? 'Other = ' + esc(others.join(', ')) + '. ' : '') + 'Each person\u2019s list, with where and why: <a href="' + PORTAL + '/#fixes">Data fixes</a></p></div>';
 }
-async function slackPayload(day, mrkdwn) {
-  const M = await dailyModel(day);
+async function slackPayload(day, mrkdwn, kind) {
+  const M = await (kind === 'week' ? weeklyModel(day) : dailyModel(day));
   return mrkdwn ? { text: slackFallback(M), blocks: slackBlocks(M) } : { text: slackMarkdown(M) };
 }
 
@@ -1059,7 +1059,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slack' ? await slackPayload(q.day, false) : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slack' ? await slackPayload(q.day, false, (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
