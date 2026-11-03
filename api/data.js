@@ -901,7 +901,9 @@ async function buildReport(q) {
     let si = CO[id] ? CO[id][2] : -1; if (si < 0 && meetSdr[id] != null) si = meetSdr[id]; if (si >= 0) MB.push([id, t, si]); });
 
   const COx = {}; [...new Set(acts.flatMap(a => a[4]).concat(MB.map(r => r[0])).concat(MEET.map(r => r[2]).filter(Boolean)))].forEach(id => { if (CO[id]) COx[id] = CO[id]; });
-  return { generatedAt: now.toISOString(), span, day: iso(start), last: iso(cut - 3600000), start, end, today: P.todayIso, labels, SDRS: SDRS.map(s => ({ k: s.k, name: s.name, short: s.short, pod: s.pod })),
+  let SLK = [], SLKERR = null, SLKN = 0;
+  try { const sc = await slackMeetingChecks(start, end); SLK = sc.rows; SLKERR = sc.error; SLKN = sc.posts; } catch (e) { SLKERR = String(e.message || e).slice(0, 120); }
+  return { generatedAt: now.toISOString(), span, day: iso(start), last: iso(cut - 3600000), start, end, today: P.todayIso, labels, SLK, SLKERR, SLKN, SDRS: SDRS.map(s => ({ k: s.k, name: s.name, short: s.short, pod: s.pod })),
     ACT: acts, CO: COx, CON, NEWCO: reachCo.filter(id => !priorCo[id]), NEWCON: reachCon.filter(id => !priorCon[id]), MB, MEET, COV };
 }
 
@@ -948,7 +950,8 @@ function slackModel(R, R30, kind) {
       ['Call: no outcome', calls.filter(a => !a[3]).map(a => ['c' + a[7], [sname(a[1])]])],
       ['Call: no call type', calls.filter(a => !a[6]).map(a => ['t' + a[7], [sname(a[1])]])],
       ['Activity: no contact', out.filter(a => !a[5].length).map(a => ['n' + a[7], [sname(a[1])]])],
-      ['Activity: no company', out.filter(a => !a[4].length).map(a => ['k' + a[7], [sname(a[1])]])]
+      ['Activity: no company', out.filter(a => !a[4].length).map(a => ['k' + a[7], [sname(a[1])]])],
+      ['Slack meeting: not in HubSpot', (X.SLK || []).map(r => ['g' + r[5] + r[4].slice(0, 12), [r[1]]])]
     ];
   };
   const todayG = gapsOf(R), openG = R30 ? gapsOf(R30) : todayG, todayIds = new Set(todayG.flatMap(g => g[1].map(x => x[0])));
@@ -1011,6 +1014,75 @@ function slackMarkdown(M) {
     M.gaps.length ? tbl(['Open fix', 'Open', M.newLabel].concat(M.sdrNames).concat(t.others.length ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(t.others.length ? [g.other] : []))) : '_Nothing open._',
     (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + '[Open the HubSpot dashboard](' + HS_DASH + ')'];
   return L.join('\n');
+}
+
+// #grwth check: every "Meeting Booked" post by the team should be reflected in HubSpot
+// (company found, Account Status = Meeting Booked, a meeting logged, and HubSpot's deal notification posted).
+// Reads the channel with SLACK_USER_TOKEN (needs the channels:history user scope).
+const GRWTH = process.env.SLACK_MEETINGS_CHANNEL || 'C051TCCG35K';
+const SLACK_PEOPLE = { U091M9F594K: 'James', U0AEZD9MU76: 'Matthew', U091M9CPELB: 'Nikita', U091M9BGVH9: 'Evan', UJ4NW5RA6: 'Felix Dealtry', U0ALBK2EA31: 'Annie', U04Q69EU84X: 'Jake Donald', U0CLN2VM2: 'Matt', U0BJTG9SECB: 'Arushi' };
+const normCo = t => String(t || '').toLowerCase().replace(/&amp;/g, '&').replace(/[’'`]/g, '').replace(/\([^)]*\)/g, ' ')
+  .replace(/\b(the|ltd|limited|plc|group|uk|ireland|europe|international|holdings|inc|llp|co)\b/g, ' ').replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const sameCo = (a, b) => { const x = normCo(a), y = normCo(b); if (!x || !y) return false; if (x === y || x.includes(y) || y.includes(x)) return true; const xs = x.split(' '), ys = new Set(y.split(' ')); const hit = xs.filter(w => w.length > 2 && ys.has(w)).length; return hit && hit >= Math.min(xs.length, ys.size) * 0.6; };
+let slackCache = null;
+async function grwthPosts(oldestSec, latestSec) {
+  const token = process.env.SLACK_USER_TOKEN || '';
+  if (!token) return { error: 'SLACK_USER_TOKEN is not set', posts: [] };
+  const key = oldestSec + '|' + Math.floor(latestSec / 300);
+  if (slackCache && slackCache.key === key) return slackCache.v;
+  const msgs = []; let cursor = '';
+  for (let i = 0; i < 10; i++) {
+    const u = 'https://slack.com/api/conversations.history?channel=' + GRWTH + '&limit=200&oldest=' + oldestSec + '&latest=' + latestSec + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+    const j = await fetch(u, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()).catch(e => ({ ok: false, error: String(e.message || e) }));
+    if (!j.ok) { const v = { error: j.error === 'missing_scope' ? 'the Slack token needs the channels:history scope' : (j.error || 'Slack error'), posts: [] }; return v; }
+    msgs.push(...(j.messages || []));
+    cursor = j.response_metadata && j.response_metadata.next_cursor; if (!j.has_more || !cursor) break;
+  }
+  const clean = t => String(t || '').replace(/[*_]/g, '').replace(/&amp;/g, '&');
+  const posts = [], deals = [];
+  msgs.forEach(m => {
+    const t = clean(m.text);
+    if (/New Discovery Meeting Booked/i.test(t)) { const d = /Deal Name\s*-\s*(.+)/i.exec(t); if (d) deals.push({ name: d[1].trim(), ts: Number(m.ts) * 1000 }); return; }
+    if (m.bot_id || !/^\s*Meeting Booked/i.test(t)) return;
+    const tg = /Target:\s*(.+)/i.exec(t);
+    if (!tg) return;
+    posts.push({ ts: Number(m.ts) * 1000, by: SLACK_PEOPLE[m.user] || 'Someone in #grwth', target: tg[1].trim(), link: 'https://inploi.slack.com/archives/' + GRWTH + '/p' + String(m.ts).replace('.', '') });
+  });
+  const v = { error: null, posts, deals };
+  slackCache = { key, v };
+  return v;
+}
+// returns rows [ts, who, target, coId|null, issue, slackLink]
+async function slackMeetingChecks(startMs, endMs) {
+  const g = await grwthPosts(Math.floor(startMs / 1000), Math.floor(endMs / 1000) + 3 * 86400);
+  if (g.error) return { error: g.error, rows: [], posts: 0 };
+  const posts = g.posts.filter(p => p.ts >= startMs && p.ts < endMs);
+  const out = [];
+  await Promise.all(posts.map(async p => {
+    let co = null;
+    try {
+      const r = await hs('/crm/v3/objects/companies/search', { query: normCo(p.target).split(' ').slice(0, 3).join(' ') || p.target, limit: 10, properties: ['name', 'account_status'] });
+      co = (r.results || []).find(c => sameCo(c.properties.name, p.target)) || null;
+      if (!co) { const r2 = await hs('/crm/v3/objects/companies/search', { query: p.target.slice(0, 60), limit: 10, properties: ['name', 'account_status'] }); co = (r2.results || []).find(c => sameCo(c.properties.name, p.target)) || null; }
+    } catch (e) { co = null; }
+    const issues = [];
+    if (!co) issues.push('Company not found in HubSpot');
+    else {
+      if (!/meeting booked|opportunit|customer|client/i.test(co.properties.account_status || '')) issues.push('Account Status is ' + (co.properties.account_status ? '"' + co.properties.account_status + '"' : 'empty') + ', not Meeting Booked');
+      try {
+        const am = await assoc('companies', 'meetings', [co.id]);
+        const ids = am[String(co.id)] || [];
+        const mp = ids.length ? await batchReadPar('meetings', ids.slice(-200), ['hs_createdate']) : {};
+        const near = Object.values(mp).some(x => { const c = toMs(x.hs_createdate); return c != null && Math.abs(c - p.ts) <= 4 * 86400000; });
+        if (!near) issues.push('No meeting logged in HubSpot');
+      } catch (e) { /* skip this check if HubSpot is unavailable */ }
+    }
+    const notified = (g.deals || []).some(d => d.ts >= p.ts - 86400000 && d.ts <= p.ts + 3 * 86400000 && (sameCo(d.name, p.target) || (co && sameCo(d.name, co.properties.name))));
+    if (!notified) issues.push('No deal created (HubSpot didn’t post its new-deal notification)');
+    issues.forEach(i => out.push([p.ts, p.by, p.target, co ? String(co.id) : null, i, p.link, co ? co.properties.name : '']));
+  }));
+  out.sort((a, b) => a[0] - b[0]);
+  return { error: null, rows: out, posts: posts.length };
 }
 
 // open data fixes, one row per person per record, for the Google Sheet (same rules as the Data fixes page in daily.js)
@@ -1098,6 +1170,16 @@ function fixRows(D) {
   calls.filter(a => !a[6]).forEach(a => act('Call with no call type', a, sugCallType(a), apCallType(a)));
   out.filter(a => !a[5].length).forEach(a => act('Call or email not linked to a contact', a, sugContact(a)));
   out.filter(a => !a[4].length).forEach(a => act('Call or email not linked to a company', a, sugCompany(a)));
+  (D.SLK || []).forEach(r => {
+    const how = /not found/.test(r[4]) ? 'Find or create the company in HubSpot, then set Account Status to Meeting Booked and log the meeting.'
+      : /Account Status/.test(r[4]) ? 'Set Account Status to Meeting Booked on the company.'
+      : /meeting logged/.test(r[4]) ? 'Log the meeting on the company in HubSpot (from your calendar or the meeting tool).'
+      : 'Create the deal by hand, or ask for the workflow to be checked (it skips companies that already have closed deals).';
+    const sug = /Account Status/.test(r[4]) ? 'Meeting Booked: you posted this meeting in #grwth on ' + nice(r[0]) + '.' : 'Posted in #grwth on ' + nice(r[0]) + ': ' + r[2] + '.';
+    const ap = /Account Status/.test(r[4]) && r[3] ? ch('companies', r[3], 'account_status', 'Company → Account Status', 'Meeting Booked') : null;
+    rows.push({ key: 'Slack|' + r[5] + '|' + r[4].slice(0, 30) + '|' + r[1], who: r[1], fix: 'Meeting posted in #grwth: ' + r[4].replace(/ \(.*\)$/, '').replace(/ is .*, not/, ' isn’t'), suggest: sug, apply: ap,
+      record: r[6] || r[2], link: r[3] ? HS_REC + '0-2/' + r[3] : r[5], company: r[6] || r[2], worked: day(r[0]), where: r[3] ? 'Company record in HubSpot' : '#grwth post', how, why: 'Meetings posted in Slack should match HubSpot, so they count on the dashboard, create a deal and reach the right AE.' });
+  });
   return rows;
 }
 async function fixesPayload() {
@@ -1151,7 +1233,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');

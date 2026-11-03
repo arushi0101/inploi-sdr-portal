@@ -89,6 +89,9 @@ function drillCons(D,title,ids,C,note){if(!window.SDRDrill)return;names(D);
 function drillMeet(D,title,rows,note){if(!window.SDRDrill)return;names(D);
   window.SDRDrill.table(title,sub(D),[{h:'Meeting',t:'link'},{h:'Company',t:'co'},{h:'SDR',t:'text'},{h:'Logged',t:'date',time:true},{h:'Meeting date',t:'date',time:true},{h:'Meeting type',t:'text'},{h:'Outcome',t:'text'},{h:'Owner',t:'text'}],
     rows.map(function(r){return [[HS+'0-47/'+r[0],r[1]],r[2]?[r[2],D.CO[r[2]]?D.CO[r[2]][0]:'Company '+r[2]]:null,D.SDRS[r[3]].short,r[4],r[5],r[6]||'– missing',r[7]||'– missing',r[8]];}),note);}
+function drillSlk(D,title,rows,note){if(!window.SDRDrill)return;names(D);
+  window.SDRDrill.table(title,sub(D),[{h:'Posted in #grwth',t:'link'},{h:'Company',t:'co'},{h:'Posted by',t:'text'},{h:'Posted',t:'date',time:true},{h:'What doesn’t match',t:'text'}],
+    rows.map(function(r){return [[r[5],r[2]],r[3]?[r[3],r[6]||r[2]]:null,r[1],r[0],r[4]];}),note);}
 function drillMB(D,title,rows){if(!window.SDRDrill)return;names(D);
   window.SDRDrill.table(title,sub(D),[{h:'Company',t:'co'},{h:'SDR',t:'text'},{h:'Moved to Meeting Booked',t:'date',time:true},{h:'Account Status now',t:'text'},{h:'Industry',t:'text'}],
     rows.map(function(r){var c=D.CO[r[0]]||['Company '+r[0],'',-1,''];return [[r[0],c[0]],r[2]>=0?D.SDRS[r[2]].short:'',r[1],c[3],c[1]];}),'Companies whose Account Status changed to Meeting Booked in this period, as on the Meetings page.');}
@@ -149,6 +152,7 @@ function gaps(D,view){var C=crunch(D,SI(D)),now=Date.now(),sdr=function(i){retur
     ['Past meetings with no outcome',C.meet.filter(function(r){return r[5]&&r[5]<now&&(!r[7]||/SCHEDULED/i.test(r[7]));}),'meet','Set the meeting outcome (Completed, No show, Cancelled, Rescheduled) once it has happened.','Meeting owner',meetWho],
     ['Meetings on accounts with no SDR Owner',C.meet.filter(function(r){return r[2]&&D.CO[r[2]]&&!D.CO[r[2]][4];}),'meet','Set SDR Owner on the meeting’s company.','Meeting owner',meetWho],
     ['Meetings where Account Status isn’t Meeting Booked',C.meet.filter(function(r){var c=r[2]&&D.CO[r[2]];return c&&!C.mb.some(function(m){return m[0]===r[2];})&&!/meeting booked|opportunit|customer|client|disqualif|closed/i.test(c[3]);}),'meet','Set Account Status to Meeting Booked on the company.','Meeting owner',meetWho],
+    ['Meetings posted in #grwth that don’t match HubSpot',D.SLK||[],'slk','Make HubSpot match the #grwth post: the company, Account Status Meeting Booked, the meeting and the deal.','Who posted it',function(r){return [r[1]];}],
     ['Accounts worked with no SDR Owner',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][4];}),'co','Set SDR Owner on the company.','SDR who worked it',coWho],
     ['Accounts worked with no Account Status',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][3];}),'co','Set Account Status on the company.','SDR who worked it',coWho],
     ['Calls with no outcome',C.calls.filter(function(a){return !a[3];}),'act','Set Call outcome on the call.','SDR who made the call',actWho],
@@ -158,7 +162,7 @@ function gaps(D,view){var C=crunch(D,SI(D)),now=Date.now(),sdr=function(i){retur
   // everyone with something to fix, for the filter
   var people={};G.forEach(function(g){g[1].forEach(function(x){g[5](x).forEach(function(n){people[n]=(people[n]||0)+1;});});});
   var names=Object.keys(people).sort(function(a,b){return people[b]-people[a]||(a<b?-1:1);}),f=gapWho[view]||'';if(f&&!people[f])f='';
-  var open=function(g,l,t){if(g[2]==='meet')drillMeet(D,t,l,g[3]);else if(g[2]==='co')drillCos(D,t,l,C,g[3]);else drillActs(D,t,l,g[3]);};
+  var open=function(g,l,t){if(g[2]==='slk')drillSlk(D,t,l,g[3]);else if(g[2]==='meet')drillMeet(D,t,l,g[3]);else if(g[2]==='co')drillCos(D,t,l,C,g[3]);else drillActs(D,t,l,g[3]);};
   var total=0;
   var rows=G.map(function(g){var l=f?g[1].filter(function(x){return g[5](x).indexOf(f)>=0;}):g[1];total+=l.length;
     var per={};l.forEach(function(x){g[5](x).forEach(function(n){(per[n]=per[n]||[]).push(x);});});
@@ -195,6 +199,7 @@ var FIX={span:'d30',who:''};
 try{var fs0=localStorage.getItem('sdrFixSpan');if(fs0==='d30'||fs0==='day'||fs0==='week'||fs0==='month')FIX.span=fs0;}catch(x){}
 function fixKey(){return FIX.span==='d30'?'d30|'+ukToday():FIX.span+'|'+norm(FIX.span==='day'?'daily':FIX.span==='week'?'weekly':'monthly',ukToday());}
 var FIX_INFO={
+  'Meetings posted in #grwth that don’t match HubSpot':['Company record in HubSpot (or the #grwth post)','Meetings posted in Slack should match HubSpot, so they count on the dashboard, create a deal and reach the right AE.'],
   'New meetings with no meeting type':['Meeting record → Meeting type','First meetings booked and held are counted from Meeting type. A meeting with no type doesn’t count towards the target.'],
   'Past meetings with no outcome':['Meeting record → Outcome','Held, no-show and cancelled numbers come from the outcome. Without it the meeting counts as “no outcome”.'],
   'Meetings on accounts with no SDR Owner':['Company record → SDR Owner','The meeting is credited to its SDR for now, but the account won’t show in that SDR’s assigned accounts or coverage until SDR Owner is set.'],
@@ -210,6 +215,7 @@ function gapList(D){var C=crunch(D,SI(D)),now=Date.now(),sdr=function(i){return 
   return {C:C,G:[
     ['New meetings with no meeting type',C.meet.filter(function(r){return !r[6];}),'meet','Set Meeting type (e.g. Discovery Call) on the meeting.','Meeting owner',meetWho],
     ['Past meetings with no outcome',C.meet.filter(function(r){return r[5]&&r[5]<now&&(!r[7]||/SCHEDULED/i.test(r[7]));}),'meet','Set the meeting outcome (Completed, No show, Cancelled, Rescheduled) once it has happened.','Meeting owner',meetWho],
+    ['Meetings posted in #grwth that don’t match HubSpot',D.SLK||[],'slk','Make HubSpot match the #grwth post: the company, Account Status Meeting Booked, the meeting and the deal.','Who posted it',function(r){return [r[1]];}],
     ['Accounts worked with no SDR Owner',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][4];}),'co','Set SDR Owner on the company.','SDR who worked it',coWho],
     ['Accounts worked with no Account Status',C.coIds.filter(function(id){return D.CO[id]&&!D.CO[id][3];}),'co','Set Account Status on the company.','SDR who worked it',coWho],
     ['Calls with no outcome',C.calls.filter(function(a){return !a[3];}),'act','Set Call outcome on the call.','SDR who made the call',actWho],
@@ -218,7 +224,8 @@ function gapList(D){var C=crunch(D,SI(D)),now=Date.now(),sdr=function(i){return 
     ['Calls and emails not linked to a company',C.out.filter(function(a){return !a[4].length;}),'act','Associate the activity (or its contact) with the company.','SDR who logged it',actWho]]};}
 function fixRows(D){var L=gapList(D),rows=[];
   L.G.forEach(function(g){var info=FIX_INFO[g[0]]||['',''];g[1].forEach(function(x){var rec,co,when;
-    if(g[2]==='meet'){rec=[HS+'0-47/'+x[0],x[1]];co=x[2];when=x[4];}
+    if(g[2]==='slk'){rec=[x[3]?HS+'0-2/'+x[3]:x[5],(x[6]||x[2])+': '+x[4]];co=x[3];when=x[0];}
+    else if(g[2]==='meet'){rec=[HS+'0-47/'+x[0],x[1]];co=x[2];when=x[4];}
     else if(g[2]==='co'){rec=[HS+'0-2/'+x,D.CO[x]?D.CO[x][0]:'Company '+x];co=x;when=((L.C.cos[x]||[])[0]||[])[0];}
     else{var con=x[5].map(function(id){return D.CON[id]?D.CON[id][0]:'';}).filter(Boolean).join(', ');rec=[HS+(x[2]==='c'?'0-48/':'0-49/')+x[7],(x[2]==='c'?'Call':'Email')+(con?' with '+con:'')+(x[2]!=='c'&&x[6]?': '+x[6]:'')];co=x[4][0];when=x[0];}
     g[5](x).forEach(function(w){rows.push({who:w,gap:g[0],rec:rec,co:co,when:when,where:info[0],why:info[1],how:g[3]});});});});
