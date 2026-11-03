@@ -17,7 +17,8 @@ Set `HUBSPOT_TOKEN` in Vercel (Production) to a HubSpot private app token with r
 
 ## Definitions
 
-- **Meetings booked**: companies with an SDR Owner whose Account Status moved to Meeting Booked in the period, dated by when the status was set. This matches the HubSpot "Meetings Booked" report.
+- **Meetings booked**: NEW meetings only, one per company in the period: a company whose Account Status moved to Meeting Booked, or a "Meeting Booked" post in #grwth where HubSpot wasn't updated. Demos (and other non-discovery meetings) and companies already open in the sales pipeline (an open deal created before the booking) don't count, matching the HubSpot bot's "New Discovery Meeting Booked & New Deal Created".
+  - Credit: the company's SDR Owner. With no SDR Owner, it goes through the pods: the #grwth poster, then the HubSpot meeting owner. An SDR credits themselves; pod leads credit their pod's SDR (Jason Baaphy → James, Sales Pod 1; Felix Dealtry → Matthew, Sales Pod 2). Nikita and Evan have no pod lead.
 - **First meetings held**: meetings on SDR-owned companies marked completed in HubSpot or in their Gong copy, excluding meetings once a deal is open and AE progression meetings (proposal, pricing, follow-up and similar).
 - Periods are UK time. This week runs Monday to today; month to date runs from the 1st.
 
@@ -27,7 +28,7 @@ Set `HUBSPOT_TOKEN` in Vercel (Production) to a HubSpot private app token with r
 Every bar, segment and number opens a sortable, filterable table of the records behind it (with CSV export), and any company opens its journey.
 
 - **New accounts reached (B3)** = Account Status first moved off New in the period, from HubSpot's status history (no new field or backfill needed).
-- **Meetings booked (E1)** = companies moved to Meeting Booked in the period, credited to the company SDR Owner.
+- **Meetings booked (E1)** = new meetings in the period (see above), credited to the company SDR Owner, else through the pods.
 - **Accounts contacted (B2)** = an SDR call or email in the period, or Last Contacted in the period.
 
 ## Custom date range

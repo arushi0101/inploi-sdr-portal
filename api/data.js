@@ -3,8 +3,8 @@
 const { allowed } = require('./_auth');
 const API = 'https://api.hubapi.com';
 const SDRS = [
-  { k: 'james', id: '29569627', name: 'James Crawford', short: 'James', pod: 'Sales Pod 1', lead: 'Jason Baaphy' },
-  { k: 'matthew', id: '32364701', name: 'Matthew Meehan', short: 'Matthew', pod: 'Sales Pod 2', lead: 'Felix Dealtry' },
+  { k: 'james', id: '29569627', name: 'James Crawford', short: 'James', pod: 'Sales Pod 1', lead: 'Jason Baaphy', leadId: '1709905072' },
+  { k: 'matthew', id: '32364701', name: 'Matthew Meehan', short: 'Matthew', pod: 'Sales Pod 2', lead: 'Felix Dealtry', leadId: '511871441' },
   { k: 'nikita', id: '29569628', name: 'Nikita Rohwer', short: 'Nikita', pod: 'SA / Partnerships', lead: '' },
   { k: 'evan', id: '29569626', name: 'Evan Williams', short: 'Evan', pod: 'Marketing', lead: '' }
 ];
@@ -240,7 +240,14 @@ async function build(q) {
   });
   const tp = londonParts(now), d30 = londonMidnight(tp.y, tp.m, tp.d - 30);
   const mbFrom = Math.min(minStart, d30);
-  const mbT = await mbTransitions(Object.keys(coById).filter(id => coById[id].sdr && (coById[id].lm == null || coById[id].lm >= mbFrom)));
+  // NEW meetings only, and companies with no SDR Owner credited through the pods (see newBookings / podBookings)
+  const mbEnd = now.getTime() + 86400000;
+  const pbM = await podBookings(mbFrom, mbEnd, id => !!(coById[id] && coById[id].sdr));
+  const mbT0 = await mbTransitions(Object.keys(coById).filter(id => coById[id].sdr && (coById[id].lm == null || coById[id].lm >= mbFrom)).concat(Object.keys(pbM.att), pbM.slack.map(x => x.coId)));
+  const nbM = await newBookings(mbT0, pbM, mbFrom, mbEnd, id => coById[id] && coById[id].sdr ? SDRS.findIndex(s => s.k === coById[id].sdr.k) : -1);
+  const mbT = {}, mbSdr = {}; nbM.forEach(r => { (mbT[r[0]] = mbT[r[0]] || []).push(r[1]); mbSdr[r[0]] = SDRS[r[2]]; });
+  const podCo = {}, podIds = Object.keys(mbT).filter(id => !coById[id]);
+  if (podIds.length) { const mp = await batchReadPar('companies', podIds, ['name', 'account_status']); podIds.forEach(id => { const q = mp[id] || {}; podCo[id] = { name: (q.name || 'Company ' + id).trim(), sdr: mbSdr[id], status: statusOpts[q.account_status] || q.account_status || '' }; }); }
   const mbIds = Object.keys(mbT);
   const mbIn = (id, k) => { let r = null; (mbT[id] || []).forEach(t => { if (inP(t, k)) r = t; }); return r; };
   const OUT = {}; SDRS.forEach(s => { OUT[s.k] = { seq: { wk: { enr: 0, em: 0 }, mtd: { enr: 0, em: 0 } }, rep: { wk: 0, mtd: 0 } }; });
@@ -273,9 +280,9 @@ async function build(q) {
     else if (/screening bot|attempting/.test(e)) x.bot++;
   });
   mbIds.forEach(id => {
-    const c = coById[id], x = S[c.sdr.k];
-    K.forEach(k => { if (mbIn(id, k) != null) { x.first[k]++; add('booked', c.sdr.k, k, id); } });
-    if (mbT[id].some(t => t >= d30)) { x.booked30++; add('booked30', c.sdr.k, 'all', id); }
+    const sk = mbSdr[id].k, x = S[sk];
+    K.forEach(k => { if (mbIn(id, k) != null) { x.first[k]++; add('booked', sk, k, id); } });
+    if (mbT[id].some(t => t >= d30)) { x.booked30++; add('booked30', sk, 'all', id); }
   });
   contacts.forEach(c => {
     const co = coById[c.properties.associatedcompanyid]; if (!co || !co.sdr) return;
@@ -416,7 +423,7 @@ async function build(q) {
   const inTable = {}; MEETINGS.forEach(m => { inTable[m.id] = m; });
   mbIds.forEach(id => {
     const at = mbIn(id, 'mtd') != null ? mbIn(id, 'mtd') : mbIn(id, 'wk'); if (at == null) return;
-    const c = coById[id];
+    const c = Object.assign({}, coById[id] || podCo[id], { sdr: mbSdr[id] });
     const ms = (meetByCo[id] || []).filter(x => x.start != null).sort((a, b) => a.start - b.start);
     const mt = ms.find(x => x.start >= at - 86400000) || ms[ms.length - 1] || null;
     let o = ['warn', 'No meeting logged'], d = '\u2013', ds = iso(at), title = 'No meeting logged in HubSpot', by = '\u2013', heldWk = false, xx = null;
@@ -517,12 +524,17 @@ async function buildBookedMonths() {
   const sdrOpts = await options('companies', 'sdr_owner');
   const companies = await searchAll('companies', [{ filters: [{ propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }, { propertyName: 'hs_lastmodifieddate', operator: 'GTE', value: String(startMs) }] }], ['sdr_owner']);
   const coSdr = {}; companies.forEach(c => { const sd = sdrOf(c.properties.sdr_owner) || sdrOf(sdrOpts[c.properties.sdr_owner]); if (sd) coSdr[c.id] = sd; });
-  const mbT = Object.keys(coSdr).length ? await mbTransitions(Object.keys(coSdr)) : {};
+  const endMs = now.getTime() + 86400000;
+  const pb = await podBookings(startMs, endMs, id => !!coSdr[id]);
+  const mbT = await mbTransitions(Object.keys(coSdr).concat(Object.keys(pb.att), pb.slack.map(x => x.coId)));
+  const nb = await newBookings(mbT, pb, startMs, endMs, id => coSdr[id] ? SDRS.indexOf(coSdr[id]) : -1);
   const ym = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit' });
   const by = {}; SDRS.forEach(sd => { by[sd.k] = months.map(() => 0); });
-  const list = [];
-  Object.keys(mbT).forEach(id => { const seen = {}; mbT[id].forEach(t => { const mi = months.indexOf(ym.format(new Date(t)).slice(0, 7)); if (mi >= 0 && !seen[mi]) { seen[mi] = 1; by[coSdr[id].k][mi]++; list.push([id, t, coSdr[id].k]); } }); });
-  return { generatedAt: now.toISOString(), months, SDRS: SDRS.map(sd => ({ k: sd.k, short: sd.short })), by, total: months.map((m, i) => SDRS.reduce((a, sd) => a + by[sd.k][i], 0)), list };
+  const list = [], seen = {};
+  nb.forEach(r => { const mi = months.indexOf(ym.format(new Date(r[1])).slice(0, 7)); if (mi < 0 || seen[r[0] + '|' + mi]) return; seen[r[0] + '|' + mi] = 1; const k = SDRS[r[2]].k; by[k][mi]++; list.push([r[0], r[1], k, r[3], coSdr[r[0]] ? 'sdr owner' : 'pod']); });
+  const nameIds = [...new Set(list.map(r => r[0]))]; const nm = nameIds.length ? await batchReadPar('companies', nameIds, ['name']) : {};
+  list.forEach(r => { r.push(((nm[r[0]] || {}).name || '').trim()); });
+  return { generatedAt: now.toISOString(), months, SDRS: SDRS.map(sd => ({ k: sd.k, short: sd.short })), by, total: months.map((m, i) => SDRS.reduce((a, sd) => a + by[sd.k][i], 0)), list, slackError: pb.error };
 }
 
 /* ---------- 8-week trends (separate request so the main data stays fast) ---------- */
@@ -604,8 +616,11 @@ async function buildTrends() {
     const sk = coSdr[coId].k;
     const hwi = wkIdx(start); if (done && hwi >= 0 && start < P.today + 86400000) TR[sk].held[hwi]++;
   });
-  const mbT = await mbTransitions(Object.keys(coSdr).filter(id => coLm[id] == null || coLm[id] >= trendStart));
-  Object.keys(mbT).forEach(id => { const seen = {}; mbT[id].forEach(t => { const wi = wkIdx(t); if (wi >= 0 && !seen[wi]) { seen[wi] = 1; TR[coSdr[id].k].booked[wi]++; } }); });
+  const tEnd = now.getTime() + 86400000;
+  const pbT = await podBookings(trendStart, tEnd, id => !!coSdr[id]);
+  const mbT = await mbTransitions(Object.keys(coSdr).filter(id => coLm[id] == null || coLm[id] >= trendStart).concat(Object.keys(pbT.att), pbT.slack.map(x => x.coId)));
+  const nbT = await newBookings(mbT, pbT, trendStart, tEnd, id => coSdr[id] ? SDRS.indexOf(coSdr[id]) : -1);
+  const tSeen = {}; nbT.forEach(r => { const wi = wkIdx(r[1]); if (wi >= 0 && !tSeen[r[0] + '|' + wi]) { tSeen[r[0] + '|' + wi] = 1; TR[SDRS[r[2]].k].booked[wi]++; } });
   return { generatedAt: now.toISOString(), TRENDS: { weeks: P.weeks.map(iso), bySdr: TR } };
 }
 
@@ -910,16 +925,18 @@ async function buildReport(q) {
   outActs.forEach(a => { if (a[5].some(id => priorCon[id])) a[4].forEach(id => { priorCo[id] = true; }); });
 
   // meetings booked: companies moved to Meeting Booked on the day, and meetings logged that day
-  const MEET = meetings.map(m => { const p = m.properties; const cos = mCo[m.id] || []; const coId = cos.find(id => CO[id] && CO[id][2] >= 0) || cos[0] || null; let si = coId && CO[coId] ? CO[coId][2] : -1; if (si < 0) si = sdrIx(p.hubspot_owner_id);
+  const MEET = meetings.map(m => { const p = m.properties; const cos = mCo[m.id] || []; const coId = cos.find(id => CO[id] && CO[id][2] >= 0) || cos[0] || null; let si = coId && CO[coId] ? CO[coId][2] : -1; if (si < 0) si = podIx(p.hubspot_owner_id);
     return [m.id, (p.hs_meeting_title || 'Meeting').slice(0, 120), coId, si, toMs(p.hs_createdate), toMs(p.hs_meeting_start_time), p.hs_activity_type || '', p.hs_meeting_outcome || '', OWNER_NAMES[p.hubspot_owner_id] || (SDRS[sdrIx(p.hubspot_owner_id)] || {}).name || ''];
   }).filter(r => r[3] >= 0 && !/^\[gong\]/i.test(r[1]));
-  // meetings booked: companies moved to Meeting Booked in the period, one per company. Includes companies on meetings
-  // logged in the period even when they have no SDR Owner, credited to the meeting's SDR.
-  const meetSdr = {}; MEET.forEach(r => { if (r[2] && meetSdr[r[2]] == null) meetSdr[r[2]] = r[3]; });
-  const cand = [...new Set(sdrCos.filter(c => { const lm = toMs(c.properties.hs_lastmodifieddate); return lm != null && lm >= start; }).map(c => c.id).concat(Object.keys(meetSdr)))];
+  // meetings booked: NEW meetings only (see newBookings), first per company in the period. Companies with no SDR Owner
+  // are credited through the pods (#grwth poster, then the meeting owner; Jason -> James, Felix -> Matthew).
+  const pb = await podBookings(start, end, id => !!(CO[id] && CO[id][2] >= 0));
+  const cand = [...new Set(sdrCos.filter(c => { const lm = toMs(c.properties.hs_lastmodifieddate); return lm != null && lm >= start; }).map(c => c.id).concat(Object.keys(pb.att), pb.slack.map(x => x.coId)))];
   const mb = cand.length ? await mbTransitions(cand) : {};
-  const MB = []; Object.keys(mb).forEach(id => { const t = (mb[id] || []).filter(t => t >= start && t < end).sort((a, b) => a - b)[0]; if (t == null) return;
-    let si = CO[id] ? CO[id][2] : -1; if (si < 0 && meetSdr[id] != null) si = meetSdr[id]; if (si >= 0) MB.push([id, t, si]); });
+  const nb = await newBookings(mb, pb, start, end, id => CO[id] ? CO[id][2] : -1);
+  const MB = [], mbSeen = {}; nb.forEach(r => { if (mbSeen[r[0]]) return; mbSeen[r[0]] = 1; MB.push([r[0], r[1], r[2], r[3]]); });
+  const miss2 = MB.map(r => r[0]).filter(id => !CO[id]);
+  if (miss2.length) { const mp = await batchReadPar('companies', miss2, ['name', 'sdr_owner', 'account_status', 'industry_', 'industry']); Object.keys(mp).forEach(id => { CO[id] = coRow(mp[id]); }); }
 
   const COx = {}; [...new Set(acts.flatMap(a => a[4]).concat(MB.map(r => r[0])).concat(MEET.map(r => r[2]).filter(Boolean)))].forEach(id => { if (CO[id]) COx[id] = CO[id]; });
   let SLK = [], SLKERR = null, SLKN = 0;
@@ -1041,16 +1058,18 @@ function slackMarkdown(M) {
 // (company found, Account Status = Meeting Booked, a meeting logged, and HubSpot's deal notification posted).
 // Reads the channel with SLACK_USER_TOKEN (needs the channels:history user scope).
 const GRWTH = process.env.SLACK_MEETINGS_CHANNEL || 'C051TCCG35K';
-const SLACK_PEOPLE = { U091M9F594K: 'James', U0AEZD9MU76: 'Matthew', U091M9CPELB: 'Nikita', U091M9BGVH9: 'Evan', UJ4NW5RA6: 'Felix Dealtry', U0ALBK2EA31: 'Annie', U04Q69EU84X: 'Jake Donald', U0CLN2VM2: 'Matt', U0BJTG9SECB: 'Arushi' };
+const SLACK_PEOPLE = { U091M9F594K: 'James', U0AEZD9MU76: 'Matthew', U091M9CPELB: 'Nikita', U091M9BGVH9: 'Evan', UJ4NW5RA6: 'Felix Dealtry', U0ALBK2EA31: 'Annie', U04Q69EU84X: 'Jake Donald', U0CLN2VM2: 'Matt', U0BJTG9SECB: 'Arushi', U07D0E25KK9: 'Jason Baaphy' };
+// who gets the credit for a #grwth post: SDRs themselves; pod leads credit their pod's SDR (Jason -> James, Felix -> Matthew)
+const SLACK_SDR = { U091M9F594K: 0, U0AEZD9MU76: 1, U091M9CPELB: 2, U091M9BGVH9: 3, U07D0E25KK9: 0, UJ4NW5RA6: 1 };
 const normCo = t => String(t || '').toLowerCase().replace(/&amp;/g, '&').replace(/[’'`]/g, '').replace(/\([^)]*\)/g, ' ')
   .replace(/\b(the|ltd|limited|plc|group|uk|ireland|europe|international|holdings|inc|llp|co)\b/g, ' ').replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const sameCo = (a, b) => { const x = normCo(a), y = normCo(b); if (!x || !y) return false; if (x === y || x.includes(y) || y.includes(x)) return true; const xs = x.split(' '), ys = new Set(y.split(' ')); const hit = xs.filter(w => w.length > 2 && ys.has(w)).length; return hit && hit >= Math.min(xs.length, ys.size) * 0.6; };
-let slackCache = null;
+const slackCache = new Map();
 async function grwthPosts(oldestSec, latestSec) {
   const token = process.env.SLACK_USER_TOKEN || '';
   if (!token) return { error: 'SLACK_USER_TOKEN is not set', posts: [] };
   const key = oldestSec + '|' + Math.floor(latestSec / 300);
-  if (slackCache && slackCache.key === key) return slackCache.v;
+  const hitS = slackCache.get(key); if (hitS) return hitS;
   const msgs = []; let cursor = '';
   for (let i = 0; i < 10; i++) {
     const u = 'https://slack.com/api/conversations.history?channel=' + GRWTH + '&limit=200&oldest=' + oldestSec + '&latest=' + latestSec + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
@@ -1073,11 +1092,89 @@ async function grwthPosts(oldestSec, latestSec) {
     if (m.bot_id || !/^\s*Meeting Booked/i.test(t)) return;
     const tg = /Target:\s*(.+)/i.exec(t);
     if (!tg) return;
-    posts.push({ ts: Number(m.ts) * 1000, by: SLACK_PEOPLE[m.user] || 'Someone in #grwth', target: tg[1].trim(), link: 'https://inploi.slack.com/archives/' + GRWTH + '/p' + String(m.ts).replace('.', '') });
+    posts.push({ ts: Number(m.ts) * 1000, uid: m.user, si: SLACK_SDR[m.user] != null ? SLACK_SDR[m.user] : -1, demo: /\bdemo\b/i.test(t), by: SLACK_PEOPLE[m.user] || 'Someone in #grwth', target: tg[1].trim(), link: 'https://inploi.slack.com/archives/' + GRWTH + '/p' + String(m.ts).replace('.', '') });
   });
   const v = { error: null, posts, deals };
-  slackCache = { key, v };
+  if (slackCache.size > 20) slackCache.clear(); slackCache.set(key, v);
   return v;
+}
+// the HubSpot company a #grwth "Target:" names (cached per target for 10 minutes)
+const coMatchCache = new Map();
+async function matchCo(target) {
+  const hit = coMatchCache.get(target); if (hit && Date.now() - hit.at < 600000) return hit.co;
+  let co = null;
+  let failed = false;
+  try { co = await (async () => {
+      // search a few ways (full name, cleaned name, its longest word), then pick the closest name;
+      // ties go to the company already marked Meeting Booked, so old duplicates don't win
+      const words = t => String(t || '').toLowerCase().replace(/&amp;/g, '&').replace(/&/g, ' and ').replace(/[’'`]/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w && !/^(the|ltd|limited|plc|group|uk|ireland|europe|international|holdings|inc|llp|co|and)$/.test(w));
+      const tw = words(target), longest = tw.slice().sort((a, b) => b.length - a.length)[0] || target;
+      const qs = [...new Set([target.replace(/[()]/g, ' ').slice(0, 80), normCo(target), longest])].filter(Boolean);
+      const cands = {};
+      const score = c => { const cw = new Set(words(c.properties.name)); if (!cw.size || !tw.length) return 0; const hit = tw.filter(w => cw.has(w)).length; return hit / Math.max(tw.length, cw.size); };
+      for (const q of qs) {
+        const r = await hs('/crm/v3/objects/companies/search', { query: q, limit: 20, properties: ['name', 'account_status', 'hs_lastmodifieddate'] });
+        (r.results || []).forEach(c => { cands[c.id] = c; });
+        if (Object.values(cands).some(c => score(c) >= 0.99)) break; // exact name found: no need for wider searches
+      }
+      const ranked = Object.values(cands).map(c => ({ c, s: score(c) + (sameCo(c.properties.name, target) ? 0.25 : 0) + (/meeting booked|opportunit/i.test(c.properties.account_status || '') ? 0.1 : 0) }))
+        .filter(x => x.s >= 0.4).sort((a, b) => b.s - a.s);
+      return ranked.length ? ranked[0].c : null;
+    })(); } catch (e) { co = null; failed = true; }
+  if (!failed) coMatchCache.set(target, { co, at: Date.now() });
+  return co;
+}
+
+/* ---------- pods and new meetings ----------
+   Only NEW meetings count as booked: a new discovery meeting (what HubSpot's bot posts as "New Discovery Meeting Booked").
+   Demos, deal progression, QBRs and check-ins don't count, and nor does a meeting with a company already open in the pipeline.
+   Companies with no SDR Owner are credited through the pods: the #grwth poster first, then the meeting's HubSpot owner.
+   An SDR credits themselves; a pod lead credits their pod's SDR (Jason Baaphy -> James, Felix Dealtry -> Matthew). */
+const podIx = ownerId => { const id = String(ownerId || ''); if (!id) return -1; const i = SDRS.findIndex(s => s.id === id); return i >= 0 ? i : SDRS.findIndex(s => s.leadId && s.leadId === id); };
+const POD_OWNER_IDS = SDRS.map(s => s.id).concat(SDRS.map(s => s.leadId).filter(Boolean));
+const NEW_MEETING_TYPE = t => !t || /discovery/i.test(t); // empty type is flagged as a data fix, but may still be new
+// returns isOpen(companyId, ms): true if the company already had an open deal (created over a day before ms, not closed by then)
+async function openPipeline(ids) {
+  const list = [...new Set(ids.map(String))]; if (!list.length) return () => false;
+  const ad = await assoc('companies', 'deals', list);
+  const dids = [...new Set(Object.values(ad).flat())];
+  const dp = dids.length ? await batchReadPar('deals', dids, ['createdate', 'closedate', 'hs_is_closed']) : {};
+  return (id, t) => (ad[String(id)] || []).some(d => { const x = dp[d]; if (!x) return false; const c = toMs(x.createdate); if (c == null || c >= t - 86400000) return false;
+    const cd = toMs(x.closedate); return String(x.hs_is_closed) !== 'true' || (cd != null && cd > t); });
+}
+// new meetings for companies with NO SDR Owner, credited through the pods. hasSdr(id) says whether a company has an SDR Owner.
+// returns { att: {coId: sdrIndex}, slack: [{ coId, ts, si, demo }] (every #grwth post matched to a company), error }
+async function podBookings(startMs, endMs, hasSdr) {
+  const att = {}, slack = []; let error = null;
+  const g = await grwthPosts(Math.floor(startMs / 1000), Math.floor(endMs / 1000)).catch(e => ({ error: String(e.message || e), posts: [] }));
+  if (g.error) error = g.error;
+  const posts = (g.posts || []).filter(p => p.ts >= startMs && p.ts < endMs);
+  for (let i = 0; i < posts.length; i += 4) {
+    await Promise.all(posts.slice(i, i + 4).map(async p => { const co = await matchCo(p.target); if (co) slack.push({ coId: String(co.id), ts: p.ts, si: p.si, demo: p.demo, name: co.properties.name }); }));
+  }
+  slack.sort((a, b) => a.ts - b.ts);
+  slack.forEach(x => { if (x.si >= 0 && !x.demo && !hasSdr(x.coId) && att[x.coId] == null) att[x.coId] = x.si; });
+  const meets = await searchAll('meetings', [{ filters: [{ propertyName: 'hs_createdate', operator: 'GTE', value: String(startMs) }, { propertyName: 'hs_createdate', operator: 'LT', value: String(endMs) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: POD_OWNER_IDS }] }],
+    ['hs_meeting_title', 'hs_activity_type', 'hubspot_owner_id', 'hs_createdate']).catch(() => []);
+  const keep = meets.filter(m => NEW_MEETING_TYPE(m.properties.hs_activity_type) && !/^\[gong\]/i.test(m.properties.hs_meeting_title || ''));
+  const mc = keep.length ? await assoc('meetings', 'companies', keep.map(m => m.id)) : {};
+  keep.sort((a, b) => (toMs(a.properties.hs_createdate) || 0) - (toMs(b.properties.hs_createdate) || 0)).forEach(m => {
+    const si = podIx(m.properties.hubspot_owner_id); if (si < 0) return;
+    (mc[m.id] || []).forEach(id => { if (!hasSdr(id) && att[id] == null) att[id] = si; });
+  });
+  return { att, slack, error };
+}
+// combine HubSpot "Meeting Booked" transitions with #grwth posts into new bookings [coId, ms, sdrIndex]:
+// every transition in the window, plus a #grwth post for a company with no transition within 7 days of it (HubSpot wasn't updated);
+// then drop anything with a company already open in the pipeline. sdrOfCo(id) -> SDR index from SDR Owner, or -1.
+async function newBookings(mbT, pb, startMs, endMs, sdrOfCo) {
+  const cand = [];
+  Object.keys(mbT).forEach(id => (mbT[id] || []).forEach(t => { if (t >= startMs && t < endMs) cand.push([String(id), t, 'hs']); }));
+  pb.slack.forEach(x => { if (x.demo) return; const near = (mbT[x.coId] || []).some(t => Math.abs(t - x.ts) <= 7 * 86400000); if (!near) cand.push([x.coId, x.ts, 'slack', x.si]); });
+  const isOpen = await openPipeline(cand.map(c => c[0]));
+  const out = [];
+  cand.forEach(c => { if (isOpen(c[0], c[1])) return; let si = sdrOfCo(c[0]); if (si < 0) si = pb.att[c[0]] != null ? pb.att[c[0]] : c[2] === 'slack' ? c[3] : -1; if (si >= 0) out.push([c[0], c[1], si, c[2]]); });
+  return out.sort((a, b) => a[1] - b[1]);
 }
 // returns rows [ts, who, target, coId|null, issue, slackLink]
 async function slackMeetingChecks(startMs, endMs) {
@@ -1086,23 +1183,7 @@ async function slackMeetingChecks(startMs, endMs) {
   const posts = g.posts.filter(p => p.ts >= startMs && p.ts < endMs);
   const out = [];
   await Promise.all(posts.map(async p => {
-    let co = null;
-    try {
-      // search a few ways (full name, cleaned name, its longest word), then pick the closest name;
-      // ties go to the company already marked Meeting Booked, so old duplicates don't win
-      const words = t => String(t || '').toLowerCase().replace(/&amp;/g, '&').replace(/&/g, ' and ').replace(/[’'`]/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w && !/^(the|ltd|limited|plc|group|uk|ireland|europe|international|holdings|inc|llp|co|and)$/.test(w));
-      const tw = words(p.target), longest = tw.slice().sort((a, b) => b.length - a.length)[0] || p.target;
-      const qs = [...new Set([p.target.replace(/[()]/g, ' ').slice(0, 80), normCo(p.target), longest])].filter(Boolean);
-      const cands = {};
-      for (const q of qs) {
-        const r = await hs('/crm/v3/objects/companies/search', { query: q, limit: 20, properties: ['name', 'account_status', 'hs_lastmodifieddate'] });
-        (r.results || []).forEach(c => { cands[c.id] = c; });
-      }
-      const score = c => { const cw = new Set(words(c.properties.name)); if (!cw.size || !tw.length) return 0; const hit = tw.filter(w => cw.has(w)).length; return hit / Math.max(tw.length, cw.size); };
-      const ranked = Object.values(cands).map(c => ({ c, s: score(c) + (sameCo(c.properties.name, p.target) ? 0.25 : 0) + (/meeting booked|opportunit/i.test(c.properties.account_status || '') ? 0.1 : 0) }))
-        .filter(x => x.s >= 0.4).sort((a, b) => b.s - a.s);
-      co = ranked.length ? ranked[0].c : null;
-    } catch (e) { co = null; }
+    const co = await matchCo(p.target);
     const issues = [];
     if (!co) issues.push('Company not found in HubSpot');
     else {
@@ -1121,11 +1202,13 @@ async function slackMeetingChecks(startMs, endMs) {
       try {
         const ad = await assoc('companies', 'deals', [co.id]);
         const dids = ad[String(co.id)] || [];
-        const dp = dids.length ? await batchReadPar('deals', dids, ['createdate']) : {};
+        const dp = dids.length ? await batchReadPar('deals', dids, ['createdate', 'hs_is_closed']) : {};
         hasDeal = Object.values(dp).some(x => { const c = toMs(x.createdate); return c != null && c >= p.ts - 86400000; });
+        // already open in the pipeline: not a new meeting, so no new deal is expected
+        if (!hasDeal && Object.values(dp).some(x => String(x.hs_is_closed) !== 'true')) hasDeal = true;
       } catch (e) { hasDeal = true; /* don't flag if HubSpot couldn't be read */ }
     }
-    if (co && !hasDeal) issues.push('No new deal in HubSpot (the deal workflow didn’t run)');
+    if (co && !hasDeal && !p.demo) issues.push('No new deal in HubSpot (the deal workflow didn’t run)');
     issues.forEach(i => out.push([p.ts, p.by, p.target, co ? String(co.id) : null, i, p.link, co ? co.properties.name : '']));
   }));
   out.sort((a, b) => a[0] - b[0]);

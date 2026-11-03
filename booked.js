@@ -1,6 +1,6 @@
 /* Meetings booked per month, by SDR and total (last 12 months).
    Shown on the Meetings page and in the Monthly report. Data: api/data?part=booked
-   (companies moving to Account Status "Meeting Booked", once per company per month, credited to the SDR Owner). */
+   (new meetings only, once per company per month, credited to the SDR Owner, else through the pods). */
 (function(){
 var DATA=null,ERR=null,LOADING=false,SEL='all';
 var COL={james:'#ff4d00',matthew:'#1c1b1a',nikita:'#8e6bbf',evan:'#2f8f6b'};
@@ -36,7 +36,7 @@ function html(){
   if(!DATA)return '<div class="card bk-card">'+title+'</div><p class="muted">'+(ERR?'Couldn’t load meetings by month ('+e(ERR)+').':'Loading meetings by month…')+'</p></div>';
   var pick='<div class="rx-pick">'+[['all','All SDRs']].concat(DATA.SDRS.map(function(s){return [s.k,s.short];})).map(function(o){return '<button data-bk="'+o[0]+'" class="'+(SEL===o[0]?'now':'')+'">'+e(o[1])+'</button>';}).join('')+'</div>';
   var legend='<div class="muted small" style="display:flex;gap:14px;flex-wrap:wrap;margin:6px 0">'+DATA.SDRS.map(function(s){return '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;background:'+COL[s.k]+'"></span>'+e(s.short)+'</span>';}).join('')+'</div>';
-  return '<div class="card bk-card">'+title+pick+'</div><p class="muted small" style="margin:6px 0 0">Companies moved to Account Status <b>Meeting Booked</b>, counted once per company per month and credited to the company’s SDR Owner. Last 12 months, UK time.</p>'+legend+chart()+table()+'</div>';}
+  return '<div class="card bk-card">'+title+pick+'</div><p class="muted small" style="margin:6px 0 0"><b>New meetings only</b>: a company moved to Account Status <b>Meeting Booked</b> or posted in #grwth, once per company per month. Demos and companies already open in the pipeline aren’t counted. Credited to the company’s SDR Owner; with no SDR Owner, to the pod (Jason’s bookings to James, Felix’s to Matthew). Last 12 months, UK time.</p>'+legend+chart()+table()+'</div>';}
 
 function draw(){Array.prototype.forEach.call(document.querySelectorAll('[data-bk-slot]'),function(el){el.innerHTML=html();
   Array.prototype.forEach.call(el.querySelectorAll('[data-bk]'),function(b){b.onclick=function(){SEL=b.getAttribute('data-bk');draw();};});});}
