@@ -1133,28 +1133,29 @@ async function matchCo(target) {
 const podIx = ownerId => { const id = String(ownerId || ''); if (!id) return -1; const i = SDRS.findIndex(s => s.id === id); return i >= 0 ? i : SDRS.findIndex(s => s.leadId && s.leadId === id); };
 const POD_OWNER_IDS = SDRS.map(s => s.id).concat(SDRS.map(s => s.leadId).filter(Boolean));
 const NEW_MEETING_TYPE = t => !t || /discovery/i.test(t); // empty type is flagged as a data fix, but may still be new
-// returns isOpen(companyId, ms): true if the company already had an open deal (created over a day before ms, not closed by then)
+// returns isOpen(companyId, ms): true if the company already had an open deal (created over 14 days before ms, not closed by then)
 async function openPipeline(ids) {
   const list = [...new Set(ids.map(String))]; if (!list.length) return () => false;
   const ad = await assoc('companies', 'deals', list);
   const dids = [...new Set(Object.values(ad).flat())];
   const dp = dids.length ? await batchReadPar('deals', dids, ['createdate', 'closedate', 'hs_is_closed']) : {};
-  return (id, t) => (ad[String(id)] || []).some(d => { const x = dp[d]; if (!x) return false; const c = toMs(x.createdate); if (c == null || c >= t - 86400000) return false;
+  return (id, t) => (ad[String(id)] || []).some(d => { const x = dp[d]; if (!x) return false; const c = toMs(x.createdate); if (c == null || c >= t - 14 * 86400000) return false; // the booking's own deal (even if HubSpot was updated late) isn't prior pipeline
     const cd = toMs(x.closedate); return String(x.hs_is_closed) !== 'true' || (cd != null && cd > t); });
 }
 // new meetings for companies with NO SDR Owner, credited through the pods. hasSdr(id) says whether a company has an SDR Owner.
 // returns { att: {coId: sdrIndex}, slack: [{ coId, ts, si, demo }] (every #grwth post matched to a company), error }
 async function podBookings(startMs, endMs, hasSdr) {
   const att = {}, slack = []; let error = null;
-  const g = await grwthPosts(Math.floor(startMs / 1000), Math.floor(endMs / 1000)).catch(e => ({ error: String(e.message || e), posts: [] }));
+  const from = startMs - 21 * 86400000; // posts up to 3 weeks earlier date bookings HubSpot recorded late
+  const g = await grwthPosts(Math.floor(from / 1000), Math.floor(endMs / 1000)).catch(e => ({ error: String(e.message || e), posts: [] }));
   if (g.error) error = g.error;
-  const posts = (g.posts || []).filter(p => p.ts >= startMs && p.ts < endMs);
+  const posts = (g.posts || []).filter(p => p.ts >= from && p.ts < endMs);
   for (let i = 0; i < posts.length; i += 4) {
     await Promise.all(posts.slice(i, i + 4).map(async p => { const co = await matchCo(p.target); if (co) slack.push({ coId: String(co.id), ts: p.ts, si: p.si, demo: p.demo, name: co.properties.name }); }));
   }
   slack.sort((a, b) => a.ts - b.ts);
   slack.forEach(x => { if (x.si >= 0 && !x.demo && !hasSdr(x.coId) && att[x.coId] == null) att[x.coId] = x.si; });
-  const meets = await searchAll('meetings', [{ filters: [{ propertyName: 'hs_createdate', operator: 'GTE', value: String(startMs) }, { propertyName: 'hs_createdate', operator: 'LT', value: String(endMs) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: POD_OWNER_IDS }] }],
+  const meets = await searchAll('meetings', [{ filters: [{ propertyName: 'hs_createdate', operator: 'GTE', value: String(from) }, { propertyName: 'hs_createdate', operator: 'LT', value: String(endMs) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: POD_OWNER_IDS }] }],
     ['hs_meeting_title', 'hs_activity_type', 'hubspot_owner_id', 'hs_createdate']).catch(() => []);
   const keep = meets.filter(m => NEW_MEETING_TYPE(m.properties.hs_activity_type) && !/^\[gong\]/i.test(m.properties.hs_meeting_title || ''));
   const mc = keep.length ? await assoc('meetings', 'companies', keep.map(m => m.id)) : {};
@@ -1164,16 +1165,23 @@ async function podBookings(startMs, endMs, hasSdr) {
   });
   return { att, slack, error };
 }
-// combine HubSpot "Meeting Booked" transitions with #grwth posts into new bookings [coId, ms, sdrIndex]:
-// every transition in the window, plus a #grwth post for a company with no transition from 7 days before to 21 days after it (HubSpot wasn't updated);
-// then drop anything with a company already open in the pipeline. sdrOfCo(id) -> SDR index from SDR Owner, or -1.
+// combine HubSpot "Meeting Booked" transitions with #grwth posts into new bookings [coId, ms, sdrIndex, source]:
+//  - a HubSpot transition is dated by the #grwth post for that company up to 21 days before it (HubSpot is often updated late)
+//  - a #grwth post with no transition from 7 days before to 21 days after it counts on its own (HubSpot wasn't updated); not demo posts
+//  - anything with a company already open in the pipeline is dropped (see openPipeline)
+// sdrOfCo(id) -> SDR index from SDR Owner, or -1.
 async function newBookings(mbT, pb, startMs, endMs, sdrOfCo) {
+  const posts = {}; pb.slack.forEach(x => { (posts[x.coId] = posts[x.coId] || []).push(x); });
   const cand = [];
-  Object.keys(mbT).forEach(id => (mbT[id] || []).forEach(t => { if (t >= startMs && t < endMs) cand.push([String(id), t, 'hs']); }));
+  Object.keys(mbT).forEach(id => (mbT[id] || []).forEach(t => {
+    const ps = (posts[id] || []).filter(x => x.ts >= t - 21 * 86400000 && x.ts <= t + 86400000);
+    const p = ps.length ? ps[0] : null; cand.push([String(id), p ? Math.min(p.ts, t) : t, 'hs', p ? p.si : -1]);
+  }));
   pb.slack.forEach(x => { if (x.demo) return; const near = (mbT[x.coId] || []).some(t => t >= x.ts - 7 * 86400000 && t <= x.ts + 21 * 86400000); if (!near) cand.push([x.coId, x.ts, 'slack', x.si]); });
-  const isOpen = await openPipeline(cand.map(c => c[0]));
+  const inWin = cand.filter(c => c[1] >= startMs && c[1] < endMs);
+  const isOpen = await openPipeline(inWin.map(c => c[0]));
   const out = [];
-  cand.forEach(c => { if (isOpen(c[0], c[1])) return; let si = sdrOfCo(c[0]); if (si < 0) si = pb.att[c[0]] != null ? pb.att[c[0]] : c[2] === 'slack' ? c[3] : -1; if (si >= 0) out.push([c[0], c[1], si, c[2]]); });
+  inWin.forEach(c => { if (isOpen(c[0], c[1])) return; let si = sdrOfCo(c[0]); if (si < 0) si = pb.att[c[0]] != null ? pb.att[c[0]] : c[3]; if (si >= 0) out.push([c[0], c[1], si, c[2]]); });
   return out.sort((a, b) => a[1] - b[1]);
 }
 // returns rows [ts, who, target, coId|null, issue, slackLink]
