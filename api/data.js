@@ -1067,9 +1067,20 @@ async function slackMeetingChecks(startMs, endMs) {
   await Promise.all(posts.map(async p => {
     let co = null;
     try {
-      const r = await hs('/crm/v3/objects/companies/search', { query: normCo(p.target).split(' ').slice(0, 3).join(' ') || p.target, limit: 10, properties: ['name', 'account_status'] });
-      co = (r.results || []).find(c => sameCo(c.properties.name, p.target)) || null;
-      if (!co) { const r2 = await hs('/crm/v3/objects/companies/search', { query: p.target.slice(0, 60), limit: 10, properties: ['name', 'account_status'] }); co = (r2.results || []).find(c => sameCo(c.properties.name, p.target)) || null; }
+      // search a few ways (full name, cleaned name, its longest word), then pick the closest name;
+      // ties go to the company already marked Meeting Booked, so old duplicates don't win
+      const words = t => String(t || '').toLowerCase().replace(/&amp;/g, '&').replace(/&/g, ' and ').replace(/[’'`]/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w && !/^(the|ltd|limited|plc|group|uk|ireland|europe|international|holdings|inc|llp|co|and)$/.test(w));
+      const tw = words(p.target), longest = tw.slice().sort((a, b) => b.length - a.length)[0] || p.target;
+      const qs = [...new Set([p.target.replace(/[()]/g, ' ').slice(0, 80), normCo(p.target), longest])].filter(Boolean);
+      const cands = {};
+      for (const q of qs) {
+        const r = await hs('/crm/v3/objects/companies/search', { query: q, limit: 20, properties: ['name', 'account_status', 'hs_lastmodifieddate'] });
+        (r.results || []).forEach(c => { cands[c.id] = c; });
+      }
+      const score = c => { const cw = new Set(words(c.properties.name)); if (!cw.size || !tw.length) return 0; const hit = tw.filter(w => cw.has(w)).length; return hit / Math.max(tw.length, cw.size); };
+      const ranked = Object.values(cands).map(c => ({ c, s: score(c) + (sameCo(c.properties.name, p.target) ? 0.25 : 0) + (/meeting booked|opportunit/i.test(c.properties.account_status || '') ? 0.1 : 0) }))
+        .filter(x => x.s >= 0.4).sort((a, b) => b.s - a.s);
+      co = ranked.length ? ranked[0].c : null;
     } catch (e) { co = null; }
     const issues = [];
     if (!co) issues.push('Company not found in HubSpot');
@@ -1083,7 +1094,7 @@ async function slackMeetingChecks(startMs, endMs) {
         if (!near) issues.push('No meeting logged in HubSpot');
       } catch (e) { /* skip this check if HubSpot is unavailable */ }
     }
-    const notified = (g.deals || []).some(d => d.ts >= p.ts - 86400000 && d.ts <= p.ts + 3 * 86400000 && (sameCo(d.name, p.target) || (co && sameCo(d.name, co.properties.name))));
+    const notified = (g.deals || []).some(d => d.ts >= p.ts - 86400000 && d.ts <= p.ts + 3 * 86400000 && (sameCo(d.name, p.target) || sameCo(normCo(d.name), normCo(p.target)) || (co && sameCo(d.name, co.properties.name))));
     if (!notified) issues.push('No deal created (HubSpot didn’t post its new-deal notification)');
     issues.forEach(i => out.push([p.ts, p.by, p.target, co ? String(co.id) : null, i, p.link, co ? co.properties.name : '']));
   }));
