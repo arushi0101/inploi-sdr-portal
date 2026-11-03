@@ -104,5 +104,6 @@ Some fixes can't be applied automatically and still need doing in HubSpot by han
 Both messages are posted to #sdr-hub by `api/slack-thanks`, using `SLACK_USER_TOKEN` and the same `APPLY_SECRET`:
 - **Thursday 10–11am:** a gentle reminder with the sheet link, each person's open fixes and step-by-step instructions.
 - **Monday 9–10am:** a thank-you for the records fixed in the last 7 days, with a count per person.
+- **Monday:** the sheet owner also gets a private summary by Slack DM (`SLACK_WEBHOOK_URL`) and email. It covers what was fixed, what was approved but not applied (and why), what was rejected and what's still waiting for a decision.
 
 Set `SLACK_THANKS_CHANNEL` to send them to a different channel.

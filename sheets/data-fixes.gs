@@ -13,6 +13,7 @@
  *  - every decision and change is added to the "Change log" tab, which is never cleared.
  * Picking Approve or Reject records who decided; the Result column says it is waiting for the next run.
  *  - every Monday 9-10am (UK) it thanks the team in #sdr-hub for the records fixed in the last 7 days;
+ *    and sends the sheet owner a private summary (Slack DM + email) of what was done, what wasn't and why;
  *  - every Thursday 10-11am (UK) it sends #sdr-hub the sheet, each person's open fixes and how to do them.
  * The "Data fixes" menu has Update now and Apply approvals now.
  */
@@ -51,6 +52,7 @@ function onOpen() {
     .addItem('Apply approvals now', 'applyPending')
     .addItem('Send the Monday thank-you now', 'mondayThanks')
     .addItem('Send the Thursday reminder now', 'thursdayReminder')
+    .addItem('Send me the Monday summary now', 'mondaySummary')
     .addToUi();
 }
 
@@ -266,6 +268,56 @@ function mondayThanks() {
     payload: JSON.stringify({ kind: 'thanks', fixed: w.fixed, open: w.open, byPerson: w.byPerson, sheetUrl: ss.getUrl() }) });
   logSheet_(ss).appendRow([now_(), 'scheduled run', 'Thank-you', '', '', '', '', '', '', '',
     'Monday thank-you sent to Slack: ' + w.fixed + ' fixed last week' + (r.getResponseCode() === 200 ? '' : ' (failed: ' + r.getContentText().slice(0, 150) + ')')]);
+  mondaySummary();
+}
+
+// private Monday summary for the sheet owner: what's done, what isn't and why (Slack DM + email)
+function summaryData_(rows, today) {
+  var weekAgo = Utilities.formatDate(new Date(new Date(today + 'T12:00:00Z').getTime() - 7 * 86400000), TZ, 'yyyy-MM-dd');
+  var w = weekFixes_(rows, today), notApplied = {}, rejected = {}, waiting = {}, undecided = {}, oldest = {};
+  var inc = function (o, k) { o[k] = (o[k] || 0) + 1; };
+  rows.forEach(function (r) {
+    var who = r[C['Who fixes it']] || 'Unassigned', dec = r[C[DEC]], res = String(r[C[RES]] || '');
+    if (r[C.Status] !== 'Open') return;
+    if (dec === 'Approve' && /^(Not applied|Can’t be applied)/.test(res)) inc(notApplied, res.replace(/^Not applied: /, '').replace(/^not changed: it is already set to "[^"]*" in HubSpot/, 'someone already set a different value in HubSpot').replace(/\s+/g, ' ').slice(0, 120));
+    else if (dec === 'Reject') inc(rejected, who);
+    else if (dec && (!res || res === WAIT)) inc(waiting, who);
+    else if (!dec) { inc(undecided, who); oldest[who] = Math.max(oldest[who] || 0, Number(r[C['Days open']]) || 0); }
+  });
+  return { w: w, notApplied: notApplied, rejected: rejected, waiting: waiting, undecided: undecided, oldest: oldest, weekAgo: weekAgo };
+}
+function summaryText_(d, url) {
+  var sum = function (o) { return Object.keys(o).reduce(function (t, k) { return t + o[k]; }, 0); };
+  var list = function (o, fmt) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; }).map(function (k) { return '• ' + fmt(k, o[k]); }); };
+  var L = ['*Data fixes: your Monday summary*', ''];
+  L.push('*Done in the last 7 days: ' + d.w.fixed + '*');
+  if (d.w.byPerson.length) d.w.byPerson.forEach(function (p) { L.push('• ' + p[0] + ': ' + p[1]); }); else L.push('• Nothing fixed yet.');
+  L.push('', '*Not updated, and why*');
+  var na = sum(d.notApplied), rj = sum(d.rejected), wt = sum(d.waiting), ud = sum(d.undecided);
+  L.push('Approved but not applied: ' + na);
+  list(d.notApplied, function (k, n) { return n + ' × ' + k; }).forEach(function (x) { L.push(x); });
+  L.push('Rejected, so left as they are: ' + rj);
+  list(d.rejected, function (k, n) { return k + ': ' + n; }).forEach(function (x) { L.push(x); });
+  if (wt) { L.push('Approved or rejected, still waiting for the next run: ' + wt); }
+  L.push('No decision yet: ' + ud);
+  list(d.undecided, function (k, n) { return k + ': ' + n + ' (oldest ' + d.oldest[k] + ' days)'; }).forEach(function (x) { L.push(x); });
+  L.push('', 'Still open in total: ' + d.w.open, 'Sheet and Change log: ' + url);
+  return L.join('\n');
+}
+function mondaySummary() {
+  var ss = ss_(), rows = readRows_(ss.getSheetByName(TAB)), today = today_();
+  var text = summaryText_(summaryData_(rows, today), ss.getUrl());
+  var secret = PropertiesService.getScriptProperties().getProperty('APPLY_SECRET'), sent = [];
+  var r = UrlFetchApp.fetch(THANKS_URL, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + secret }, payload: JSON.stringify({ kind: 'summary', text: text }) });
+  sent.push('Slack DM ' + (r.getResponseCode() === 200 ? 'sent' : 'failed (' + r.getContentText().slice(0, 120) + ')'));
+  var me = Session.getEffectiveUser().getEmail();
+  try {
+    var html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*(.+?)\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    MailApp.sendEmail({ to: me, subject: 'Data fixes: your Monday summary (' + today + ')', body: text.replace(/\*/g, ''), htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px">' + html + '</div>' });
+    sent.push('email sent to ' + me);
+  } catch (x) { sent.push('email failed (' + x.message + ')'); }
+  logSheet_(ss).appendRow([now_(), 'scheduled run', 'Summary', '', '', '', '', '', '', '', 'Monday summary: ' + sent.join(', ')]);
 }
 
 // Thursday reminder in #sdr-hub: the sheet, open fixes per person, and how to do them
@@ -324,4 +376,4 @@ function summary_(ss, rows, today) {
   sh.setColumnWidth(1, 300); sh.setColumnWidths(2, 3, 170);
 }
 
-if (typeof module !== 'undefined') module.exports = { merge_: merge_, weekFixes_: weekFixes_, HEAD: HEAD, C: C };
+if (typeof module !== 'undefined') module.exports = { merge_: merge_, weekFixes_: weekFixes_, summaryData_: summaryData_, summaryText_: summaryText_, HEAD: HEAD, C: C };

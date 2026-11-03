@@ -1,7 +1,8 @@
 // Data-fix messages in Slack, sent for the "SDR data fixes" sheet's script:
 //  - kind 'thanks' (Mondays): thank-you for the records fixed last week. POST { kind, fixed, byPerson: [[name, count]], open, sheetUrl }
 //  - kind 'reminder' (Thursdays): the sheet, how many fixes each person has, and how to do them. POST { kind, open, byPerson, sheetUrl }
-// Both with "Authorization: Bearer <APPLY_SECRET>".
+//  - kind 'summary' (Mondays): the owner's private summary, POST { kind, text }, sent to SLACK_WEBHOOK_URL (your DM)
+// All with "Authorization: Bearer <APPLY_SECRET>".
 // Posts as the Slack user token (SLACK_USER_TOKEN) to SLACK_THANKS_CHANNEL (default #sdr-hub).
 const crypto = require('crypto');
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ/edit';
@@ -55,6 +56,15 @@ module.exports = async (req, res) => {
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = null; } }
   if (!b || typeof b !== 'object') return send(400, { ok: false, error: 'bad JSON' });
+  if (b.kind === 'summary') {
+    const hooks = String(process.env.SLACK_WEBHOOK_URL || '').split(',').map(x => x.trim()).filter(Boolean);
+    if (!hooks.length) return send(503, { ok: false, error: 'SLACK_WEBHOOK_URL is not set on Vercel' });
+    const text = String(b.text || '').slice(0, 3900);
+    const st = [];
+    for (const h of hooks) { try { const r = await fetch(h, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, unfurl_links: false }) }); st.push(r.status); } catch (e) { st.push('error'); } }
+    console.log('[data-fix-summary]', JSON.stringify({ at: new Date().toISOString(), slack: st }));
+    return send(st.every(x => x === 200) ? 200 : 502, { ok: st.every(x => x === 200), slack: st });
+  }
   const text = b.kind === 'reminder' ? reminder(b) : message(b);
   if (b.preview) return send(200, { ok: true, text });
   const r = await fetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ channel, text, unfurl_links: false }) });
