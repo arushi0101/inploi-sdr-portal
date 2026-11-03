@@ -262,12 +262,13 @@ function render(view){var root=document.getElementById('rp-'+view);if(!root)retu
   try{
   var C=crunch(D,SI(D));
   root.innerHTML=head+
-    kpis(D,C)+
+    kpis(D,C)+(view==='monthly'?'<div data-bk-slot></div>':'')+
     '<h3 class="mt-h">By SDR</h3>'+sec('Activity and conversion by SDR','Net new = no SDR call or email to that account or contact earlier this year. Follow-up = reached before. Coverage = assigned accounts reached in this period.',bySdr(D))+
     '<h3 class="mt-h">Calls and accounts</h3>'+
     '<div class="mt-two">'+sec('Calls by outcome','Every call, split by Call outcome. Click a segment to see the calls.',outcomes(D))+sec('Industry of accounts reached','From the company’s Industry. field.',industries(D))+'</div>'+
     '<h3 class="mt-h">Leaderboard</h3>'+sec('Who’s leading','All four SDRs, whatever pod is selected. Click a number to see the records.',leaderboard(D))+
     '<h3 class="mt-h">Data gaps</h3>'+sec('Fix these in HubSpot','Missing fields on the records worked in this period, and who should fix each one. Click a count or a name for the list.',gaps(D,view));
+  if(view==='monthly'&&window.SDRBooked)window.SDRBooked();
   document.getElementById('rxSub-'+view).textContent=who(D)+' · '+periodName(view,D)+soFar(D)+' · UK time';
   var gs=document.getElementById('rxGap-'+view);if(gs)gs.onchange=function(){gapWho[view]=gs.value;var y=window.scrollY;render(view);window.scrollTo(0,y);};
   }catch(x){root.innerHTML=head+'<div class="card"><p class="muted">Couldn’t show this report ('+e(x&&x.message||String(x))+'). Try Refresh now.</p></div>';if(window.console)console.error(x);}

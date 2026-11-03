@@ -490,7 +490,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')drClose();})
 MEETINGS=MEETINGS.filter(function(m){return !m.kind||m.kind==='First meeting';});
 WINS=WINS.filter(function(w){return w.t!=='held'||!/proposal/i.test(w.x);});
 render();load(false);
-['matt.js','calls.js','daily.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
+['matt.js','calls.js','daily.js','booked.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
 var rs=document.createElement('script');rs.src='reports.js';rs.onload=function(){render();};document.body.appendChild(rs);
 window.addEventListener('hashchange',function(){var h=(location.hash||'').slice(1);if(VIEWS.some(function(v){return v.k===h;})&&h!==state.view){state.view=h;render();}});
 })();

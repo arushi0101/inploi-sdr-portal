@@ -504,6 +504,27 @@ async function build(q) {
   };
 }
 
+/* ---------- meetings booked per month, by SDR (last 12 months) ----------
+   Same rule as the reports: a company moving to Account Status "Meeting Booked", once per company per month,
+   credited to the company's SDR Owner. */
+async function buildBookedMonths() {
+  const now = new Date();
+  const sdrBy = {}; SDRS.forEach(s => { sdrBy[s.id] = s; sdrBy[s.name.toLowerCase()] = s; });
+  const sdrOf = v => { if (!v) return null; v = String(v); return sdrBy[v] || sdrBy[v.toLowerCase()] || SDRS.find(s => v.toLowerCase().startsWith(s.short.toLowerCase())) || null; };
+  const lp = londonParts(now);
+  const months = []; for (let i = 11; i >= 0; i--) { const d = new Date(Date.UTC(lp.y, lp.m - 1 - i, 1)); months.push(d.toISOString().slice(0, 7)); }
+  const startMs = Date.parse(months[0] + '-01T00:00:00Z') - 3600000;
+  const sdrOpts = await options('companies', 'sdr_owner');
+  const companies = await searchAll('companies', [{ filters: [{ propertyName: 'sdr_owner', operator: 'HAS_PROPERTY' }, { propertyName: 'hs_lastmodifieddate', operator: 'GTE', value: String(startMs) }] }], ['sdr_owner']);
+  const coSdr = {}; companies.forEach(c => { const sd = sdrOf(c.properties.sdr_owner) || sdrOf(sdrOpts[c.properties.sdr_owner]); if (sd) coSdr[c.id] = sd; });
+  const mbT = Object.keys(coSdr).length ? await mbTransitions(Object.keys(coSdr)) : {};
+  const ym = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit' });
+  const by = {}; SDRS.forEach(sd => { by[sd.k] = months.map(() => 0); });
+  const list = [];
+  Object.keys(mbT).forEach(id => { const seen = {}; mbT[id].forEach(t => { const mi = months.indexOf(ym.format(new Date(t)).slice(0, 7)); if (mi >= 0 && !seen[mi]) { seen[mi] = 1; by[coSdr[id].k][mi]++; list.push([id, t, coSdr[id].k]); } }); });
+  return { generatedAt: now.toISOString(), months, SDRS: SDRS.map(sd => ({ k: sd.k, short: sd.short })), by, total: months.map((m, i) => SDRS.reduce((a, sd) => a + by[sd.k][i], 0)), list };
+}
+
 /* ---------- 8-week trends (separate request so the main data stays fast) ---------- */
 async function buildTrends() {
   const now = new Date();
@@ -1259,7 +1280,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
