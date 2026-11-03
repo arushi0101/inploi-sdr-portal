@@ -76,3 +76,25 @@ The same text, in markdown, is at `api/data?part=slack`.
 - The Summary tab is rebuilt.
 
 The sheet also gets a **Data fixes > Update now** menu.
+
+### Approving fixes (writes to HubSpot)
+
+Each fix has a **Suggested update** column and an **Approve / Reject** column.
+- **Approve:** the script calls `api/apply`, which makes the change in HubSpot straight away.
+- **Reject:** nothing changes in HubSpot.
+
+Every decision is added to the **Change log** tab, which is never cleared. `api/apply` also logs each attempt to the Vercel runtime logs.
+
+Safety rules in `api/apply`:
+- It only accepts calls carrying `Authorization: Bearer APPLY_SECRET`. Set `APPLY_SECRET` on Vercel and as a Script property in the sheet's Apps Script.
+- It can only write these fields:
+  - company SDR Owner and Account Status
+  - call outcome and call type
+  - meeting type
+- Each value must be one of HubSpot's own options for that field.
+- It only fills an empty field. If HubSpot already has a different value, it doesn't overwrite it and reports that instead.
+- The HubSpot key needs write access for companies, calls and meetings.
+
+Some fixes can't be applied automatically and still need doing in HubSpot by hand:
+- past meeting outcomes
+- linking a call or email to a contact or company
