@@ -80,7 +80,7 @@ The sheet also gets a **Data fixes > Update now** menu.
 ### Approving fixes (writes to HubSpot)
 
 Each fix has a **Suggested update** column and an **Approve / Reject** column.
-- **Approve:** the script calls `api/apply`, which makes the change in HubSpot straight away.
+- **Approve:** the change is made in HubSpot on the next run. The script runs every Saturday and Monday at 7–8am UK time and calls `api/apply` for each approved row. The sheet's **Data fixes > Apply approvals now** menu runs it straight away.
 - **Reject:** nothing changes in HubSpot.
 
 Every decision is added to the **Change log** tab, which is never cleared. `api/apply` also logs each attempt to the Vercel runtime logs.

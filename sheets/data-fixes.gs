@@ -8,17 +8,18 @@
  * After that:
  *  - every Friday 4-5pm (UK) the sheet updates: new fixes are added as Open, fixes that are no longer
  *    flagged become Resolved, nothing is deleted, and the Summary tab is rebuilt;
- *  - picking Approve in "Approve / Reject" makes the suggested change in HubSpot straight away
- *    (only if that field is still empty there); Reject leaves HubSpot as it is;
+ *  - every Saturday and Monday 7-8am (UK) it goes through "Approve / Reject": approved changes are made
+ *    in HubSpot (only if that field is still empty there), rejected ones are left as they are;
  *  - every decision and change is added to the "Change log" tab, which is never cleared.
- * The "Data fixes" menu has Update now and Apply pending approvals.
+ * Picking Approve or Reject records who decided; the Result column says it is waiting for the next run.
+ * The "Data fixes" menu has Update now and Apply approvals now.
  */
 var SHEET_ID = '1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ'; // the "SDR data fixes" sheet, so this also works from a standalone script
 var SOURCE = 'https://inploi-sdr-portal.vercel.app/api/data?part=fixes';
 var APPLY_URL = 'https://inploi-sdr-portal.vercel.app/api/apply';
 var TAB = 'Data fixes', SUMMARY = 'Summary', LOG = 'Change log', TZ = 'Europe/London';
-var SUG = 'Suggested update (what and why)', DEC = 'Approve / Reject', RES = 'Result';
-var HEAD = ['Status', 'Who fixes it', 'Fix needed', SUG, DEC, RES, 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
+var SUG = 'Suggested update (what and why)', DEC = 'Approve / Reject', BY = 'Decided by', RES = 'Result';
+var HEAD = ['Status', 'Who fixes it', 'Fix needed', SUG, DEC, BY, RES, 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
   'Resolved on', 'Where to fix', 'How to fix', 'Why it matters', 'Last checked', 'Change', 'Key'];
 var LOG_HEAD = ['When', 'Decided by', 'Decision', 'Who fixes it', 'Fix needed', 'Record', 'Company', 'Field', 'Old value', 'New value', 'Result'];
 var C = {}; HEAD.forEach(function (h, i) { C[h] = i; });
@@ -30,10 +31,11 @@ function setup() {
     throw new Error('Add APPLY_SECRET first: Project Settings (gear icon) > Script properties > Add script property.');
   }
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (['update', 'onDecision'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (['update', 'onDecision', 'applyPending'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('update').timeBased().onWeekDay(ScriptApp.WeekDay.FRIDAY).atHour(16).inTimezone(TZ).create();
-  ScriptApp.newTrigger('onDecision').forSpreadsheet(ss_()).onEdit().create();
+  ScriptApp.newTrigger('applyPending').timeBased().onWeekDay(ScriptApp.WeekDay.SATURDAY).atHour(7).inTimezone(TZ).create();
+  ScriptApp.newTrigger('applyPending').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).inTimezone(TZ).create();
   update();
 }
 
@@ -41,7 +43,7 @@ function onOpen() {
   if (!SpreadsheetApp.getActiveSpreadsheet()) return;
   SpreadsheetApp.getUi().createMenu('Data fixes')
     .addItem('Update now', 'update')
-    .addItem('Apply pending approvals', 'applyPending')
+    .addItem('Apply approvals now', 'applyPending')
     .addToUi();
 }
 
@@ -80,7 +82,7 @@ function merge_(existing, fresh, today) {
       // keep the suggestion people decided on; refresh it while undecided
       if (!r[C[DEC]]) { r[C[SUG]] = f.suggest || ''; r[C.Change] = f.apply ? JSON.stringify(f.apply) : ''; }
       // a fix that's still flagged after its change was applied is reopened for a fresh decision
-      if (r[C[DEC]] === 'Approve' && /^Applied/.test(String(r[C[RES]]))) { r[C[DEC]] = ''; r[C[RES]] = 'Was applied, but still flagged: check HubSpot'; r[C[SUG]] = f.suggest || ''; r[C.Change] = f.apply ? JSON.stringify(f.apply) : ''; }
+      if (r[C[DEC]] === 'Approve' && /^Applied/.test(String(r[C[RES]]))) { r[C[DEC]] = ''; r[C[BY]] = ''; r[C[RES]] = 'Was applied, but still flagged: check HubSpot'; r[C[SUG]] = f.suggest || ''; r[C.Change] = f.apply ? JSON.stringify(f.apply) : ''; }
     } else if (r[C.Status] === 'Open') {
       r[C.Status] = 'Resolved'; r[C['Resolved on']] = today; r[C['Last checked']] = today;
     }
@@ -127,7 +129,6 @@ function update() {
     var ss = ss_(), today = today_();
     var sh = ss.getSheetByName(TAB) || ss.getSheets()[0];
     sh.setName(TAB);
-    applyPending_(sh);
     var rows = merge_(readRows_(sh), fetchFixes_(), today);
     write_(sh, rows);
     summary_(ss, rows, today);
@@ -149,23 +150,27 @@ function write_(sh, rows) {
   }
   sh.setFrozenRows(1);
   sh.hideColumns(C.Change + 1, 2);
-  [90, 120, 260, 380, 120, 220, 280, 200, 95, 95, 80, 95, 240, 280, 360, 95].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
+  [90, 120, 260, 380, 120, 170, 220, 280, 200, 95, 95, 80, 95, 240, 280, 360, 95].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
   if (sh.getFilter()) sh.getFilter().remove();
   sh.getRange(1, 1, Math.max(rows.length + 1, 2), HEAD.length).createFilter();
 }
 
-// installable on-edit trigger: act on Approve / Reject as soon as it's picked
-function onDecision(e) {
-  if (!e || !e.range) return;
-  var sh = e.range.getSheet();
-  if (sh.getName() !== TAB) return;
-  var col = C[DEC] + 1;
+var WAIT = 'Waiting for the next run (Saturday or Monday)';
+// simple on-edit trigger: note the decision and who made it; HubSpot is updated on Saturday and Monday
+function onEdit(e) {
+  if (!e || !e.range || e.range.getSheet().getName() !== TAB) return;
+  var sh = e.range.getSheet(), col = C[DEC] + 1;
   if (e.range.getColumn() > col || e.range.getLastColumn() < col) return;
-  var who = (e.user && e.user.getEmail && e.user.getEmail()) || Session.getActiveUser().getEmail() || 'unknown';
-  var lock = LockService.getScriptLock(); lock.waitLock(60000);
-  try {
-    for (var r = Math.max(e.range.getRow(), 2); r <= e.range.getLastRow(); r++) decide_(sh, r, who);
-  } finally { lock.releaseLock(); }
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var d = head.indexOf(DEC), res = head.indexOf(RES), by = head.indexOf(BY);
+  if (d < 0 || res < 0) return;
+  var who = (e.user && e.user.getEmail && e.user.getEmail()) || '';
+  for (var r = Math.max(e.range.getRow(), 2); r <= e.range.getLastRow(); r++) {
+    var dec = sh.getRange(r, d + 1).getValue(), cur = String(sh.getRange(r, res + 1).getValue());
+    if (/^Applied/.test(cur)) continue;
+    sh.getRange(r, res + 1).setValue(dec ? WAIT : '');
+    if (by >= 0) sh.getRange(r, by + 1).setValue(dec ? (who || 'someone') + ', ' + now_() : '');
+  }
 }
 
 function applyPending() {
@@ -175,11 +180,13 @@ function applyPending() {
 function applyPending_(sh) {
   if (!sh || sh.getLastRow() < 2) return;
   var who = Session.getActiveUser().getEmail() || 'scheduled run';
+  if (sh.getLastColumn() < 1) return;
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   var d = head.indexOf(DEC), res = head.indexOf(RES);
   if (d < 0 || res < 0) return;
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
-  vals.forEach(function (v, i) { if (v[d] && !v[res]) decide_(sh, i + 2, who); });
+  var by = head.indexOf(BY);
+  vals.forEach(function (v, i) { if (v[d] && (!v[res] || v[res] === WAIT)) decide_(sh, i + 2, (by >= 0 && String(v[by]).split(',')[0]) || who); });
 }
 
 // one row's decision: apply an approved change to HubSpot, or note a rejection; always logged
@@ -187,7 +194,7 @@ function decide_(sh, rowNum, who) {
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   var col = function (h) { return head.indexOf(h); };
   var range = sh.getRange(rowNum, 1, 1, head.length), v = range.getValues()[0], f = range.getFormulas()[0];
-  var decision = v[col(DEC)], done = v[col(RES)];
+  var decision = v[col(DEC)], done = v[col(RES)] === WAIT ? '' : v[col(RES)];
   if (!v[col('Key')]) return;
   var cell = sh.getRange(rowNum, col(RES) + 1), stamp = now_();
   var change = null; try { change = v[col('Change')] ? JSON.parse(v[col('Change')]) : null; } catch (x) { change = null; }
