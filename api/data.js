@@ -1165,12 +1165,12 @@ async function podBookings(startMs, endMs, hasSdr) {
   return { att, slack, error };
 }
 // combine HubSpot "Meeting Booked" transitions with #grwth posts into new bookings [coId, ms, sdrIndex]:
-// every transition in the window, plus a #grwth post for a company with no transition within 7 days of it (HubSpot wasn't updated);
+// every transition in the window, plus a #grwth post for a company with no transition from 7 days before to 21 days after it (HubSpot wasn't updated);
 // then drop anything with a company already open in the pipeline. sdrOfCo(id) -> SDR index from SDR Owner, or -1.
 async function newBookings(mbT, pb, startMs, endMs, sdrOfCo) {
   const cand = [];
   Object.keys(mbT).forEach(id => (mbT[id] || []).forEach(t => { if (t >= startMs && t < endMs) cand.push([String(id), t, 'hs']); }));
-  pb.slack.forEach(x => { if (x.demo) return; const near = (mbT[x.coId] || []).some(t => Math.abs(t - x.ts) <= 7 * 86400000); if (!near) cand.push([x.coId, x.ts, 'slack', x.si]); });
+  pb.slack.forEach(x => { if (x.demo) return; const near = (mbT[x.coId] || []).some(t => t >= x.ts - 7 * 86400000 && t <= x.ts + 21 * 86400000); if (!near) cand.push([x.coId, x.ts, 'slack', x.si]); });
   const isOpen = await openPipeline(cand.map(c => c[0]));
   const out = [];
   cand.forEach(c => { if (isOpen(c[0], c[1])) return; let si = sdrOfCo(c[0]); if (si < 0) si = pb.att[c[0]] != null ? pb.att[c[0]] : c[2] === 'slack' ? c[3] : -1; if (si >= 0) out.push([c[0], c[1], si, c[2]]); });
