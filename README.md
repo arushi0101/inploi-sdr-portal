@@ -64,3 +64,15 @@ Environment variables (Vercel → Settings → Environment Variables, Production
 - `CRON_SECRET` (recommended): Vercel's cron sends it, so nobody else can trigger a send.
 
 The same text, in markdown, is at `api/data?part=slack`.
+
+## Data fixes Google Sheet
+
+`api/data?part=fixes` returns every open data fix from the last 30 days as JSON, with one row per person per record: who, fix, record and link, company, worked-on date, where, how and why. It uses the same rules as the Data fixes page.
+
+`sheets/data-fixes.gs` is an Apps Script for the "SDR data fixes" Google Sheet. Paste it in once and run `setup`. From then on it updates the sheet every Friday at 4–5pm UK time:
+- New fixes are added as Open.
+- Fixes that are no longer flagged become Resolved.
+- Nothing is deleted.
+- The Summary tab is rebuilt.
+
+The sheet also gets a **Data fixes > Update now** menu.

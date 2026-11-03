@@ -1013,6 +1013,51 @@ function slackMarkdown(M) {
   return L.join('\n');
 }
 
+// open data fixes, one row per person per record, for the Google Sheet (same rules as the Data fixes page in daily.js)
+const HS_REC = 'https://app-eu1.hubspot.com/contacts/25735731/record/';
+const FIX_INFO = {
+  'New meeting with no meeting type': ['Meeting record → Meeting type', 'Set Meeting type (e.g. Discovery Call) on the meeting.', 'First meetings booked and held are counted from Meeting type. A meeting with no type doesn’t count towards the target.'],
+  'Past meeting with no outcome': ['Meeting record → Outcome', 'Set the meeting outcome (Completed, No show, Cancelled, Rescheduled) once it has happened.', 'Held, no-show and cancelled numbers come from the outcome. Without it the meeting counts as “no outcome”.'],
+  'Meeting on an account with no SDR Owner': ['Company record → SDR Owner', 'Set SDR Owner on the meeting’s company.', 'The account won’t show in the SDR’s assigned accounts or coverage until SDR Owner is set.'],
+  'Meeting where Account Status isn’t Meeting Booked': ['Company record → Account Status', 'Set Account Status to Meeting Booked on the company.', 'Meetings booked are counted when Account Status changes to Meeting Booked. If it isn’t updated, the meeting isn’t counted.'],
+  'Account worked with no SDR Owner': ['Company record → SDR Owner', 'Set SDR Owner on the company.', 'Accounts with no SDR Owner don’t count towards anyone’s assigned accounts, coverage or meetings booked.'],
+  'Account worked with no Account Status': ['Company record → Account Status', 'Set Account Status on the company.', 'Account Status drives coverage, Meeting Booked counts and the stuck-account lists.'],
+  'Call with no outcome': ['Call → Call outcome', 'Set Call outcome on the call.', 'Connect rate, conversations and the call reports only count calls with an outcome.'],
+  'Call with no call type': ['Call → Call type', 'Set the activity (call) type on the call.', 'Call type separates cold calls from follow-ups in reporting.'],
+  'Call or email not linked to a contact': ['Call or email → Associations → Contacts', 'Associate the activity with the contact spoken to.', 'Contacts reached and net-new contacts only count activity linked to a contact.'],
+  'Call or email not linked to a company': ['Call or email → Associations → Companies (or link the contact to its company)', 'Associate the activity (or its contact) with the company.', 'Accounts reached, coverage and the account timeline miss activity that isn’t linked to a company.']
+};
+function fixRows(D) {
+  const sname = i => D.SDRS[i] ? D.SDRS[i].short : 'Other', full = {}; D.SDRS.forEach(x => { full[x.name] = x.short; });
+  const out = D.ACT.filter(a => a[2] !== 'r'), calls = D.ACT.filter(a => a[2] === 'c'), now = Date.now();
+  const coActs = {}; out.forEach(a => a[4].forEach(id => { (coActs[id] = coActs[id] || []).push(a); }));
+  const mbCo = new Set(D.MB.map(r => r[0]));
+  const coName = id => id ? (D.CO[id] ? D.CO[id][0] : 'Company ' + id) : '';
+  const conNames = a => a[5].map(id => D.CON[id] ? D.CON[id][0] : '').filter(Boolean).join(', ');
+  const day = ms => ms ? new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }) : '';
+  const rows = [];
+  const add = (gap, key, who, rec, link, co, when) => { const i = FIX_INFO[gap]; who.forEach(w => rows.push({ key: gap + '|' + key + '|' + w, who: w, fix: gap, record: rec, link, company: coName(co), worked: day(when), where: i[0], how: i[1], why: i[2] })); };
+  const meet = (gap, r) => add(gap, 'm' + r[0], [full[r[8]] || r[8] || sname(r[3])], r[1], HS_REC + '0-47/' + r[0], r[2], r[4]);
+  const company = (gap, id) => { const acts = coActs[id] || []; add(gap, 'c' + id, [...new Set(acts.map(a => sname(a[1])))], coName(id), HS_REC + '0-2/' + id, id, (acts[0] || [])[0]); };
+  const act = (gap, a) => { const c = conNames(a); add(gap, 'a' + a[7], [sname(a[1])], (a[2] === 'c' ? 'Call' : 'Email') + (c ? ' with ' + c : '') + (a[2] !== 'c' && a[6] ? ': ' + a[6] : ''), HS_REC + (a[2] === 'c' ? '0-48/' : '0-49/') + a[7], a[4][0], a[0]); };
+  D.MEET.filter(r => !r[6]).forEach(r => meet('New meeting with no meeting type', r));
+  D.MEET.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).forEach(r => meet('Past meeting with no outcome', r));
+  D.MEET.filter(r => r[2] && D.CO[r[2]] && !D.CO[r[2]][4]).forEach(r => meet('Meeting on an account with no SDR Owner', r));
+  D.MEET.filter(r => r[2] && D.CO[r[2]] && !mbCo.has(r[2]) && !/meeting booked|opportunit|customer|client|disqualif|closed/i.test(D.CO[r[2]][3])).forEach(r => meet('Meeting where Account Status isn’t Meeting Booked', r));
+  const cos = Object.keys(coActs);
+  cos.filter(id => D.CO[id] && !D.CO[id][4]).forEach(id => company('Account worked with no SDR Owner', id));
+  cos.filter(id => D.CO[id] && !D.CO[id][3]).forEach(id => company('Account worked with no Account Status', id));
+  calls.filter(a => !a[3]).forEach(a => act('Call with no outcome', a));
+  calls.filter(a => !a[6]).forEach(a => act('Call with no call type', a));
+  out.filter(a => !a[5].length).forEach(a => act('Call or email not linked to a contact', a));
+  out.filter(a => !a[4].length).forEach(a => act('Call or email not linked to a company', a));
+  return rows;
+}
+async function fixesPayload() {
+  const D = await buildReport({ span: 'd30' });
+  return { generatedAt: new Date().toISOString(), from: D.day, to: D.last, rows: fixRows(D) };
+}
+
 // the day's report plus the open data fixes from the last 30 days
 async function weeklyModel(day) {
   // both in parallel so the pair stays inside the 60s function limit
@@ -1059,7 +1104,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
@@ -1076,6 +1121,7 @@ module.exports.buildReport = buildReport;
 module.exports.slackPayload = slackPayload;
 module.exports.dailyModel = dailyModel;
 module.exports.weeklyModel = weeklyModel;
+module.exports.fixRows = fixRows;
 module.exports.slackBlocks = slackBlocks;
 module.exports.slackFallback = slackFallback;
 module.exports.emailHtml = emailHtml;
