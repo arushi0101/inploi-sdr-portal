@@ -1060,7 +1060,7 @@ async function grwthPosts(oldestSec, latestSec) {
 }
 // returns rows [ts, who, target, coId|null, issue, slackLink]
 async function slackMeetingChecks(startMs, endMs) {
-  const g = await grwthPosts(Math.floor(startMs / 1000), Math.floor(endMs / 1000) + 3 * 86400);
+  const g = await grwthPosts(Math.floor(startMs / 1000), Math.floor(endMs / 1000));
   if (g.error) return { error: g.error, rows: [], posts: 0 };
   const posts = g.posts.filter(p => p.ts >= startMs && p.ts < endMs);
   const out = [];
@@ -1094,8 +1094,17 @@ async function slackMeetingChecks(startMs, endMs) {
         if (!near) issues.push('No meeting logged in HubSpot');
       } catch (e) { /* skip this check if HubSpot is unavailable */ }
     }
-    const notified = (g.deals || []).some(d => d.ts >= p.ts - 86400000 && d.ts <= p.ts + 3 * 86400000 && (sameCo(d.name, p.target) || sameCo(normCo(d.name), normCo(p.target)) || (co && sameCo(d.name, co.properties.name))));
-    if (!notified) issues.push('No deal created (HubSpot didn’t post its new-deal notification)');
+    // a deal should exist on the company, created on or after the day of the post (checked in HubSpot, not Slack)
+    let hasDeal = false;
+    if (co) {
+      try {
+        const ad = await assoc('companies', 'deals', [co.id]);
+        const dids = ad[String(co.id)] || [];
+        const dp = dids.length ? await batchReadPar('deals', dids, ['createdate']) : {};
+        hasDeal = Object.values(dp).some(x => { const c = toMs(x.createdate); return c != null && c >= p.ts - 86400000; });
+      } catch (e) { hasDeal = true; /* don't flag if HubSpot couldn't be read */ }
+    }
+    if (co && !hasDeal) issues.push('No new deal in HubSpot (the deal workflow didn’t run)');
     issues.forEach(i => out.push([p.ts, p.by, p.target, co ? String(co.id) : null, i, p.link, co ? co.properties.name : '']));
   }));
   out.sort((a, b) => a[0] - b[0]);
