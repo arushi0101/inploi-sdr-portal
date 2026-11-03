@@ -4,22 +4,22 @@
 // Both with "Authorization: Bearer <APPLY_SECRET>".
 // Posts as the Slack user token (SLACK_USER_TOKEN) to SLACK_THANKS_CHANNEL (default #sdr-hub).
 const crypto = require('crypto');
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ/edit';
 const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 function reminder(b) {
   const open = Math.max(0, Number(b.open) || 0);
   const people = (Array.isArray(b.byPerson) ? b.byPerson : []).filter(p => p && Number(p[1]) > 0).slice(0, 10).map(p => [String(p[0]).slice(0, 60), Number(p[1])]);
-  const link = /^https:\/\/docs\.google\.com\//.test(b.sheetUrl || '') ? '<' + b.sheetUrl + '|SDR data fixes sheet>' : 'the SDR data fixes sheet';
+  const url = /^https:\/\/docs\.google\.com\//.test(b.sheetUrl || '') ? b.sheetUrl : SHEET_URL, link = 'SDR data fixes sheet';
   if (!open) return '*Hi team, a quick Thursday note*\nThere are no open data fixes this week. Thank you all for keeping HubSpot so tidy!';
   const L = ['*Hi team, a gentle Thursday reminder* :wave:',
-    'When you have a few minutes before the weekend, could you have a look at your data fixes in the ' + link + '? There are *' + open + '* open at the moment.'];
+    'When you have a few minutes before the weekend, could you have a look at your data fixes in the ' + link + '? There are *' + open + '* open at the moment.', '', '*Spreadsheet:* ' + url];
   if (people.length) { L.push(''); L.push('*Your open fixes*'); people.forEach(p => L.push('• ' + p[0] + ': ' + p[1])); }
   L.push('', '*How to do it*',
     '1. Open the sheet and filter *Who fixes it* to your name.',
     '2. Read the *Suggested update* on each row. It says what the field should probably be and why.',
     '3. If it looks right, choose *Approve* in the *Approve / Reject* column. HubSpot is updated for you on Saturday or Monday morning.',
     '4. If it isn’t right, choose *Reject*. Nothing changes, and you can set the correct value yourself using the *Record* link.',
-    '5. Some fixes (like a past meeting’s outcome or linking an email to a contact) can only be done in HubSpot. Click the *Record* link and follow *How to fix*.',
     '', '*What we’re hoping for*',
     'Please go through your rows by *Friday afternoon*, so the sheet refreshes with everything up to date. Even a handful helps, and there’s no need to do them all at once.',
     '', 'Thank you so much, this keeps our reporting accurate for all of us. Any questions, just ask here.');
