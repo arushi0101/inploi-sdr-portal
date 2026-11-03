@@ -912,7 +912,7 @@ const PORTAL = 'https://inploi-sdr-portal.vercel.app';
 const HS_DASH = 'https://app-eu1.hubspot.com/reports-dashboard/25735731/view/115946730'; // the link sent in Slack
 function slackModel(R, R30, kind) {
   const weekly = kind === 'weekly';
-  const CONNECTED = ['connected', 'valuable conversation', 'bad timing', 'not interested'];
+  const CONNECTED = ['connected', 'valuable conversation', 'meeting booked', 'bad timing', 'not interested'];
   const lab = d => d ? (R.labels[d] || 'Other outcome') : 'No outcome logged';
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
   const newCo = new Set(R.NEWCO), newCon = new Set(R.NEWCON);

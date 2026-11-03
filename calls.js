@@ -19,7 +19,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 '</style>');
 
 var D=null,api=null,loading=false,err=null,loadedKey=null,range='mtd',H={},hid=0;
-var CONN=['connected','valuable conversation','bad timing','not interested'];
+var CONN=['connected','valuable conversation','meeting booked','bad timing','not interested'];
 var OUT=[['meeting booked','#65bc67'],['valuable conversation','var(--oc-val)'],['connected','var(--oc-conn)'],['bad timing','#ffd233'],['not interested','#b8324f'],
   ['gatekeeper','#8e6bbf'],['left voicemail','#f29e4c'],['busy','#5081ff'],['ai screening bot','#9aa3b0'],['wrong number','var(--oc-wrong)'],['left company/retired','var(--oc-left)'],
   ['no answer','#FF4D00'],['no outcome logged','var(--oc-none)']];
@@ -73,7 +73,7 @@ function kpis(L){var conn=L.filter(function(c){return isConn(c[2]);}),val=L.filt
   na=L.filter(function(c){return key(c[2])==='no answer';}),none=L.filter(function(c){return !c[2];}),talk=conn.reduce(function(t,c){return t+(c[5]||0);},0);
   return '<div class="mt-kpis">'+
     kpi('Calls made',dnum(L.length,'Calls made',L),fmt(L.length/Math.max(1,SI().length))+' per SDR')+
-    kpi('Connected',dnum(conn.length,'Connected calls',conn,'Connected = Connected, Valuable Conversation, Bad Timing or Not Interested, as in HubSpot’s Connected Calls reports.'),pct(conn.length,L.length)+' of calls'+(conn.length?' \u00b7 avg '+(Math.round(talk/conn.length/6)/10)+' min talk':''))+
+    kpi('Connected',dnum(conn.length,'Connected calls',conn,'Connected = Connected, Valuable Conversation, Meeting Booked, Bad Timing or Not Interested.'),pct(conn.length,L.length)+' of calls'+(conn.length?' \u00b7 avg '+(Math.round(talk/conn.length/6)/10)+' min talk':''))+
     kpi('Valuable conversations',dnum(val.length,'Valuable conversations',val),pct(val.length,conn.length)+' of connected calls')+
     kpi('Meeting Booked outcome',dnum(mb.length,'Calls with outcome Meeting Booked',mb),'Calls logged as Meeting Booked')+
     kpi('No answer',dnum(na.length,'Calls: No answer',na),pct(na.length,L.length)+' of calls')+
@@ -164,7 +164,7 @@ function render(){var root=document.getElementById('callsRoot');if(!root)return;
     sec('Calls connected → valuable conversations','How many calls reach someone, and how many of those turn into a valuable conversation or a meeting.',funnel(L))+
     '<h3 class="mt-h">This year</h3>'+
     '<div class="mt-two">'+sec('Team calls vs connects trend','Calls by month since 1 Jan '+e(yr)+', stacked by outcome. Like HubSpot\u2019s report, it leaves out calls with no outcome or Left voicemail. Click a month to view it.',trend())+sec('Connected calls by SDR','Connected calls each month. Click a point to view that month.',lines())+'</div>'+
-    '<div class="card"><ul class="notes muted small"><li><b>Connected</b> means the Call outcome is Connected, Valuable Conversation, Bad Timing or Not Interested, the same as HubSpot’s Connected Calls reports.</li>'+
+    '<div class="card"><ul class="notes muted small"><li><b>Connected</b> means the Call outcome is Connected, Valuable Conversation, Meeting Booked, Bad Timing or Not Interested. HubSpot’s own Connected Calls reports leave out Meeting Booked, so this number is a little higher.</li>'+
     '<li>Calls are counted by <b>call owner</b> for the four SDRs. HubSpot’s “SDR Activity – By Calls” report counts by <b>created by</b> and also includes Annie, so its totals can be a little higher.</li>'+
     '<li>HubSpot’s daily reports leave out calls with no outcome. They are shown here in grey so they can be fixed.</li><li><b>Last 30 days</b> is the 30 full days before today, the same window as HubSpot\u2019s 30-day call reports. Pick This week or This month to include today.</li><li>Dates are UK time.</li></ul></div>';}
 

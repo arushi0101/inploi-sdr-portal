@@ -19,7 +19,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 '</style>');
 
 var api=null,cache={},loading={},errs={},state={},H={},hid=0;
-var CONN=['connected','valuable conversation','bad timing','not interested'];
+var CONN=['connected','valuable conversation','meeting booked','bad timing','not interested'];
 var OUT=[['meeting booked','#65bc67'],['valuable conversation','#495985'],['connected','#182d63'],['bad timing','#ffd233'],['not interested','#b8324f'],['gatekeeper','#8e6bbf'],['left voicemail','#f29e4c'],['busy','#5081ff'],['ai screening bot','#9aa3b0'],['wrong number','#7a4a2a'],['left company/retired','#5c6670'],['no answer','#FF4D00'],['no outcome logged','#c9cdd3']];
 var LDAY=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short'}),LDM=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short'}),LMON=new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',month:'long',year:'numeric'});
 var LISO=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -105,7 +105,7 @@ function kpis(D,C){var nAcc=C.coIds.length,nCon=C.conIds.length;
     kpi('Accounts reached',dn(nAcc,function(){drillCos(D,'Accounts reached',C.coIds,C);}),split(dn(C.newCo.length,function(){drillCos(D,'Net new accounts',C.newCo,C);}),dn(C.fuCo.length,function(){drillCos(D,'Follow-up accounts',C.fuCo,C);})))+
     kpi('Contacts reached',dn(nCon,function(){drillCons(D,'Contacts reached',C.conIds,C);}),split(dn(C.newCon.length,function(){drillCons(D,'Net new contacts',C.newCon,C);}),dn(C.fuCon.length,function(){drillCons(D,'Follow-up contacts',C.fuCon,C);})))+
     kpi('Contacts per account',nAcc?(Math.round(nCon/nAcc*10)/10).toString():'–','Average contacts reached at each account')+
-    kpi('Calls made',dn(C.calls.length,function(){drillActs(D,'Calls made',C.calls);}),dn(C.conn.length,function(){drillActs(D,'Connected calls',C.conn,'Connected = Connected, Valuable Conversation, Bad Timing or Not Interested.');})+' connected · '+pct(C.conn.length,C.calls.length)+' connect rate')+
+    kpi('Calls made',dn(C.calls.length,function(){drillActs(D,'Calls made',C.calls);}),dn(C.conn.length,function(){drillActs(D,'Connected calls',C.conn,'Connected = Connected, Valuable Conversation, Meeting Booked, Bad Timing or Not Interested.');})+' connected · '+pct(C.conn.length,C.calls.length)+' connect rate')+
     kpi('Emails sent',dn(C.ems.length,function(){drillActs(D,'Emails sent',C.ems);}),C.ems.filter(function(a){return a[3]==='seq';}).length+' from sequences')+
     kpi('Replies received',dn(C.reps.length,function(){drillActs(D,'Replies received',C.reps);}),pct(C.reps.length,C.ems.length)+' reply rate (replies ÷ emails sent)')+
     kpi('Meetings booked',dn(C.mb.length,function(){drillMB(D,'Meetings booked',C.mb);}),pct(C.mb.length,nAcc)+' of accounts reached · '+dn(C.meet.length,function(){drillMeet(D,'Meetings logged in HubSpot',C.meet);})+' meetings logged')+
