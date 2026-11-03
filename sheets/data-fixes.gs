@@ -12,6 +12,7 @@
  *  - rebuilds the Summary tab (open and resolved by person)
  */
 var SOURCE = 'https://inploi-sdr-portal.vercel.app/api/data?part=fixes';
+var SHEET_ID = '1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ'; // the "SDR data fixes" sheet, so this also works from a standalone script
 var TAB = 'Data fixes', SUMMARY = 'Summary', TZ = 'Europe/London';
 var HEAD = ['Status', 'Who fixes it', 'Fix needed', 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
   'Resolved on', 'Where to fix', 'How to fix', 'Why it matters', 'Last checked', 'Key'];
@@ -24,6 +25,7 @@ function setup() {
 }
 
 function onOpen() {
+  if (!SpreadsheetApp.getActiveSpreadsheet()) return;
   SpreadsheetApp.getUi().createMenu('Data fixes').addItem('Update now', 'update').addToUi();
 }
 
@@ -90,7 +92,7 @@ function daysSinceAt_(iso, today) {
 }
 
 function update() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet(), today = today_();
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SHEET_ID), today = today_();
   var sh = ss.getSheetByName(TAB) || ss.getSheets()[0];
   sh.setName(TAB);
   var fresh = fetchFixes_();
