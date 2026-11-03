@@ -12,11 +12,14 @@
  *    in HubSpot (only if that field is still empty there), rejected ones are left as they are;
  *  - every decision and change is added to the "Change log" tab, which is never cleared.
  * Picking Approve or Reject records who decided; the Result column says it is waiting for the next run.
+ *  - every Monday 9-10am (UK) it thanks the team in #sdr-hub for the records fixed in the last 7 days;
+ *  - every Thursday 10-11am (UK) it sends #sdr-hub the sheet, each person's open fixes and how to do them.
  * The "Data fixes" menu has Update now and Apply approvals now.
  */
 var SHEET_ID = '1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ'; // the "SDR data fixes" sheet, so this also works from a standalone script
 var SOURCE = 'https://inploi-sdr-portal.vercel.app/api/data?part=fixes';
 var APPLY_URL = 'https://inploi-sdr-portal.vercel.app/api/apply';
+var THANKS_URL = 'https://inploi-sdr-portal.vercel.app/api/slack-thanks';
 var TAB = 'Data fixes', SUMMARY = 'Summary', LOG = 'Change log', TZ = 'Europe/London';
 var SUG = 'Suggested update (what and why)', DEC = 'Approve / Reject', BY = 'Decided by', RES = 'Result';
 var HEAD = ['Status', 'Who fixes it', 'Fix needed', SUG, DEC, BY, RES, 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
@@ -31,11 +34,13 @@ function setup() {
     throw new Error('Add APPLY_SECRET first: Project Settings (gear icon) > Script properties > Add script property.');
   }
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (['update', 'onDecision', 'applyPending'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (['update', 'onDecision', 'applyPending', 'mondayThanks', 'thursdayReminder'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('update').timeBased().onWeekDay(ScriptApp.WeekDay.FRIDAY).atHour(16).inTimezone(TZ).create();
   ScriptApp.newTrigger('applyPending').timeBased().onWeekDay(ScriptApp.WeekDay.SATURDAY).atHour(7).inTimezone(TZ).create();
   ScriptApp.newTrigger('applyPending').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).inTimezone(TZ).create();
+  ScriptApp.newTrigger('mondayThanks').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(9).inTimezone(TZ).create();
+  ScriptApp.newTrigger('thursdayReminder').timeBased().onWeekDay(ScriptApp.WeekDay.THURSDAY).atHour(10).inTimezone(TZ).create();
   update();
 }
 
@@ -44,6 +49,8 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Data fixes')
     .addItem('Update now', 'update')
     .addItem('Apply approvals now', 'applyPending')
+    .addItem('Send the Monday thank-you now', 'mondayThanks')
+    .addItem('Send the Thursday reminder now', 'thursdayReminder')
     .addToUi();
 }
 
@@ -235,6 +242,48 @@ function decide_(sh, rowNum, who) {
   }
 }
 
+// fixed in the last 7 days: rows resolved, or changes applied from an approval (each row counted once)
+function weekFixes_(rows, today) {
+  var weekAgo = Utilities.formatDate(new Date(new Date(today + 'T12:00:00Z').getTime() - 7 * 86400000), TZ, 'yyyy-MM-dd');
+  var by = {}, fixed = 0, open = 0;
+  rows.forEach(function (r) {
+    if (r[C.Status] === 'Open') open++;
+    var res = String(r[C[RES]] || ''), applied = /^Applied (\d{4}-\d{2}-\d{2})/.exec(res);
+    var resolved = r[C.Status] === 'Resolved' && String(r[C['Resolved on']]) > weekAgo;
+    if (resolved || (applied && applied[1] > weekAgo)) { fixed++; var w = r[C['Who fixes it']] || 'Someone'; by[w] = (by[w] || 0) + 1; }
+  });
+  var byPerson = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; }).map(function (w) { return [w, by[w]]; });
+  return { fixed: fixed, open: open, byPerson: byPerson };
+}
+
+// Monday thank-you in #sdr-hub (sent by the SDR portal using its Slack connection)
+function mondayThanks() {
+  var ss = ss_(), sh = ss.getSheetByName(TAB);
+  var w = weekFixes_(readRows_(sh), today_());
+  var secret = PropertiesService.getScriptProperties().getProperty('APPLY_SECRET');
+  var r = UrlFetchApp.fetch(THANKS_URL, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + secret },
+    payload: JSON.stringify({ kind: 'thanks', fixed: w.fixed, open: w.open, byPerson: w.byPerson, sheetUrl: ss.getUrl() }) });
+  logSheet_(ss).appendRow([now_(), 'scheduled run', 'Thank-you', '', '', '', '', '', '', '',
+    'Monday thank-you sent to Slack: ' + w.fixed + ' fixed last week' + (r.getResponseCode() === 200 ? '' : ' (failed: ' + r.getContentText().slice(0, 150) + ')')]);
+}
+
+// Thursday reminder in #sdr-hub: the sheet, open fixes per person, and how to do them
+function thursdayReminder() {
+  var ss = ss_(), rows = readRows_(ss.getSheetByName(TAB)), by = {}, open = 0;
+  rows.forEach(function (r) {
+    if (r[C.Status] !== 'Open' || r[C[DEC]]) return;
+    open++; var w = r[C['Who fixes it']] || 'Unassigned'; by[w] = (by[w] || 0) + 1;
+  });
+  var byPerson = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; }).map(function (w) { return [w, by[w]]; });
+  var secret = PropertiesService.getScriptProperties().getProperty('APPLY_SECRET');
+  var r = UrlFetchApp.fetch(THANKS_URL, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + secret },
+    payload: JSON.stringify({ kind: 'reminder', open: open, byPerson: byPerson, sheetUrl: ss.getUrl() }) });
+  logSheet_(ss).appendRow([now_(), 'scheduled run', 'Reminder', '', '', '', '', '', '', '',
+    'Thursday reminder sent to Slack: ' + open + ' open, not yet decided' + (r.getResponseCode() === 200 ? '' : ' (failed: ' + r.getContentText().slice(0, 150) + ')')]);
+}
+
 function logSheet_(ss) {
   var sh = ss.getSheetByName(LOG);
   if (!sh) {
@@ -275,4 +324,4 @@ function summary_(ss, rows, today) {
   sh.setColumnWidth(1, 300); sh.setColumnWidths(2, 3, 170);
 }
 
-if (typeof module !== 'undefined') module.exports = { merge_: merge_, HEAD: HEAD, C: C };
+if (typeof module !== 'undefined') module.exports = { merge_: merge_, weekFixes_: weekFixes_, HEAD: HEAD, C: C };

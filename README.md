@@ -98,3 +98,11 @@ Safety rules in `api/apply`:
 Some fixes can't be applied automatically and still need doing in HubSpot by hand:
 - past meeting outcomes
 - linking a call or email to a contact or company
+
+### Slack messages from the sheet
+
+Both messages are posted to #sdr-hub by `api/slack-thanks`, using `SLACK_USER_TOKEN` and the same `APPLY_SECRET`:
+- **Thursday 10–11am:** a gentle reminder with the sheet link, each person's open fixes and step-by-step instructions.
+- **Monday 9–10am:** a thank-you for the records fixed in the last 7 days, with a count per person.
+
+Set `SLACK_THANKS_CHANNEL` to send them to a different channel.
