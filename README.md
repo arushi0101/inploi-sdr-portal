@@ -93,7 +93,7 @@ Safety rules in `api/apply`:
   - meeting type
 - Each value must be one of HubSpot's own options for that field.
 - It only fills an empty field. If HubSpot already has a different value, it doesn't overwrite it and reports that instead.
-- The HubSpot key needs write access for companies, calls and meetings.
+- The HubSpot key needs write access for companies, calls and meetings. It uses `HUBSPOT_WRITE_TOKEN` if set, otherwise `HUBSPOT_TOKEN`.
 
 Some fixes can't be applied automatically and still need doing in HubSpot by hand:
 - past meeting outcomes

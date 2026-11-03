@@ -2,6 +2,7 @@
 // POST { object, id, property, value, approvedBy, key } with "Authorization: Bearer <APPLY_SECRET>".
 // Only fills an empty field: if HubSpot already has a different value, nothing is changed.
 // Only the fields and values below can be written; values are checked against HubSpot's own options.
+// Uses HUBSPOT_WRITE_TOKEN when set (a key with write access), otherwise HUBSPOT_TOKEN.
 // Every attempt is logged (Vercel runtime logs) and the sheet keeps its own Change log tab.
 const crypto = require('crypto');
 const API = 'https://api.hubapi.com';
@@ -25,7 +26,7 @@ async function hs(path, token, body, method) {
 
 module.exports = async (req, res) => {
   const send = (code, body) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(body)); };
-  const secret = process.env.APPLY_SECRET || '', token = process.env.HUBSPOT_TOKEN || '';
+  const secret = process.env.APPLY_SECRET || '', token = process.env.HUBSPOT_WRITE_TOKEN || process.env.HUBSPOT_TOKEN || ''; // a separate key with write access, if set
   if (!secret) return send(503, { ok: false, error: 'APPLY_SECRET is not set on Vercel' });
   if (!token) return send(503, { ok: false, error: 'missing_token' });
   if (req.method !== 'POST') return send(405, { ok: false, error: 'POST only' });
