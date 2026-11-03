@@ -1034,7 +1034,13 @@ async function grwthPosts(oldestSec, latestSec) {
   for (let i = 0; i < 10; i++) {
     const u = 'https://slack.com/api/conversations.history?channel=' + GRWTH + '&limit=200&oldest=' + oldestSec + '&latest=' + latestSec + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
     const j = await fetch(u, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()).catch(e => ({ ok: false, error: String(e.message || e) }));
-    if (!j.ok) { const v = { error: j.error === 'missing_scope' ? 'the Slack token needs the channels:history scope' : (j.error || 'Slack error'), posts: [] }; return v; }
+    if (!j.ok) {
+      // say which permissions the token has (names only, never the token)
+      let scopes = '';
+      try { const r = await fetch('https://slack.com/api/auth.test', { headers: { Authorization: 'Bearer ' + token } }); scopes = r.headers.get('x-oauth-scopes') || ''; } catch (e) { scopes = ''; }
+      const kind = token.startsWith('xoxp-') ? 'user token' : token.startsWith('xoxb-') ? 'bot token' : 'unrecognised token type';
+      return { error: (j.error === 'missing_scope' ? 'the Slack token needs the channels:history scope' : (j.error || 'Slack error')) + ' (' + kind + '; it has: ' + (scopes || 'no scopes reported') + ')', posts: [] };
+    }
     msgs.push(...(j.messages || []));
     cursor = j.response_metadata && j.response_metadata.next_cursor; if (!j.has_more || !cursor) break;
   }
