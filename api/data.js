@@ -1036,21 +1036,60 @@ function fixRows(D) {
   const conNames = a => a[5].map(id => D.CON[id] ? D.CON[id][0] : '').filter(Boolean).join(', ');
   const day = ms => ms ? new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }) : '';
   const rows = [];
-  const add = (gap, key, who, rec, link, co, when) => { const i = FIX_INFO[gap]; who.forEach(w => rows.push({ key: gap + '|' + key + '|' + w, who: w, fix: gap, record: rec, link, company: coName(co), worked: day(when), where: i[0], how: i[1], why: i[2] })); };
-  const meet = (gap, r) => add(gap, 'm' + r[0], [full[r[8]] || r[8] || sname(r[3])], r[1], HS_REC + '0-47/' + r[0], r[2], r[4]);
-  const company = (gap, id) => { const acts = coActs[id] || []; add(gap, 'c' + id, [...new Set(acts.map(a => sname(a[1])))], coName(id), HS_REC + '0-2/' + id, id, (acts[0] || [])[0]); };
-  const act = (gap, a) => { const c = conNames(a); add(gap, 'a' + a[7], [sname(a[1])], (a[2] === 'c' ? 'Call' : 'Email') + (c ? ' with ' + c : '') + (a[2] !== 'c' && a[6] ? ': ' + a[6] : ''), HS_REC + (a[2] === 'c' ? '0-48/' : '0-49/') + a[7], a[4][0], a[0]); };
-  D.MEET.filter(r => !r[6]).forEach(r => meet('New meeting with no meeting type', r));
-  D.MEET.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).forEach(r => meet('Past meeting with no outcome', r));
-  D.MEET.filter(r => r[2] && D.CO[r[2]] && !D.CO[r[2]][4]).forEach(r => meet('Meeting on an account with no SDR Owner', r));
-  D.MEET.filter(r => r[2] && D.CO[r[2]] && !mbCo.has(r[2]) && !/meeting booked|opportunit|customer|client|disqualif|closed/i.test(D.CO[r[2]][3])).forEach(r => meet('Meeting where Account Status isn’t Meeting Booked', r));
+  const add = (gap, key, who, rec, link, co, when, sug) => { const i = FIX_INFO[gap]; who.forEach(w => rows.push({ key: gap + '|' + key + '|' + w, who: w, fix: gap, suggest: sug || '', record: rec, link, company: coName(co), worked: day(when), where: i[0], how: i[1], why: i[2] })); };
+  const nice = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : '';
+  const lab = d => d ? (D.labels[d] || '') : '';
+  // who worked a company, most active first
+  const workers = id => { const c = {}; (coActs[id] || []).forEach(a => { const n = sname(a[1]); c[n] = (c[n] || 0) + 1; }); return Object.keys(c).sort((x, y) => c[y] - c[x]).map(n => [n, c[n]]); };
+  const coMeet = {}; D.MEET.forEach(r => { if (r[2] && !coMeet[r[2]]) coMeet[r[2]] = r; });
+  // suggestions: what the field should probably be, and the evidence for it
+  const sugMeetType = r => {
+    const t = r[1] || '';
+    if (/demo/i.test(t)) return 'Demo Meeting: the title mentions a demo.';
+    if (/partner/i.test(t)) return 'Partnership Meeting: the title mentions a partnership.';
+    if (/\bqbr\b|quarterly/i.test(t)) return 'QBR: the title mentions a quarterly review.';
+    if (/check.?in|catch.?up/i.test(t)) return 'Check in: the title reads like a catch-up.';
+    if (/proposal|pricing|commercial|negotiat|contract|progress/i.test(t)) return 'Deal Progression: the title is about the deal (proposal, pricing or contract).';
+    if (/intro|discovery|x inploi|inploi x/i.test(t)) return 'Discovery Call: the title reads as a first intro meeting.';
+    return 'Discovery Call if this is the first meeting with them, otherwise pick the type that matches "' + t + '".';
+  };
+  const sugOutcome = r => 'Completed if it went ahead on ' + nice(r[5]) + '. Otherwise No show, Cancelled or Rescheduled.';
+  const sugOwnerCo = id => { const w = workers(id); return w.length ? 'SDR Owner = ' + w[0][0] + ': ' + w[0][0] + ' logged ' + w[0][1] + ' of the ' + (coActs[id] || []).length + ' calls and emails on this account in the last 30 days.' : 'Set it to the SDR who works this account.'; };
+  const sugOwnerMeet = r => 'SDR Owner = ' + sname(r[3]) + ': ' + sname(r[3]) + ' booked "' + r[1] + '".';
+  const sugStatusCo = id => {
+    const m = coMeet[id]; if (m || mbCo.has(id)) return 'Meeting Booked: a meeting' + (m ? ' ("' + m[1] + '", ' + nice(m[4]) + ')' : '') + ' is logged on this account.';
+    const acts = coActs[id] || [], calls = acts.filter(a => a[2] === 'c'), last = acts.reduce((t, a) => Math.max(t, a[0] || 0), 0);
+    const lastOut = calls.length ? lab(calls.sort((a, b) => b[0] - a[0])[0][3]) : '';
+    if (/not interested/i.test(lastOut)) return 'Not Interested: the latest call outcome was Not Interested.';
+    if (/bad timing/i.test(lastOut)) return 'Nurture: the latest call outcome was Bad Timing.';
+    return 'In Progress (SDR actively working): ' + acts.length + ' calls and emails in the last 30 days, most recently ' + nice(last) + '.';
+  };
+  const sugStatusMeet = r => 'Meeting Booked: "' + r[1] + '" was booked on ' + nice(r[4]) + '.';
+  const sugCallOutcome = a => {
+    const s = a[8] || 0, len = s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's';
+    if (s === 0) return 'No answer: the call lasted 0s.';
+    if (s < 30) return 'No answer (or Busy or Gatekeeper): the call lasted only ' + len + '.';
+    if (s < 60) return 'Left voicemail: ' + len + ' is about voicemail length.';
+    if (s < 180) return 'Connected: the call lasted ' + len + ', so someone picked up.';
+    return 'Valuable Conversation or Connected: the call lasted ' + len + '.';
+  };
+  const sugCallType = a => { const st = (D.CO[a[4][0]] || [])[3] || ''; return /opportunit/i.test(st) ? 'Deal Progression: the account is an Open Opportunity.' : /meeting booked/i.test(st) ? 'Check in: a meeting is already booked with this account.' : 'Cold Call: a prospecting call, with no meeting or opportunity on this account yet.'; };
+  const sugContact = a => { const id = a[4][0]; const other = id && (coActs[id] || []).find(x => x[5].length && x[1] === a[1]); return other ? 'Link it to ' + (D.CON[other[5][0]] ? D.CON[other[5][0]][0] : 'the contact') + ': ' + sname(a[1]) + ' contacted them at ' + coName(id) + ' on ' + nice(other[0]) + '.' : 'Link it to the person you spoke to or emailed. Create the contact if they aren’t in HubSpot.'; };
+  const sugCompany = a => { const c = a[5].map(id => D.CON[id]).filter(Boolean); return c.length ? 'Link ' + c[0][0] + ' to their company in HubSpot. The contact has no company, so this ' + (a[2] === 'c' ? 'call' : 'email') + ' doesn’t count towards any account.' : 'Link it to the company (and contact) it was for.'; };
+  const meet = (gap, r, sug) => add(gap, 'm' + r[0], [full[r[8]] || r[8] || sname(r[3])], r[1], HS_REC + '0-47/' + r[0], r[2], r[4], sug);
+  const company = (gap, id, sug) => { const acts = coActs[id] || []; add(gap, 'c' + id, [...new Set(acts.map(a => sname(a[1])))], coName(id), HS_REC + '0-2/' + id, id, (acts[0] || [])[0], sug); };
+  const act = (gap, a, sug) => { const c = conNames(a); add(gap, 'a' + a[7], [sname(a[1])], (a[2] === 'c' ? 'Call' : 'Email') + (c ? ' with ' + c : '') + (a[2] !== 'c' && a[6] ? ': ' + a[6] : ''), HS_REC + (a[2] === 'c' ? '0-48/' : '0-49/') + a[7], a[4][0], a[0], sug); };
+  D.MEET.filter(r => !r[6]).forEach(r => meet('New meeting with no meeting type', r, sugMeetType(r)));
+  D.MEET.filter(r => r[5] && r[5] < now && (!r[7] || /SCHEDULED/i.test(r[7]))).forEach(r => meet('Past meeting with no outcome', r, sugOutcome(r)));
+  D.MEET.filter(r => r[2] && D.CO[r[2]] && !D.CO[r[2]][4]).forEach(r => meet('Meeting on an account with no SDR Owner', r, sugOwnerMeet(r)));
+  D.MEET.filter(r => r[2] && D.CO[r[2]] && !mbCo.has(r[2]) && !/meeting booked|opportunit|customer|client|disqualif|closed/i.test(D.CO[r[2]][3])).forEach(r => meet('Meeting where Account Status isn’t Meeting Booked', r, sugStatusMeet(r)));
   const cos = Object.keys(coActs);
-  cos.filter(id => D.CO[id] && !D.CO[id][4]).forEach(id => company('Account worked with no SDR Owner', id));
-  cos.filter(id => D.CO[id] && !D.CO[id][3]).forEach(id => company('Account worked with no Account Status', id));
-  calls.filter(a => !a[3]).forEach(a => act('Call with no outcome', a));
-  calls.filter(a => !a[6]).forEach(a => act('Call with no call type', a));
-  out.filter(a => !a[5].length).forEach(a => act('Call or email not linked to a contact', a));
-  out.filter(a => !a[4].length).forEach(a => act('Call or email not linked to a company', a));
+  cos.filter(id => D.CO[id] && !D.CO[id][4]).forEach(id => company('Account worked with no SDR Owner', id, sugOwnerCo(id)));
+  cos.filter(id => D.CO[id] && !D.CO[id][3]).forEach(id => company('Account worked with no Account Status', id, sugStatusCo(id)));
+  calls.filter(a => !a[3]).forEach(a => act('Call with no outcome', a, sugCallOutcome(a)));
+  calls.filter(a => !a[6]).forEach(a => act('Call with no call type', a, sugCallType(a)));
+  out.filter(a => !a[5].length).forEach(a => act('Call or email not linked to a contact', a, sugContact(a)));
+  out.filter(a => !a[4].length).forEach(a => act('Call or email not linked to a company', a, sugCompany(a)));
   return rows;
 }
 async function fixesPayload() {

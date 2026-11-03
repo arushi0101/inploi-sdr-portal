@@ -14,7 +14,7 @@
 var SOURCE = 'https://inploi-sdr-portal.vercel.app/api/data?part=fixes';
 var SHEET_ID = '1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ'; // the "SDR data fixes" sheet, so this also works from a standalone script
 var TAB = 'Data fixes', SUMMARY = 'Summary', TZ = 'Europe/London';
-var HEAD = ['Status', 'Who fixes it', 'Fix needed', 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
+var HEAD = ['Status', 'Who fixes it', 'Fix needed', 'Suggested update (what and why)', 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
   'Resolved on', 'Where to fix', 'How to fix', 'Why it matters', 'Last checked', 'Key'];
 var C = {}; HEAD.forEach(function (h, i) { C[h] = i; });
 
@@ -59,6 +59,7 @@ function merge_(existing, fresh, today) {
       r[C.Status] = 'Open'; r[C['Resolved on']] = '';
       r[C.Record] = '=HYPERLINK("' + f.link + '","' + String(f.record).replace(/"/g, '""') + '")';
       r[C.Company] = f.company; r[C['Worked on']] = f.worked; r[C['Last checked']] = today;
+      r[C['Suggested update (what and why)']] = f.suggest || '';
     } else if (r[C.Status] === 'Open') {
       r[C.Status] = 'Resolved'; r[C['Resolved on']] = today; r[C['Last checked']] = today;
     }
@@ -67,7 +68,7 @@ function merge_(existing, fresh, today) {
   fresh.forEach(function (f) {
     if (seen[f.key]) return;
     var r = HEAD.map(function () { return ''; });
-    r[C.Status] = 'Open'; r[C['Who fixes it']] = f.who; r[C['Fix needed']] = f.fix;
+    r[C.Status] = 'Open'; r[C['Who fixes it']] = f.who; r[C['Fix needed']] = f.fix; r[C['Suggested update (what and why)']] = f.suggest || '';
     r[C.Record] = '=HYPERLINK("' + f.link + '","' + String(f.record).replace(/"/g, '""') + '")';
     r[C.Company] = f.company; r[C['Worked on']] = f.worked; r[C['First flagged']] = today;
     r[C['Where to fix']] = f.where; r[C['How to fix']] = f.how; r[C['Why it matters']] = f.why;
@@ -96,11 +97,17 @@ function update() {
   var sh = ss.getSheetByName(TAB) || ss.getSheets()[0];
   sh.setName(TAB);
   var fresh = fetchFixes_();
-  var values = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, HEAD.length).getValues() : [];
-  var formulas = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, HEAD.length).getFormulas() : [];
+  var lastCol = Math.max(sh.getLastColumn(), 1), n = sh.getLastRow() - 1;
+  var oldHead = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  var values = n > 0 ? sh.getRange(2, 1, n, lastCol).getValues() : [];
+  var formulas = n > 0 ? sh.getRange(2, 1, n, lastCol).getFormulas() : [];
+  // read existing rows by column name, so added or moved columns keep their data;
   // keep record links as formulas and dates as yyyy-mm-dd
   var existing = values.map(function (r, i) {
-    return r.map(function (v, j) { return formulas[i][j] || (v instanceof Date ? iso_(v) : v); });
+    return HEAD.map(function (h) {
+      var j = oldHead.indexOf(h); if (j < 0) return '';
+      return formulas[i][j] || (r[j] instanceof Date ? iso_(r[j]) : r[j]);
+    });
   }).filter(function (r) { return r[C.Key]; });
   // the first import came from CSV with no Key formulas; nothing else to migrate
   var rows = merge_(existing, fresh, today);
@@ -114,7 +121,7 @@ function update() {
   }
   sh.setFrozenRows(1);
   sh.hideColumns(C.Key + 1);
-  [90, 120, 260, 280, 200, 95, 95, 80, 95, 240, 280, 360, 95].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
+  [90, 120, 260, 420, 280, 200, 95, 95, 80, 95, 240, 280, 360, 95].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
   if (sh.getFilter()) sh.getFilter().remove();
   sh.getRange(1, 1, Math.max(rows.length + 1, 2), HEAD.length).createFilter();
 
