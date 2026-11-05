@@ -251,7 +251,9 @@ function applyPending_(sh) {
   if (d < 0 || res < 0) return;
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   var by = head.indexOf(BY);
-  vals.forEach(function (v, i) { if (v[d] && (!v[res] || v[res] === WAIT)) decide_(sh, i + 2, (by >= 0 && String(v[by]).split(',')[0]) || who); });
+  // also retry approvals that failed only because the secret was wrong or missing (nothing was changed in HubSpot)
+  var retry = function (x) { return /^Not applied: (wrong or missing secret|APPLY_SECRET)/.test(String(x)); };
+  vals.forEach(function (v, i) { if (v[d] && (!v[res] || v[res] === WAIT || retry(v[res]))) decide_(sh, i + 2, (by >= 0 && String(v[by]).split(',')[0]) || who); });
 }
 
 // parent/child companies linked in this run: one confirmation message in Slack (#sdr-hub), and a line in the Change log
@@ -272,7 +274,7 @@ function decide_(sh, rowNum, who) {
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   var col = function (h) { return head.indexOf(h); };
   var range = sh.getRange(rowNum, 1, 1, head.length), v = range.getValues()[0], f = range.getFormulas()[0];
-  var decision = v[col(DEC)], done = v[col(RES)] === WAIT ? '' : v[col(RES)];
+  var decision = v[col(DEC)], done = (v[col(RES)] === WAIT || /^Not applied: (wrong or missing secret|APPLY_SECRET)/.test(String(v[col(RES)]))) ? '' : v[col(RES)];
   if (!v[col('Key')]) return;
   var cell = sh.getRange(rowNum, col(RES) + 1), stamp = now_();
   var change = null; try { change = v[col('Change')] ? JSON.parse(v[col('Change')]) : null; } catch (x) { change = null; }
