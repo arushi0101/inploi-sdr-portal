@@ -1344,12 +1344,16 @@ const PUBLIC_SUFFIX = /\.(ac|gov|sch|nhs|police|mod|parliament|ac\.za|gov\.za)\.
 const normDom = d => String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim();
 const domRoot = d => { d = normDom(d); if (!d || !d.includes('.') || PUBLIC_SUFFIX.test(d)) return '';
   const parts = d.split('.'); let i = parts.length - 1; if (parts.length >= 3 && /^(co|com|org|net|ltd|plc)$/.test(parts[i - 1])) i--; const r = parts[i - 1] || ''; return r.length >= 3 && !GENERIC_HOST.test(r) ? r : ''; };
+let allCoCache = null;
 async function allCompanies(props) {
+  if (allCoCache && Date.now() - allCoCache.at < 900000 && allCoCache.props === props.join()) return allCoCache.v;
   const out = []; let after = '';
   for (let i = 0; i < 200; i++) {
     const r = await hs('/crm/v3/objects/companies?limit=100&archived=false&properties=' + props.join(',') + (after ? '&after=' + encodeURIComponent(after) : ''));
     out.push(...(r.results || [])); after = r.paging && r.paging.next && r.paging.next.after; if (!after) break;
+    await sleep(150); // stay well under HubSpot's 10-second request limit
   }
+  allCoCache = { at: Date.now(), props: props.join(), v: out };
   return out;
 }
 // decides whether two companies are parent and child, and which way round. Returns null when unsure, duplicate or unrelated.
@@ -1416,9 +1420,11 @@ async function familyLinks(workedIds, preloaded) {
 familyLinks.prefetch = async () => { const cos = await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'hubspot_owner_id', 'numberofemployees', 'account_status']); return ids => familyLinks(ids, cos); };
 async function fixesPayload() {
   // the 30-day report and the company list load in parallel to stay inside the time limit
-  const [D, FL] = await Promise.all([buildReport({ span: 'd30' }), familyLinks.prefetch()]);
+  // one after the other: together they hit HubSpot's rate limit
+  const D = await buildReport({ span: 'd30' });
+  let FL = null; try { FL = await familyLinks.prefetch(); } catch (e) { console.log('[family-links] company list failed', String(e.message || e)); }
   const rows = fixRows(D);
-  try { const [links, owners, sdrOpts] = await Promise.all([FL(new Set(D.ACT.flatMap(a => a[4]).map(String))), ownerNames(), options('companies', 'sdr_owner')]); rows.push(...familyRows(D, links, owners, sdrOpts)); } catch (e) { console.log('[family-links] skipped', String(e.message || e)); }
+  if (FL) try { const [links, owners, sdrOpts] = await Promise.all([FL(new Set(D.ACT.flatMap(a => a[4]).map(String))), ownerNames(), options('companies', 'sdr_owner')]); rows.push(...familyRows(D, links, owners, sdrOpts)); } catch (e) { console.log('[family-links] skipped', String(e.message || e)); }
   return { generatedAt: new Date().toISOString(), from: D.day, to: D.last, rows };
 }
 // every HubSpot user's name by owner id (for the company owner columns)
