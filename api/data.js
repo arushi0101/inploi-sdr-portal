@@ -1358,9 +1358,11 @@ function familyPair(A, B) {
   const dA = normDom(A.domain), dB = normDom(B.domain); if (dA && dA === dB) return null;        // same website = duplicate record
   const cA = COUNTRY_RE.test(nA), cB = COUNTRY_RE.test(nB), gA = GROUPY_RE.test(nA), gB = GROUPY_RE.test(nB);
   const kA = famKey(A.name), kB = famKey(B.name);
+  let dir = '';
   const pick = () => { // the parent: the one without a country, else the Group/Holdings/Global one, else .com over a country domain
-    if (cA !== cB) return cA ? 'B' : 'A'; if (gA !== gB) return gA ? 'A' : 'B';
-    const comA = /\.com$/.test(dA), comB = /\.com$/.test(dB); if (comA !== comB) return comA ? 'A' : 'B'; return null; };
+    if (cA !== cB) { dir = 'the parent is the one without a country in its name'; return cA ? 'B' : 'A'; }
+    if (gA !== gB) { dir = 'the parent is the one named Group / Holdings / Global'; return gA ? 'A' : 'B'; }
+    const comA = /\.com$/.test(dA), comB = /\.com$/.test(dB); if (comA !== comB) { dir = 'the parent is the one on the global .com website'; return comA ? 'A' : 'B'; } return null; };
   if (kA && kA === kB && kA.length >= 2) {
     const ta = new Set(nA.split(' ')), tb = new Set(nB.split(' '));
     const diff = [...ta].filter(w => !tb.has(w)).concat([...tb].filter(w => !ta.has(w)));
@@ -1368,21 +1370,21 @@ function familyPair(A, B) {
     if (cA && cB) return null;                         // two country entities (Aldi UK / Aldi Australia): siblings, no parent here
     if (gA && gB && !cA && !cB) return null;           // Group vs Holdings: duplicate or different companies
     const p = pick(); if (!p) return null;
-    return { parent: p, why: 'same name apart from ' + (cA || cB ? 'the country' : 'region or Group / Holdings words'), sure: true };
+    return { parent: p, why: 'same name apart from ' + (cA || cB ? 'the country' : 'region or Group / Holdings words'), dir, sure: true };
   }
   const rA = domRoot(dA), rB = domRoot(dB);
   if (rA && rA === rB) {
     // same website on another domain: the names must agree too (same first word, one name inside the other)
     const wa = kA.split(' '), wb = kB.split(' '); if (!wa[0] || wa[0] !== wb[0]) return null;
     const inside = (x, y) => (' ' + y + ' ').includes(' ' + x + ' '); if (!inside(kA, kB) && !inside(kB, kA)) return null;
-    const p = pick() || (kA.length < kB.length ? 'A' : kB.length < kA.length ? 'B' : null); if (!p) return null;
-    return { parent: p, why: 'same website (' + dA + ' / ' + dB + ') and matching names', sure: false };
+    let p = pick(); if (!p) { p = kA.length < kB.length ? 'A' : kB.length < kA.length ? 'B' : null; dir = 'the parent is the one with the shorter, more general name'; } if (!p) return null;
+    return { parent: p, why: 'same website (' + dA + ' / ' + dB + ') and matching names', dir, sure: false };
   }
   return null;
 }
 // rows: { child, parent, childName, parentName, why, sure }
 async function familyLinks(workedIds, preloaded) {
-  const cos = preloaded || await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'numberofemployees', 'account_status']);
+  const cos = preloaded || await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'hubspot_owner_id', 'numberofemployees', 'account_status']);
   const C = {}; cos.forEach(c => { C[c.id] = c.properties; });
   const kids = {}; cos.forEach(c => { const p = c.properties.hs_parent_company_id; if (p) (kids[p] = kids[p] || []).push(c.id); });
   const working = new Set(cos.filter(c => c.properties.sdr_owner).map(c => c.id).concat([...workedIds].map(String)).filter(id => C[id]));
@@ -1405,20 +1407,30 @@ async function familyLinks(workedIds, preloaded) {
   // a company suggested as a parent shouldn't also be suggested as someone's child
   const parents = new Set(Object.values(cand).map(x => x.parent));
   return Object.keys(cand).filter(ch => !parents.has(ch)).map(ch => { const x = cand[ch]; return { child: ch, parent: x.parent, childName: (C[ch].name || '').trim(), parentName: (C[x.parent].name || '').trim(),
-    childOwner: C[ch].sdr_owner || '', parentOwner: C[x.parent].sdr_owner || '', why: x.why, sure: x.sure }; })
+    childOwner: C[ch].sdr_owner || '', parentOwner: C[x.parent].sdr_owner || '', why: x.why, dir: x.dir || '', sure: x.sure,
+    childDomain: normDom(C[ch].domain), parentDomain: normDom(C[x.parent].domain), childHsOwner: C[ch].hubspot_owner_id || '', parentHsOwner: C[x.parent].hubspot_owner_id || '',
+    parentKids: (kids[x.parent] || []).length }; })
     .sort((a, b) => a.parentName.localeCompare(b.parentName));
 }
 // load every company now, return a function that finishes the matching once the worked ids are known
-familyLinks.prefetch = async () => { const cos = await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'numberofemployees', 'account_status']); return ids => familyLinks(ids, cos); };
+familyLinks.prefetch = async () => { const cos = await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'hubspot_owner_id', 'numberofemployees', 'account_status']); return ids => familyLinks(ids, cos); };
 async function fixesPayload() {
   // the 30-day report and the company list load in parallel to stay inside the time limit
   const [D, FL] = await Promise.all([buildReport({ span: 'd30' }), familyLinks.prefetch()]);
   const rows = fixRows(D);
-  try { rows.push(...familyRows(D, await FL(new Set(D.ACT.flatMap(a => a[4]).map(String))))); } catch (e) { console.log('[family-links] skipped', String(e.message || e)); }
+  try { const [links, owners, sdrOpts] = await Promise.all([FL(new Set(D.ACT.flatMap(a => a[4]).map(String))), ownerNames(), options('companies', 'sdr_owner')]); rows.push(...familyRows(D, links, owners, sdrOpts)); } catch (e) { console.log('[family-links] skipped', String(e.message || e)); }
   return { generatedAt: new Date().toISOString(), from: D.day, to: D.last, rows };
 }
+// every HubSpot user's name by owner id (for the company owner columns)
+async function ownerNames() {
+  const m = Object.assign({}, OWNER_NAMES); let after = '';
+  try { for (let i = 0; i < 10; i++) { const r = await hs('/crm/v3/owners?limit=500' + (after ? '&after=' + after : '')); (r.results || []).forEach(o => { m[String(o.id)] = [o.firstName, o.lastName].filter(Boolean).join(' ') || o.email || String(o.id); }); after = r.paging && r.paging.next && r.paging.next.after; if (!after) break; } } catch (e) { /* fall back to the names we know */ }
+  return m;
+}
 // sheet rows for parent/child links; who = the SDR Owner of the child (else the parent), else whoever worked them most
-function familyRows(D, links) {
+function familyRows(D, links, owners, sdrOpts) {
+  owners = owners || {}; sdrOpts = sdrOpts || {};
+  const oName = id => id ? (owners[id] || 'Owner ' + id) : 'None', sName = v => v ? (sdrOpts[v] || v) : 'None';
   const shortOf = v => { v = String(v || '').toLowerCase(); const x = SDRS.find(s => v === s.id || v === s.name.toLowerCase() || v.startsWith(s.short.toLowerCase())); return x ? x.short : ''; };
   const workers = {}, lastDay = {};
   D.ACT.filter(a => a[2] !== 'r').forEach(a => a[4].forEach(id => { const n = D.SDRS[a[1]] ? D.SDRS[a[1]].short : ''; if (!n) return; (workers[id] = workers[id] || {})[n] = (workers[id][n] || 0) + 1; lastDay[id] = Math.max(lastDay[id] || 0, a[0] || 0); }));
@@ -1429,6 +1441,14 @@ function familyRows(D, links) {
     const day = Math.max(lastDay[l.child] || 0, lastDay[l.parent] || 0);
     out.push({ key: FAMILY_FIX + '|c' + l.child + '|p' + l.parent + '|' + who, who, fix: FAMILY_FIX,
       suggest: 'Link ' + l.childName + ' as a child of ' + l.parentName + ' (association label: Parent company): ' + l.why + '.' + (l.sure ? '' : ' Check which one is the group parent before approving.'),
+      family: {
+        childOwner: oName(l.childHsOwner), childSdr: sName(l.childOwner), parentOwner: oName(l.parentHsOwner), parentSdr: sName(l.parentOwner),
+        reasoning: 'They look like one group: ' + l.why + '. ' + (l.dir ? l.dir.charAt(0).toUpperCase() + l.dir.slice(1) + ', so ' + l.parentName + ' is the parent.' : '') +
+          (l.parentKids ? ' ' + l.parentName + ' is already the parent of ' + l.parentKids + ' other compan' + (l.parentKids === 1 ? 'y' : 'ies') + ' in HubSpot.' : '') +
+          ' Neither is linked to a parent yet.' + (l.sure ? '' : ' Matched on website, so please check before approving.'),
+        source: 'HubSpot company records: "' + l.childName + '"' + (l.childDomain ? ' (' + l.childDomain + ')' : ' (no website)') + ' and "' + l.parentName + '"' + (l.parentDomain ? ' (' + l.parentDomain + ')' : ' (no website)') + '; Parent company field empty on both.',
+        childLabel: 'Parent company → ' + l.parentName, parentLabel: 'Child company → ' + l.childName
+      },
       apply: { object: 'companies', id: String(l.child), property: '__parent', field: 'Parent company', value: String(l.parent), label: l.parentName },
       record: l.childName, link: HS_REC + '0-2/' + l.child, company: l.parentName + ' (parent)', worked: day ? new Date(day).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }) : '',
       where: info[0], how: info[1], why: info[2] });

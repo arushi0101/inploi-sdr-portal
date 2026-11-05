@@ -23,8 +23,11 @@ var APPLY_URL = 'https://inploi-sdr-portal.vercel.app/api/apply';
 var THANKS_URL = 'https://inploi-sdr-portal.vercel.app/api/slack-thanks';
 var TAB = 'Data fixes', FAM_TAB = 'Parent & child companies', SUMMARY = 'Summary', LOG = 'Change log', TZ = 'Europe/London';
 var SUG = 'Suggested update (what and why)', DEC = 'Approve / Reject', BY = 'Decided by', RES = 'Result';
-var HEAD = ['Status', 'Who fixes it', 'Fix needed', SUG, DEC, BY, RES, 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
-  'Resolved on', 'Where to fix', 'How to fix', 'Why it matters', 'Last checked', 'Change', 'Key'];
+// extra columns shown only on the parent & child tab
+var FAM_COLS = ['Reasoning', 'Source', 'Label on child', 'Label on parent', 'Child company owner', 'Child SDR Owner', 'Parent company owner', 'Parent SDR Owner'];
+var FAM_KEYS = ['reasoning', 'source', 'childLabel', 'parentLabel', 'childOwner', 'childSdr', 'parentOwner', 'parentSdr'];
+var HEAD = ['Status', 'Who fixes it', 'Fix needed', SUG, DEC, BY, RES, 'Record', 'Company'].concat(FAM_COLS).concat(['Worked on', 'First flagged', 'Days open',
+  'Resolved on', 'Where to fix', 'How to fix', 'Why it matters', 'Last checked', 'Change', 'Key']);
 var LOG_HEAD = ['When', 'Decided by', 'Decision', 'Who fixes it', 'Fix needed', 'Record', 'Company', 'Field', 'Old value', 'New value', 'Result'];
 var C = {}; HEAD.forEach(function (h, i) { C[h] = i; });
 var FAM_FIX = 'Companies in the same group that aren’t linked'; // these rows live on their own tab
@@ -82,6 +85,7 @@ function daysSinceAt_(iso, today) {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
+function famCols_(r, f) { if (f.family) FAM_COLS.forEach(function (h, i) { r[C[h]] = f.family[FAM_KEYS[i]] || ''; }); }
 // merge the latest open fixes into the existing rows; pure, so it can be tested outside Google
 function merge_(existing, fresh, today) {
   var byKey = {}, seen = {};
@@ -91,7 +95,7 @@ function merge_(existing, fresh, today) {
     if (f) {
       seen[k] = 1;
       if (r[C.Status] === 'Resolved') { r[C.Status] = 'Open'; r[C['Resolved on']] = ''; }
-      r[C.Record] = link_(f); r[C.Company] = f.company; r[C['Worked on']] = f.worked; r[C['Last checked']] = today;
+      r[C.Record] = link_(f); r[C.Company] = f.company; r[C['Worked on']] = f.worked; r[C['Last checked']] = today; famCols_(r, f);
       // keep the suggestion people decided on; refresh it while undecided
       if (!r[C[DEC]]) { r[C[SUG]] = f.suggest || ''; r[C.Change] = f.apply ? JSON.stringify(f.apply) : ''; }
       // a fix that's still flagged after its change was applied is reopened for a fresh decision
@@ -107,7 +111,7 @@ function merge_(existing, fresh, today) {
     r[C.Status] = 'Open'; r[C['Who fixes it']] = f.who; r[C['Fix needed']] = f.fix; r[C[SUG]] = f.suggest || '';
     r[C.Record] = link_(f); r[C.Company] = f.company; r[C['Worked on']] = f.worked; r[C['First flagged']] = today;
     r[C['Where to fix']] = f.where; r[C['How to fix']] = f.how; r[C['Why it matters']] = f.why;
-    r[C['Last checked']] = today; r[C.Change] = f.apply ? JSON.stringify(f.apply) : ''; r[C.Key] = f.key;
+    r[C['Last checked']] = today; r[C.Change] = f.apply ? JSON.stringify(f.apply) : ''; r[C.Key] = f.key; famCols_(r, f);
     rows.push(r);
   });
   rows.forEach(function (r) { r[C['Days open']] = r[C.Status] === 'Open' ? daysSinceAt_(r[C['Worked on']] || r[C['First flagged']], today) : ''; });
@@ -164,8 +168,15 @@ function write_(sh, rows) {
     sh.getRange(2, C[DEC] + 1, rows.length, 1).setDataValidation(dv).setFontWeight('bold').setBackground('#fff8dc');
   }
   sh.setFrozenRows(1);
+  sh.showColumns(1, HEAD.length);
   sh.hideColumns(C.Change + 1, 2);
-  [90, 120, 260, 380, 120, 170, 220, 280, 200, 95, 95, 80, 95, 240, 280, 360, 95].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
+  if (sh.getName() !== FAM_TAB) sh.hideColumns(C[FAM_COLS[0]] + 1, FAM_COLS.length);
+  else if (rows.length) sh.getRange(2, C.Reasoning + 1, rows.length, 2).setWrap(true);
+  var W = { 'Status': 90, 'Who fixes it': 120, 'Fix needed': 260, 'Approve / Reject': 120, 'Decided by': 170, 'Result': 220, 'Record': 280, 'Company': 200, 'Reasoning': 380, 'Source': 320,
+    'Label on child': 220, 'Label on parent': 220, 'Child company owner': 150, 'Child SDR Owner': 140, 'Parent company owner': 150, 'Parent SDR Owner': 140,
+    'Worked on': 95, 'First flagged': 95, 'Days open': 80, 'Resolved on': 95, 'Where to fix': 240, 'How to fix': 280, 'Why it matters': 360, 'Last checked': 95 };
+  W[SUG] = 380;
+  HEAD.forEach(function (h, i) { if (W[h]) sh.setColumnWidth(i + 1, W[h]); });
   if (sh.getFilter()) sh.getFilter().remove();
   sh.getRange(1, 1, Math.max(rows.length + 1, 2), HEAD.length).createFilter();
 }
