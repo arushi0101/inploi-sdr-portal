@@ -1330,16 +1330,20 @@ function fixRows(D) {
    - the same website root on a different domain (kpmg.co.uk / kpmg.ie).
    Two records with the same domain AND the same name are duplicates, not parent and child, so they're left out.
    Companies already linked (or already under another parent) are left alone: HubSpot allows one parent per company. */
-const GEO = 'uk|u k|gb|great britain|britain|england|scotland|wales|ireland|northern ireland|ni|europe|emea|apac|asia|international|global|worldwide|usa|us|america|north america|canada|australia|anz|new zealand|india|south africa|africa|sa|za|germany|deutschland|france|spain|italy|netherlands|nl|nordics|benelux|middle east|uae|dubai|london|holdings|holding|group|plc|ltd|limited|llp|inc|corporation|corp|company|co|the|and|services|uk and ireland|uk and i|uki';
+// words that don't change which business it is (removed to compare names)
+const GEO = 'uk|u k|gb|great britain|britain|england|scotland|wales|ireland|northern ireland|europe|emea|apac|asia|international|global|worldwide|usa|us|america|north america|canada|australia|anz|new zealand|india|south africa|africa|sa|za|germany|deutschland|france|spain|italy|netherlands|nordics|benelux|middle east|uae|holdings|holding|group|plc|ltd|limited|llp|inc|corporation|corp|company|co|the|and|uki';
 const GEO_RE = new RegExp('\\b(' + GEO + ')\\b', 'g');
-const COUNTRY_RE = /\b(uk|gb|england|scotland|wales|ireland|northern ireland|europe|emea|apac|asia|usa|us|america|canada|australia|anz|new zealand|india|south africa|africa|sa|za|germany|france|spain|italy|netherlands|nordics|benelux|middle east|uae|dubai)\b/;
-const PARENTY_RE = /\b(group|holdings|holding|plc|global|international|worldwide|corporation)\b/;
-const famName = n => String(n || '').toLowerCase().replace(/&amp;/g, '&').replace(/\([^)]*\)/g, ' ').replace(/&/g, ' and ').replace(/[’'`.]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const COUNTRY_RE = /\b(uk|u k|gb|great britain|britain|england|scotland|wales|ireland|northern ireland|usa|us|america|canada|australia|new zealand|india|south africa|sa|za|germany|deutschland|france|spain|italy|netherlands|uae)\b/;
+const GROUPY_RE = /\b(group|holdings|holding|global|international|worldwide|corporation|emea|europe|apac)\b/;
+const LEGAL = new Set(['ltd', 'limited', 'llp', 'inc', 'corp', 'co', 'company', 'the', 'and', 'plc']);
+const famName = n => String(n || '').toLowerCase().replace(/&amp;/g, '&').replace(/[()]/g, ' ').replace(/&/g, ' and ').replace(/[’'`.]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const famKey = n => famName(n).replace(GEO_RE, ' ').replace(/\s+/g, ' ').trim();
-const GENERIC_HOST = /^(linkedin|facebook|google|gmail|outlook|hotmail|yahoo|wixsite|wordpress|myworkdayjobs|workday|indeed|glassdoor|teamtailor|smartrecruiters|greenhouse|lever|bamboohr|tal|livevacancies|jobs|careers|co|com|org|net|gov|nhs|ac)$/;
-const domRoot = d => { d = String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim(); if (!d || !d.includes('.')) return '';
-  const parts = d.split('.'); let i = parts.length - 1; if (parts.length >= 3 && /^(co|com|org|net|ac|gov|ltd|plc)$/.test(parts[i - 1])) i--; const r = parts[i - 1] || ''; return r.length >= 3 && !GENERIC_HOST.test(r) ? r : ''; };
+// shared hosting / ATS / public-sector suffixes can't tell you two records are one group
+const GENERIC_HOST = /^(linkedin|facebook|google|gmail|outlook|hotmail|yahoo|wixsite|wordpress|myworkdayjobs|workday|indeed|glassdoor|teamtailor|smartrecruiters|greenhouse|lever|bamboohr|tal|livevacancies|jobs|careers|pinpointhq|workable|recruitee|jobvite|icims|eploy|tribepad|talos360|applytojob|webitrent|networx|jobtrain|hireful|oleeo|cezanneondemand|co|com|org|net|gov|nhs|ac)$/;
+const PUBLIC_SUFFIX = /\.(ac|gov|sch|nhs|police|mod|parliament|ac\.za|gov\.za)\.uk$|\.(ac|gov|sch|nhs|police|mod)\.uk$|\.gov$|\.edu$|\.ac\.za$|\.gov\.za$|\.edu\.au$|\.gov\.au$/;
 const normDom = d => String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim();
+const domRoot = d => { d = normDom(d); if (!d || !d.includes('.') || PUBLIC_SUFFIX.test(d)) return '';
+  const parts = d.split('.'); let i = parts.length - 1; if (parts.length >= 3 && /^(co|com|org|net|ltd|plc)$/.test(parts[i - 1])) i--; const r = parts[i - 1] || ''; return r.length >= 3 && !GENERIC_HOST.test(r) ? r : ''; };
 async function allCompanies(props) {
   const out = []; let after = '';
   for (let i = 0; i < 200; i++) {
@@ -1348,44 +1352,61 @@ async function allCompanies(props) {
   }
   return out;
 }
-// rows: { child, parent, childName, parentName, why, sure, worked: [companyIds the SDRs work on in this pair] }
+// decides whether two companies are parent and child, and which way round. Returns null when unsure, duplicate or unrelated.
+function familyPair(A, B) {
+  const nA = famName(A.name), nB = famName(B.name); if (!nA || !nB || nA === nB) return null; // same name = duplicate record
+  const dA = normDom(A.domain), dB = normDom(B.domain); if (dA && dA === dB) return null;        // same website = duplicate record
+  const cA = COUNTRY_RE.test(nA), cB = COUNTRY_RE.test(nB), gA = GROUPY_RE.test(nA), gB = GROUPY_RE.test(nB);
+  const kA = famKey(A.name), kB = famKey(B.name);
+  const pick = () => { // the parent: the one without a country, else the Group/Holdings/Global one, else .com over a country domain
+    if (cA !== cB) return cA ? 'B' : 'A'; if (gA !== gB) return gA ? 'A' : 'B';
+    const comA = /\.com$/.test(dA), comB = /\.com$/.test(dB); if (comA !== comB) return comA ? 'A' : 'B'; return null; };
+  if (kA && kA === kB && kA.length >= 2) {
+    const ta = new Set(nA.split(' ')), tb = new Set(nB.split(' '));
+    const diff = [...ta].filter(w => !tb.has(w)).concat([...tb].filter(w => !ta.has(w)));
+    if (diff.every(w => LEGAL.has(w))) return null;   // only "Ltd" / "plc" / "Company" differ: duplicate
+    if (cA && cB) return null;                         // two country entities (Aldi UK / Aldi Australia): siblings, no parent here
+    if (gA && gB && !cA && !cB) return null;           // Group vs Holdings: duplicate or different companies
+    const p = pick(); if (!p) return null;
+    return { parent: p, why: 'same name apart from ' + (cA || cB ? 'the country' : 'region or Group / Holdings words'), sure: true };
+  }
+  const rA = domRoot(dA), rB = domRoot(dB);
+  if (rA && rA === rB) {
+    // same website on another domain: the names must agree too (same first word, one name inside the other)
+    const wa = kA.split(' '), wb = kB.split(' '); if (!wa[0] || wa[0] !== wb[0]) return null;
+    const inside = (x, y) => (' ' + y + ' ').includes(' ' + x + ' '); if (!inside(kA, kB) && !inside(kB, kA)) return null;
+    const p = pick() || (kA.length < kB.length ? 'A' : kB.length < kA.length ? 'B' : null); if (!p) return null;
+    return { parent: p, why: 'same website (' + dA + ' / ' + dB + ') and matching names', sure: false };
+  }
+  return null;
+}
+// rows: { child, parent, childName, parentName, why, sure }
 async function familyLinks(workedIds, preloaded) {
   const cos = preloaded || await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'numberofemployees', 'account_status']);
   const C = {}; cos.forEach(c => { C[c.id] = c.properties; });
   const kids = {}; cos.forEach(c => { const p = c.properties.hs_parent_company_id; if (p) (kids[p] = kids[p] || []).push(c.id); });
-  const working = new Set(cos.filter(c => c.properties.sdr_owner).map(c => c.id).concat([...workedIds].map(String)));
-  // union-find over name keys and website roots
-  const par = {}; const find = x => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; }; const join = (a, b) => { a = find(a); b = find(b); if (a !== b) par[b] = a; };
-  const byName = {}, byDom = {}, how = {};
-  cos.forEach(c => { par[c.id] = c.id; const k = famKey(c.properties.name); if (k.length >= 3) (byName[k] = byName[k] || []).push(c.id); const r = domRoot(c.properties.domain); if (r) (byDom[r] = byDom[r] || []).push(c.id); });
-  const link = (ids, why) => { if (ids.length < 2 || ids.length > 12) return; for (let i = 1; i < ids.length; i++) { join(ids[0], ids[i]); } ids.forEach(id => { how[id] = how[id] || new Set(); how[id].add(why); }); };
-  Object.keys(byName).forEach(k => link(byName[k], 'name'));
-  Object.keys(byDom).forEach(k => { const ids = byDom[k]; if (new Set(ids.map(id => normDom(C[id].domain))).size > 1) link(ids, 'website'); });
-  const fam = {}; cos.forEach(c => { const r = find(c.id); (fam[r] = fam[r] || []).push(c.id); });
-  const out = [];
-  Object.values(fam).forEach(ids => {
-    if (ids.length < 2 || ids.length > 12 || !ids.some(id => working.has(id))) return;
-    // drop duplicates (same website, or same name with no website): those need merging, not linking
-    const sig = {}; const uniq = ids.filter(id => { const s = normDom(C[id].domain) || famName(C[id].name); if (sig[s]) return false; sig[s] = 1; return true; }); // same website = duplicate record
-    if (uniq.length < 2) return;
-    // parent: the one already parent of others, else the group/holdings/global/.com/no-country record, else the bigger one
-    const score = id => { const p = C[id], n = famName(p.name), d = normDom(p.domain); let sc = 0;
-      if ((kids[id] || []).length) sc += 10; if (PARENTY_RE.test(n)) sc += 3; if (!COUNTRY_RE.test(n)) sc += 2; if (/\.com$/.test(d)) sc += 1; if (/\.(co\.uk|uk|ie|co\.za|za|de|fr|es|it|nl|com\.au|au|in)$/.test(d)) sc -= 0.5;
-      sc -= n.split(' ').length * 0.1; sc += Math.min(Number(p.numberofemployees) || 0, 500000) / 1e7; return sc; };
-    const ranked = uniq.slice().sort((a, b) => score(b) - score(a));
-    const top = ranked[0], sure = score(top) - score(ranked[1]) >= 1;
-    if (C[top].hs_parent_company_id) return; // the would-be parent is itself under another parent: leave the group alone
-    ranked.slice(1).forEach(id => {
-      if (!working.has(id) && !working.has(top)) return;
-      const cur = C[id].hs_parent_company_id; if (cur) return; // already has a parent (HubSpot allows one)
-      if ((kids[id] || []).length) return; // it's a parent of others: don't nest
-      const w = [...(how[id] || [])].concat([...(how[top] || [])]);
-      const why = (famKey(C[id].name) === famKey(C[top].name) ? 'same name apart from country or legal words' : '') + (domRoot(C[id].domain) && domRoot(C[id].domain) === domRoot(C[top].domain) ? (famKey(C[id].name) === famKey(C[top].name) ? ' and ' : '') + 'same website (' + normDom(C[id].domain) + ' / ' + normDom(C[top].domain) + ')' : '');
-      if (!why) return;
-      out.push({ child: id, parent: top, childName: (C[id].name || '').trim(), parentName: (C[top].name || '').trim(), childOwner: C[id].sdr_owner || '', parentOwner: C[top].sdr_owner || '', why, sure, worked: [id, top].filter(x => working.has(x)) });
+  const working = new Set(cos.filter(c => c.properties.sdr_owner).map(c => c.id).concat([...workedIds].map(String)).filter(id => C[id]));
+  const byName = {}, byDom = {};
+  cos.forEach(c => { const k = famKey(c.properties.name); if (k.length >= 2) (byName[k] = byName[k] || []).push(c.id); const r = domRoot(c.properties.domain); if (r) (byDom[r] = byDom[r] || []).push(c.id); });
+  const cand = {}; // child -> best { parent, why, sure }
+  working.forEach(w => {
+    const k = famKey(C[w].name), r = domRoot(C[w].domain);
+    const others = new Set([].concat(k.length >= 2 && (byName[k] || []).length <= 12 ? byName[k] : [], r && (byDom[r] || []).length <= 12 ? byDom[r] : []));
+    others.forEach(o => {
+      if (o === w) return; const A = C[w], B = C[o];
+      if (A.hs_parent_company_id === o || B.hs_parent_company_id === w) return;                  // already linked
+      if (A.hs_parent_company_id && A.hs_parent_company_id === B.hs_parent_company_id) return;  // already in the same group
+      const f = familyPair(A, B); if (!f) return;
+      const parent = f.parent === 'A' ? w : o, child = f.parent === 'A' ? o : w;
+      if (C[child].hs_parent_company_id || (kids[child] || []).length || C[parent].hs_parent_company_id) return; // one parent each; don't nest
+      const prev = cand[child]; if (!prev || (f.sure && !prev.sure)) cand[child] = Object.assign({ parent }, f);
     });
   });
-  return out;
+  // a company suggested as a parent shouldn't also be suggested as someone's child
+  const parents = new Set(Object.values(cand).map(x => x.parent));
+  return Object.keys(cand).filter(ch => !parents.has(ch)).map(ch => { const x = cand[ch]; return { child: ch, parent: x.parent, childName: (C[ch].name || '').trim(), parentName: (C[x.parent].name || '').trim(),
+    childOwner: C[ch].sdr_owner || '', parentOwner: C[x.parent].sdr_owner || '', why: x.why, sure: x.sure }; })
+    .sort((a, b) => a.parentName.localeCompare(b.parentName));
 }
 // load every company now, return a function that finishes the matching once the worked ids are known
 familyLinks.prefetch = async () => { const cos = await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'numberofemployees', 'account_status']); return ids => familyLinks(ids, cos); };
@@ -1483,4 +1504,4 @@ module.exports.slackBlocks = slackBlocks;
 module.exports.slackFallback = slackFallback;
 module.exports.emailHtml = emailHtml;
 module.exports.setToken = t => { TOKEN = t; };
-module.exports._fam = { famKey, domRoot, normDom };
+module.exports._fam = { famKey, domRoot, normDom, familyPair };
