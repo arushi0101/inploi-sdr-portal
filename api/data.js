@@ -1399,7 +1399,7 @@ async function familyLinks(workedIds, preloaded) {
       const f = familyPair(A, B); if (!f) return;
       const parent = f.parent === 'A' ? w : o, child = f.parent === 'A' ? o : w;
       if (C[child].hs_parent_company_id || (kids[child] || []).length || C[parent].hs_parent_company_id) return; // one parent each; don't nest
-      const prev = cand[child]; if (!prev || (f.sure && !prev.sure)) cand[child] = Object.assign({ parent }, f);
+      const prev = cand[child]; if (!prev || (f.sure && !prev.sure)) cand[child] = Object.assign({}, f, { parent });
     });
   });
   // a company suggested as a parent shouldn't also be suggested as someone's child
@@ -1504,4 +1504,4 @@ module.exports.slackBlocks = slackBlocks;
 module.exports.slackFallback = slackFallback;
 module.exports.emailHtml = emailHtml;
 module.exports.setToken = t => { TOKEN = t; };
-module.exports._fam = { famKey, domRoot, normDom, familyPair };
+module.exports._fam = { famKey, domRoot, normDom, familyPair, familyLinks };
