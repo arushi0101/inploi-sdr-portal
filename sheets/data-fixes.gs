@@ -21,12 +21,16 @@ var SHEET_ID = '1d2B025T2HnKKZ832Wenvs5_s-SYVnTpn7I_thseckQQ'; // the "SDR data 
 var SOURCE = 'https://inploi-sdr-portal.vercel.app/api/data?part=fixes';
 var APPLY_URL = 'https://inploi-sdr-portal.vercel.app/api/apply';
 var THANKS_URL = 'https://inploi-sdr-portal.vercel.app/api/slack-thanks';
-var TAB = 'Data fixes', SUMMARY = 'Summary', LOG = 'Change log', TZ = 'Europe/London';
+var TAB = 'Data fixes', FAM_TAB = 'Parent & child companies', SUMMARY = 'Summary', LOG = 'Change log', TZ = 'Europe/London';
 var SUG = 'Suggested update (what and why)', DEC = 'Approve / Reject', BY = 'Decided by', RES = 'Result';
 var HEAD = ['Status', 'Who fixes it', 'Fix needed', SUG, DEC, BY, RES, 'Record', 'Company', 'Worked on', 'First flagged', 'Days open',
   'Resolved on', 'Where to fix', 'How to fix', 'Why it matters', 'Last checked', 'Change', 'Key'];
 var LOG_HEAD = ['When', 'Decided by', 'Decision', 'Who fixes it', 'Fix needed', 'Record', 'Company', 'Field', 'Old value', 'New value', 'Result'];
 var C = {}; HEAD.forEach(function (h, i) { C[h] = i; });
+var FAM_FIX = 'Companies in the same group that aren’t linked'; // these rows live on their own tab
+function isFam_(r) { return r[C['Fix needed']] === FAM_FIX; }
+// every row from both tabs (the parent/child tab may not exist yet)
+function allRows_(ss) { var f = ss.getSheetByName(FAM_TAB); return readRows_(ss.getSheetByName(TAB)).concat(f ? readRows_(f) : []); }
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SHEET_ID); }
 
@@ -138,8 +142,10 @@ function update() {
     var ss = ss_(), today = today_();
     var sh = ss.getSheetByName(TAB) || ss.getSheets()[0];
     sh.setName(TAB);
-    var rows = merge_(readRows_(sh), fetchFixes_(), today);
-    write_(sh, rows);
+    var fam = ss.getSheetByName(FAM_TAB) || ss.insertSheet(FAM_TAB, 1);
+    var rows = merge_(readRows_(sh).concat(readRows_(fam)), fetchFixes_(), today);
+    write_(sh, rows.filter(function (r) { return !isFam_(r); }));
+    write_(fam, rows.filter(isFam_));
     summary_(ss, rows, today);
     logSheet_(ss);
     ss.setSpreadsheetTimeZone(TZ);
@@ -167,7 +173,7 @@ function write_(sh, rows) {
 var WAIT = 'Waiting for the next run (Saturday or Monday)';
 // simple on-edit trigger: note the decision and who made it; HubSpot is updated on Saturday and Monday
 function onEdit(e) {
-  if (!e || !e.range || e.range.getSheet().getName() !== TAB) return;
+  if (!e || !e.range || [TAB, FAM_TAB].indexOf(e.range.getSheet().getName()) < 0) return;
   var sh = e.range.getSheet(), col = C[DEC] + 1;
   if (e.range.getColumn() > col || e.range.getLastColumn() < col) return;
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
@@ -184,7 +190,11 @@ function onEdit(e) {
 
 function applyPending() {
   var lock = LockService.getScriptLock(); lock.waitLock(60000);
-  try { applyPending_(ss_().getSheetByName(TAB)); } finally { lock.releaseLock(); }
+  try {
+    var ss = ss_(); LINKED_ = [];
+    applyPending_(ss.getSheetByName(TAB)); applyPending_(ss.getSheetByName(FAM_TAB));
+    if (LINKED_.length) confirmLinks_(LINKED_);
+  } finally { lock.releaseLock(); }
 }
 function applyPending_(sh) {
   if (!sh || sh.getLastRow() < 2) return;
@@ -195,9 +205,7 @@ function applyPending_(sh) {
   if (d < 0 || res < 0) return;
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   var by = head.indexOf(BY);
-  LINKED_ = [];
   vals.forEach(function (v, i) { if (v[d] && (!v[res] || v[res] === WAIT)) decide_(sh, i + 2, (by >= 0 && String(v[by]).split(',')[0]) || who); });
-  if (LINKED_.length) confirmLinks_(LINKED_);
 }
 
 // parent/child companies linked in this run: one confirmation message in Slack (#sdr-hub), and a line in the Change log
@@ -278,8 +286,8 @@ function weekFixes_(rows, today) {
 
 // Monday thank-you in #sdr-hub (sent by the SDR portal using its Slack connection)
 function mondayThanks() {
-  var ss = ss_(), sh = ss.getSheetByName(TAB);
-  var w = weekFixes_(readRows_(sh), today_());
+  var ss = ss_();
+  var w = weekFixes_(allRows_(ss), today_());
   var secret = PropertiesService.getScriptProperties().getProperty('APPLY_SECRET');
   var r = UrlFetchApp.fetch(THANKS_URL, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { Authorization: 'Bearer ' + secret },
@@ -323,7 +331,7 @@ function summaryText_(d, url) {
   return L.join('\n');
 }
 function mondaySummary() {
-  var ss = ss_(), rows = readRows_(ss.getSheetByName(TAB)), today = today_();
+  var ss = ss_(), rows = allRows_(ss), today = today_();
   var text = summaryText_(summaryData_(rows, today), ss.getUrl());
   var secret = PropertiesService.getScriptProperties().getProperty('APPLY_SECRET'), sent = [];
   var r = UrlFetchApp.fetch(THANKS_URL, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
@@ -340,7 +348,7 @@ function mondaySummary() {
 
 // Thursday reminder in #sdr-hub: the sheet, open fixes per person, and how to do them
 function thursdayReminder() {
-  var ss = ss_(), rows = readRows_(ss.getSheetByName(TAB)), by = {}, open = 0;
+  var ss = ss_(), rows = allRows_(ss), by = {}, open = 0;
   rows.forEach(function (r) {
     if (r[C.Status] !== 'Open' || r[C[DEC]]) return;
     open++; var w = r[C['Who fixes it']] || 'Unassigned'; by[w] = (by[w] || 0) + 1;
