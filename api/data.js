@@ -33,13 +33,14 @@ const LEAD_START = '2026-09-15';
 let TOKEN = '';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function hs(path, body, method) {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const r = await fetch(API + path, {
       method: method || (body ? 'POST' : 'GET'),
       headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined
     });
-    if (r.status === 429 || r.status >= 500) { await sleep(600 * (attempt + 1) + Math.random() * 300); continue; }
+    if (r.status === 429 || r.status >= 500) { // back off (HubSpot's search limit is per second, its general limit per 10 seconds)
+      const ra = Number(r.headers.get('retry-after')); await sleep((ra > 0 ? ra * 1000 : 700 * (attempt + 1)) + Math.random() * 500); continue; }
     const text = await r.text();
     if (!r.ok) { const e = new Error('HubSpot ' + r.status + ' on ' + path + ': ' + text.slice(0, 300)); e.status = r.status; throw e; }
     return text ? JSON.parse(text) : {};
