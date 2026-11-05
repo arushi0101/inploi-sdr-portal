@@ -151,12 +151,17 @@ function update() {
     write_(sh, rows.filter(function (r) { return !isFam_(r); }));
     write_(fam, rows.filter(isFam_));
     summary_(ss, rows, today);
+    ensureFilterViews_(ss, rows);
     logSheet_(ss);
     ss.setSpreadsheetTimeZone(TZ);
   } finally { lock.releaseLock(); }
 }
 
 function write_(sh, rows) {
+  // remember the filter people had set (by column name), so a refresh doesn't reset it
+  var kept = {}, f0 = sh.getFilter();
+  if (f0) { var h0 = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String);
+    h0.forEach(function (h, i) { try { var c = f0.getColumnFilterCriteria(i + 1); if (c) kept[h] = c.copy().build(); } catch (x) {} }); }
   sh.clear(); sh.clearConditionalFormatRules();
   sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold').setBackground('#222222').setFontColor('#ffffff');
   if (rows.length) {
@@ -178,7 +183,37 @@ function write_(sh, rows) {
   W[SUG] = 380;
   HEAD.forEach(function (h, i) { if (W[h]) sh.setColumnWidth(i + 1, W[h]); });
   if (sh.getFilter()) sh.getFilter().remove();
-  sh.getRange(1, 1, Math.max(rows.length + 1, 2), HEAD.length).createFilter();
+  var f1 = sh.getRange(1, 1, Math.max(rows.length + 1, 2), HEAD.length).createFilter();
+  HEAD.forEach(function (h, i) { if (kept[h]) try { f1.setColumnFilterCriteria(i + 1, kept[h]); } catch (x) {} });
+}
+
+// one saved filter view per person on each tab ("James: my open fixes"). Filter views are personal:
+// using one doesn't change what anyone else sees. Found under Data → Filter views. Created once, kept after that.
+function ensureFilterViews_(ss, rows) {
+  var people = {}; rows.forEach(function (r) { if (r[C['Who fixes it']]) people[r[C['Who fixes it']]] = 1; });
+  var names = Object.keys(people).sort(); if (!names.length) return;
+  var api = 'https://sheets.googleapis.com/v4/spreadsheets/' + ss.getId();
+  var auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  try {
+    var meta = JSON.parse(UrlFetchApp.fetch(api + '?fields=sheets(properties(sheetId,title),filterViews(title))', { headers: auth, muteHttpExceptions: true }).getContentText());
+    var reqs = [];
+    (meta.sheets || []).forEach(function (sh) {
+      if ([TAB, FAM_TAB].indexOf(sh.properties.title) < 0) return;
+      var have = {}; (sh.filterViews || []).forEach(function (v) { have[v.title] = 1; });
+      names.forEach(function (n) {
+        var title = n + ': my open fixes'; if (have[title]) return;
+        reqs.push({ addFilterView: { filter: { title: title, range: { sheetId: sh.properties.sheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: HEAD.length },
+          filterSpecs: [
+            { columnIndex: C['Who fixes it'], filterCriteria: { condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: n }] } } },
+            { columnIndex: C.Status, filterCriteria: { condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: 'Open' }] } } }] } } });
+      });
+    });
+    if (!reqs.length) return;
+    var r = UrlFetchApp.fetch(api + ':batchUpdate', { method: 'post', contentType: 'application/json', headers: auth, muteHttpExceptions: true, payload: JSON.stringify({ requests: reqs }) });
+    if (r.getResponseCode() !== 200) throw new Error(r.getContentText().slice(0, 200));
+  } catch (x) {
+    logSheet_(ss).appendRow([now_(), 'scheduled run', 'Filter views', '', '', '', '', '', '', '', 'Could not add personal filter views: ' + String(x.message || x).slice(0, 200)]);
+  }
 }
 
 var WAIT = 'Waiting for the next run (Saturday or Monday)';
