@@ -108,3 +108,10 @@ Both messages are posted to #sdr-hub by `api/slack-thanks`, using `SLACK_USER_TO
 - **Monday:** the sheet owner also gets a private summary by Slack DM (`SLACK_WEBHOOK_URL`) and email. It covers what was fixed, what was approved but not applied (and why), what was rejected and what's still waiting for a decision.
 
 Set `SLACK_THANKS_CHANNEL` to send them to a different channel.
+
+### Parent and child companies (in the data fixes sheet)
+- The Friday refresh also lists companies the SDRs work on (SDR Owner set, or worked in the last 30 days) that look like part of the same group as another HubSpot company but aren't linked: the same name apart from country or legal words (KPMG UK / KPMG Ireland), or the same website on a different domain (kpmg.co.uk / kpmg.ie). Exact duplicates (same website) are left out: they need merging, not linking.
+- The parent is the record already parent of others, else the Group / Holdings / Global / .com / no-country one, else the larger one. When it's a close call the suggestion says to check before approving.
+- Approve, and on the next run (Saturday or Monday 7am, or Data fixes → Apply approvals now) the child is linked to the parent with HubSpot's **Parent company** association label. It only links a company with no parent yet (HubSpot allows one), never re-parents, never creates loops, and checks the link afterwards (undoing it if HubSpot doesn't confirm). Each is logged in the Change log.
+- After each run that links companies, one confirmation is posted in #sdr-hub listing every link and who approved it.
+- `api/data?part=families` shows the current suggestions (read-only).

@@ -1235,8 +1235,10 @@ const FIX_INFO = {
   'Call with no outcome': ['Call → Call outcome', 'Set Call outcome on the call.', 'Connect rate, conversations and the call reports only count calls with an outcome.'],
   'Call with no call type': ['Call → Call type', 'Set the activity (call) type on the call.', 'Call type separates cold calls from follow-ups in reporting.'],
   'Call or email not linked to a contact': ['Call or email → Associations → Contacts', 'Associate the activity with the contact spoken to.', 'Contacts reached and net-new contacts only count activity linked to a contact.'],
+  'Companies in the same group that aren’t linked': ['Company record → Associations → Companies (Parent company)', 'Approve, and the child is linked to its parent with the Parent company label. Or link it yourself on the company record.', 'Linked companies roll activity, deals and meetings up to the group, so everyone sees the whole account and two SDRs don’t work the same group without knowing.'],
   'Call or email not linked to a company': ['Call or email → Associations → Companies (or link the contact to its company)', 'Associate the activity (or its contact) with the company.', 'Accounts reached, coverage and the account timeline miss activity that isn’t linked to a company.']
 };
+const FAMILY_FIX = 'Companies in the same group that aren’t linked';
 function fixRows(D) {
   const sname = i => D.SDRS[i] ? D.SDRS[i].short : 'Other', full = {}; D.SDRS.forEach(x => { full[x.name] = x.short; });
   const out = D.ACT.filter(a => a[2] !== 'r'), calls = D.ACT.filter(a => a[2] === 'c'), now = Date.now();
@@ -1320,9 +1322,97 @@ function fixRows(D) {
   });
   return rows;
 }
+
+/* ---------- parent / child companies ----------
+   Companies the SDRs work on (SDR Owner set, or worked in the last 30 days) that look like part of the same group as
+   another company in HubSpot but aren't linked as parent and child. Matched in memory over every company:
+   - the same name once country and legal words are removed (KPMG UK / KPMG Ireland, KFC / KFC Africa), or
+   - the same website root on a different domain (kpmg.co.uk / kpmg.ie).
+   Two records with the same domain AND the same name are duplicates, not parent and child, so they're left out.
+   Companies already linked (or already under another parent) are left alone: HubSpot allows one parent per company. */
+const GEO = 'uk|u k|gb|great britain|britain|england|scotland|wales|ireland|northern ireland|ni|europe|emea|apac|asia|international|global|worldwide|usa|us|america|north america|canada|australia|anz|new zealand|india|south africa|africa|sa|za|germany|deutschland|france|spain|italy|netherlands|nl|nordics|benelux|middle east|uae|dubai|london|holdings|holding|group|plc|ltd|limited|llp|inc|corporation|corp|company|co|the|and|services|uk and ireland|uk and i|uki';
+const GEO_RE = new RegExp('\\b(' + GEO + ')\\b', 'g');
+const COUNTRY_RE = /\b(uk|gb|england|scotland|wales|ireland|northern ireland|europe|emea|apac|asia|usa|us|america|canada|australia|anz|new zealand|india|south africa|africa|sa|za|germany|france|spain|italy|netherlands|nordics|benelux|middle east|uae|dubai)\b/;
+const PARENTY_RE = /\b(group|holdings|holding|plc|global|international|worldwide|corporation)\b/;
+const famName = n => String(n || '').toLowerCase().replace(/&amp;/g, '&').replace(/\([^)]*\)/g, ' ').replace(/&/g, ' and ').replace(/[’'`.]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const famKey = n => famName(n).replace(GEO_RE, ' ').replace(/\s+/g, ' ').trim();
+const GENERIC_HOST = /^(linkedin|facebook|google|gmail|outlook|hotmail|yahoo|wixsite|wordpress|myworkdayjobs|workday|indeed|glassdoor|teamtailor|smartrecruiters|greenhouse|lever|bamboohr|tal|livevacancies|jobs|careers|co|com|org|net|gov|nhs|ac)$/;
+const domRoot = d => { d = String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim(); if (!d || !d.includes('.')) return '';
+  const parts = d.split('.'); let i = parts.length - 1; if (parts.length >= 3 && /^(co|com|org|net|ac|gov|ltd|plc)$/.test(parts[i - 1])) i--; const r = parts[i - 1] || ''; return r.length >= 3 && !GENERIC_HOST.test(r) ? r : ''; };
+const normDom = d => String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim();
+async function allCompanies(props) {
+  const out = []; let after = '';
+  for (let i = 0; i < 200; i++) {
+    const r = await hs('/crm/v3/objects/companies?limit=100&archived=false&properties=' + props.join(',') + (after ? '&after=' + encodeURIComponent(after) : ''));
+    out.push(...(r.results || [])); after = r.paging && r.paging.next && r.paging.next.after; if (!after) break;
+  }
+  return out;
+}
+// rows: { child, parent, childName, parentName, why, sure, worked: [companyIds the SDRs work on in this pair] }
+async function familyLinks(workedIds, preloaded) {
+  const cos = preloaded || await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'numberofemployees', 'account_status']);
+  const C = {}; cos.forEach(c => { C[c.id] = c.properties; });
+  const kids = {}; cos.forEach(c => { const p = c.properties.hs_parent_company_id; if (p) (kids[p] = kids[p] || []).push(c.id); });
+  const working = new Set(cos.filter(c => c.properties.sdr_owner).map(c => c.id).concat([...workedIds].map(String)));
+  // union-find over name keys and website roots
+  const par = {}; const find = x => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; }; const join = (a, b) => { a = find(a); b = find(b); if (a !== b) par[b] = a; };
+  const byName = {}, byDom = {}, how = {};
+  cos.forEach(c => { par[c.id] = c.id; const k = famKey(c.properties.name); if (k.length >= 3) (byName[k] = byName[k] || []).push(c.id); const r = domRoot(c.properties.domain); if (r) (byDom[r] = byDom[r] || []).push(c.id); });
+  const link = (ids, why) => { if (ids.length < 2 || ids.length > 12) return; for (let i = 1; i < ids.length; i++) { join(ids[0], ids[i]); } ids.forEach(id => { how[id] = how[id] || new Set(); how[id].add(why); }); };
+  Object.keys(byName).forEach(k => link(byName[k], 'name'));
+  Object.keys(byDom).forEach(k => { const ids = byDom[k]; if (new Set(ids.map(id => normDom(C[id].domain))).size > 1) link(ids, 'website'); });
+  const fam = {}; cos.forEach(c => { const r = find(c.id); (fam[r] = fam[r] || []).push(c.id); });
+  const out = [];
+  Object.values(fam).forEach(ids => {
+    if (ids.length < 2 || ids.length > 12 || !ids.some(id => working.has(id))) return;
+    // drop duplicates (same website, or same name with no website): those need merging, not linking
+    const sig = {}; const uniq = ids.filter(id => { const s = normDom(C[id].domain) || famName(C[id].name); if (sig[s]) return false; sig[s] = 1; return true; }); // same website = duplicate record
+    if (uniq.length < 2) return;
+    // parent: the one already parent of others, else the group/holdings/global/.com/no-country record, else the bigger one
+    const score = id => { const p = C[id], n = famName(p.name), d = normDom(p.domain); let sc = 0;
+      if ((kids[id] || []).length) sc += 10; if (PARENTY_RE.test(n)) sc += 3; if (!COUNTRY_RE.test(n)) sc += 2; if (/\.com$/.test(d)) sc += 1; if (/\.(co\.uk|uk|ie|co\.za|za|de|fr|es|it|nl|com\.au|au|in)$/.test(d)) sc -= 0.5;
+      sc -= n.split(' ').length * 0.1; sc += Math.min(Number(p.numberofemployees) || 0, 500000) / 1e7; return sc; };
+    const ranked = uniq.slice().sort((a, b) => score(b) - score(a));
+    const top = ranked[0], sure = score(top) - score(ranked[1]) >= 1;
+    if (C[top].hs_parent_company_id) return; // the would-be parent is itself under another parent: leave the group alone
+    ranked.slice(1).forEach(id => {
+      if (!working.has(id) && !working.has(top)) return;
+      const cur = C[id].hs_parent_company_id; if (cur) return; // already has a parent (HubSpot allows one)
+      if ((kids[id] || []).length) return; // it's a parent of others: don't nest
+      const w = [...(how[id] || [])].concat([...(how[top] || [])]);
+      const why = (famKey(C[id].name) === famKey(C[top].name) ? 'same name apart from country or legal words' : '') + (domRoot(C[id].domain) && domRoot(C[id].domain) === domRoot(C[top].domain) ? (famKey(C[id].name) === famKey(C[top].name) ? ' and ' : '') + 'same website (' + normDom(C[id].domain) + ' / ' + normDom(C[top].domain) + ')' : '');
+      if (!why) return;
+      out.push({ child: id, parent: top, childName: (C[id].name || '').trim(), parentName: (C[top].name || '').trim(), childOwner: C[id].sdr_owner || '', parentOwner: C[top].sdr_owner || '', why, sure, worked: [id, top].filter(x => working.has(x)) });
+    });
+  });
+  return out;
+}
+// load every company now, return a function that finishes the matching once the worked ids are known
+familyLinks.prefetch = async () => { const cos = await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'numberofemployees', 'account_status']); return ids => familyLinks(ids, cos); };
 async function fixesPayload() {
-  const D = await buildReport({ span: 'd30' });
-  return { generatedAt: new Date().toISOString(), from: D.day, to: D.last, rows: fixRows(D) };
+  // the 30-day report and the company list load in parallel to stay inside the time limit
+  const [D, FL] = await Promise.all([buildReport({ span: 'd30' }), familyLinks.prefetch()]);
+  const rows = fixRows(D);
+  try { rows.push(...familyRows(D, await FL(new Set(D.ACT.flatMap(a => a[4]).map(String))))); } catch (e) { console.log('[family-links] skipped', String(e.message || e)); }
+  return { generatedAt: new Date().toISOString(), from: D.day, to: D.last, rows };
+}
+// sheet rows for parent/child links; who = the SDR Owner of the child (else the parent), else whoever worked them most
+function familyRows(D, links) {
+  const shortOf = v => { v = String(v || '').toLowerCase(); const x = SDRS.find(s => v === s.id || v === s.name.toLowerCase() || v.startsWith(s.short.toLowerCase())); return x ? x.short : ''; };
+  const workers = {}, lastDay = {};
+  D.ACT.filter(a => a[2] !== 'r').forEach(a => a[4].forEach(id => { const n = D.SDRS[a[1]] ? D.SDRS[a[1]].short : ''; if (!n) return; (workers[id] = workers[id] || {})[n] = (workers[id][n] || 0) + 1; lastDay[id] = Math.max(lastDay[id] || 0, a[0] || 0); }));
+  const top = id => { const w = workers[id] || {}; return Object.keys(w).sort((a, b) => w[b] - w[a])[0] || ''; };
+  const info = FIX_INFO[FAMILY_FIX], out = [];
+  links.forEach(l => {
+    const who = shortOf(l.childOwner) || shortOf(l.parentOwner) || top(l.child) || top(l.parent); if (!who) return;
+    const day = Math.max(lastDay[l.child] || 0, lastDay[l.parent] || 0);
+    out.push({ key: FAMILY_FIX + '|c' + l.child + '|p' + l.parent + '|' + who, who, fix: FAMILY_FIX,
+      suggest: 'Link ' + l.childName + ' as a child of ' + l.parentName + ' (association label: Parent company): ' + l.why + '.' + (l.sure ? '' : ' Check which one is the group parent before approving.'),
+      apply: { object: 'companies', id: String(l.child), property: '__parent', field: 'Parent company', value: String(l.parent), label: l.parentName },
+      record: l.childName, link: HS_REC + '0-2/' + l.child, company: l.parentName + ' (parent)', worked: day ? new Date(day).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }) : '',
+      where: info[0], how: info[1], why: info[2] });
+  });
+  return out;
 }
 
 // the day's report plus the open data fixes from the last 30 days
@@ -1371,7 +1461,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
@@ -1393,3 +1483,4 @@ module.exports.slackBlocks = slackBlocks;
 module.exports.slackFallback = slackFallback;
 module.exports.emailHtml = emailHtml;
 module.exports.setToken = t => { TOKEN = t; };
+module.exports._fam = { famKey, domRoot, normDom };

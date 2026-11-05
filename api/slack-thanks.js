@@ -1,6 +1,7 @@
 // Data-fix messages in Slack, sent for the "SDR data fixes" sheet's script:
 //  - kind 'thanks' (Mondays): thank-you for the records fixed last week. POST { kind, fixed, byPerson: [[name, count]], open, sheetUrl }
 //  - kind 'reminder' (Thursdays): the sheet, how many fixes each person has, and how to do them. POST { kind, open, byPerson, sheetUrl }
+//  - kind 'linked' (after an apply run): confirms the parent/child company links made. POST { kind, items: [{ child, childId, parent, parentId, approvedBy, who }] }
 //  - kind 'summary' (Mondays): the owner's private summary, POST { kind, text }, sent to SLACK_WEBHOOK_URL (your DM)
 // All with "Authorization: Bearer <APPLY_SECRET>".
 // Posts as the Slack user token (SLACK_USER_TOKEN) to SLACK_THANKS_CHANNEL (default #sdr-hub).
@@ -24,6 +25,18 @@ function reminder(b) {
     '', '*What we’re hoping for*',
     'Please go through your rows by *Friday afternoon*, so the sheet refreshes with everything up to date. Even a handful helps, and there’s no need to do them all at once.',
     '', 'Thank you so much, this keeps our reporting accurate for all of us. Any questions, just ask here.');
+  return L.join('\n');
+}
+
+const REC = 'https://app-eu1.hubspot.com/contacts/25735731/record/0-2/';
+function linked(b) {
+  const clean = v => String(v == null ? '' : v).replace(/[<>|*_~`]/g, '').slice(0, 80);
+  const items = (Array.isArray(b.items) ? b.items : []).slice(0, 40).filter(x => x && /^\d+$/.test(String(x.childId)) && /^\d+$/.test(String(x.parentId)));
+  if (!items.length) return '';
+  const L = ['*HubSpot update: companies linked to their group* :link:',
+    (items.length === 1 ? 'This was' : 'These ' + items.length + ' were') + ' approved in the SDR data fixes sheet and ' + (items.length === 1 ? 'is' : 'are') + ' now linked in HubSpot with the *Parent company* label:', ''];
+  items.forEach(x => L.push('• <' + REC + x.childId + '|' + clean(x.child) + '> is now a child of <' + REC + x.parentId + '|' + clean(x.parent) + '>' + (x.approvedBy ? ' (approved by ' + clean(x.approvedBy) + ')' : '')));
+  L.push('', 'Activity, deals and meetings on these companies now roll up to the group in HubSpot. Thank you!');
   return L.join('\n');
 }
 
@@ -65,7 +78,8 @@ module.exports = async (req, res) => {
     console.log('[data-fix-summary]', JSON.stringify({ at: new Date().toISOString(), slack: st }));
     return send(st.every(x => x === 200) ? 200 : 502, { ok: st.every(x => x === 200), slack: st });
   }
-  const text = b.kind === 'reminder' ? reminder(b) : message(b);
+  const text = b.kind === 'linked' ? linked(b) : b.kind === 'reminder' ? reminder(b) : message(b);
+  if (!text) return send(200, { ok: true, skipped: 'nothing to send' });
   if (b.preview) return send(200, { ok: true, text });
   const r = await fetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ channel, text, unfurl_links: false }) });
   const j = await r.json().catch(() => ({}));
@@ -74,3 +88,4 @@ module.exports = async (req, res) => {
 };
 module.exports.message = message;
 module.exports.reminder = reminder;
+module.exports.linked = linked;

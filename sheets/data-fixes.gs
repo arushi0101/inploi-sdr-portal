@@ -195,7 +195,22 @@ function applyPending_(sh) {
   if (d < 0 || res < 0) return;
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   var by = head.indexOf(BY);
+  LINKED_ = [];
   vals.forEach(function (v, i) { if (v[d] && (!v[res] || v[res] === WAIT)) decide_(sh, i + 2, (by >= 0 && String(v[by]).split(',')[0]) || who); });
+  if (LINKED_.length) confirmLinks_(LINKED_);
+}
+
+// parent/child companies linked in this run: one confirmation message in Slack (#sdr-hub), and a line in the Change log
+var LINKED_ = [];
+function confirmLinks_(items) {
+  var secret = PropertiesService.getScriptProperties().getProperty('APPLY_SECRET'), code = 0, txt = '';
+  try {
+    var r = UrlFetchApp.fetch(THANKS_URL, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + secret }, payload: JSON.stringify({ kind: 'linked', items: items }) });
+    code = r.getResponseCode(); txt = r.getContentText();
+  } catch (x) { txt = String(x.message || x); }
+  logSheet_(ss_()).appendRow([now_(), 'scheduled run', 'Confirmation', '', '', '', '', '', '', '',
+    'Slack confirmation for ' + items.length + ' linked compan' + (items.length === 1 ? 'y' : 'ies') + (code === 200 ? ' sent' : ' failed: ' + String(txt).slice(0, 150))]);
 }
 
 // one row's decision: apply an approved change to HubSpot, or note a rejection; always logged
@@ -235,6 +250,9 @@ function decide_(sh, rowNum, who) {
     out = JSON.parse(r.getContentText() || '{}');
   } catch (x) { out = { ok: false, error: String(x.message || x) }; }
   base.old = out.old || '';
+  if (out.ok && change.property === '__parent' && !out.unchanged) {
+    LINKED_.push({ child: out.child || v[col('Record')], childId: change.id, parent: out.parent || change.label, parentId: change.value, approvedBy: who, who: v[col('Who fixes it')] });
+  }
   if (out.ok) {
     cell.setValue((out.unchanged ? 'Already set: ' : 'Applied ' + stamp + ' by ' + who + ': ') + change.field + ' = ' + change.label);
     logRow_(base, decision, out.unchanged ? 'No change needed: HubSpot already had this value' : 'Applied in HubSpot');
