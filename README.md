@@ -115,3 +115,8 @@ Set `SLACK_THANKS_CHANNEL` to send them to a different channel.
 - Approve, and on the next run (Saturday or Monday 7am, or Data fixes → Apply approvals now) the child is linked to the parent with HubSpot's **Parent company** association label. It only links a company with no parent yet (HubSpot allows one), never re-parents, never creates loops, and checks the link afterwards (undoing it if HubSpot doesn't confirm). Each is logged in the Change log.
 - After each run that links companies, one confirmation is posted in #sdr-hub listing every link and who approved it.
 - `api/data?part=families` shows the current suggestions (read-only).
+
+### Inbound visits
+- **Dashboard → Inbound visits:** company visits, net new companies and net new ICPs per day (last 30 days), from the Dealfront alerts in #inbound-visits. Net new = the day of a company's first-ever alert in the channel. ICP = scored 6/10 or higher in the alert's thread (Claude in Slack, or the SDR routing reply). Click a day to see each company.
+- The same numbers are a section in the daily (5pm) and weekly Slack reports and the email.
+- Routing of each new ICP alert to an SDR: see `docs/inbound-visits-runbook.md` (runs hourly from Arushi's Claude session; log in `docs/inbound-visits-log.md`).

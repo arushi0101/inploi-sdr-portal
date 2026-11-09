@@ -1033,6 +1033,7 @@ function slackBlocks(M) {
     { type: 'divider' }, sec('*By SDR*\n' + t.sdr),
     sec('*Call outcomes*\n' + t.out),
     sec('*Leaderboard*\n' + t.lead),
+    M.visits ? sec('*Inbound visits* (<https://inploi.slack.com/archives/' + VISITS_CH + '|#inbound-visits>)\n' + visitsLine(M, true)) : null,
     { type: 'divider' }, sec('*Open data fixes*' + (M.windowed ? '  _(records worked in the last 30 days, as they are in HubSpot now)_' : '') + '\n' + t.gaps),
     { type: 'context', elements: [{ type: 'mrkdwn', text: (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + 'Fix these in HubSpot.' }] }
   ].filter(Boolean);
@@ -1049,6 +1050,7 @@ function slackMarkdown(M) {
       M.per.map(x => [x.n, x.C.cos, x.C.newCo, x.C.cons, x.C.calls, M.pct(x.C.conn, x.C.calls), x.C.ems, x.C.reps, x.C.mb]).concat([['**Team**', M.T.cos, M.T.newCo, M.T.cons, M.T.calls, M.pct(M.T.conn, M.T.calls), M.T.ems, M.T.reps, M.T.mb]])), '',
     '**Call outcomes**', M.outcomes.length ? tbl(['Outcome', 'Calls', 'Share'], M.outcomes) : '_No calls logged._', '',
     '**Leaderboard**', M.leaders.length ? tbl(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || ''])) : '_No activity yet._', '',
+    (M.visits ? '**Inbound visits**\n' + visitsLine(M, false).replace(/\n/g, '  \n') + '\n' : ''),
     '**Open data fixes**' + (M.windowed ? ' _(records worked in the last 30 days, as they are in HubSpot now)_' : ''),
     M.gaps.length ? tbl(['Open fix', 'Open', M.newLabel].concat(M.sdrNames).concat(t.others.length ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(t.others.length ? [g.other] : []))) : '_Nothing open._',
     (t.others.length ? 'Other = ' + t.others.join(', ') + '. ' : '') + '[Open the HubSpot dashboard](' + HS_DASH + ')'];
@@ -1419,6 +1421,60 @@ async function familyLinks(workedIds, preloaded) {
 }
 // load every company now, return a function that finishes the matching once the worked ids are known
 familyLinks.prefetch = async () => { const cos = await allCompanies(['name', 'domain', 'hs_parent_company_id', 'sdr_owner', 'hubspot_owner_id', 'numberofemployees', 'account_status']); return ids => familyLinks(ids, cos); };
+
+/* ---------- #inbound-visits: daily company visits, net new companies and net new ICPs ----------
+   Read from the Dealfront alerts in #inbound-visits. A company is net new on the day of its first-ever alert in the channel.
+   ICP = scored 6/10 or higher, by Claude in Slack ("scores N/10") or by the SDR routing reply ("ICP N/10") in the alert's thread. */
+const VISITS_CH = process.env.SLACK_VISITS_CHANNEL || 'C0BLTRVSEKA';
+const ICP_MIN = 6;
+let visitsHist = null; const replyCache = new Map();
+async function slackGet(path) { const token = process.env.SLACK_USER_TOKEN || ''; if (!token) throw new Error('SLACK_USER_TOKEN is not set');
+  for (let i = 0; i < 4; i++) { const r = await fetch('https://slack.com/api/' + path, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.status === 429) { await sleep((Number(r.headers.get('retry-after')) || 2) * 1000); continue; }
+    const j = await r.json(); if (!j.ok) throw new Error('Slack: ' + (j.error || 'error')); return j; }
+  throw new Error('Slack kept rate-limiting'); }
+async function visitAlerts() {
+  if (visitsHist && Date.now() - visitsHist.at < 300000) return visitsHist.v;
+  const msgs = []; let cursor = '';
+  for (let i = 0; i < 30; i++) { const j = await slackGet('conversations.history?channel=' + VISITS_CH + '&limit=200' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+    msgs.push(...(j.messages || [])); cursor = j.response_metadata && j.response_metadata.next_cursor; if (!j.has_more || !cursor) break; }
+  const clean = t => String(t || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  const v = msgs.map(m => { const a = (m.attachments || []).find(x => x.title); if (!a) return null;
+    const loc = /^([^:\n]+?):\s*Industry/m.exec(clean(a.text || '')) || [];
+    const hub = /<(https:\/\/app\.leadfeeder\.com\/link\/[^|>]+)\|View in HubSpot>/.exec(a.text || '') || [];
+    return { ts: m.ts, at: Number(m.ts) * 1000, name: clean(a.title), link: a.title_link || '', loc: loc[1] || '', inHubspot: !!hub[1], replies: m.reply_count || 0 }; })
+    .filter(Boolean).sort((x, y) => x.at - y.at);
+  visitsHist = { at: Date.now(), v }; return v;
+}
+async function alertScore(a) {
+  if (!a.replies) return null;
+  const hit = replyCache.get(a.ts); if (hit && (hit.score != null || Date.now() - hit.at < 600000)) return hit.score;
+  let score = null;
+  try { const j = await slackGet('conversations.replies?channel=' + VISITS_CH + '&ts=' + a.ts + '&limit=50');
+    (j.messages || []).slice(1).forEach(m => { const t = String(m.text || ''); const x = /scores?\s+(\d{1,2})\s*\/\s*10/i.exec(t) || /ICP[^0-9\n]{0,12}(\d{1,2})\s*\/\s*10/i.exec(t); if (x) score = Number(x[1]); });
+  } catch (e) { /* keep unscored */ }
+  replyCache.set(a.ts, { at: Date.now(), score }); return score;
+}
+async function buildVisits(q) {
+  const days = Math.min(Math.max(Number(q && q.days) || 30, 1), 90);
+  const all = await visitAlerts();
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const firstSeen = {}; all.forEach(a => { const k = normCo(a.name) || a.name.toLowerCase(); if (firstSeen[k] == null) firstSeen[k] = a.at; });
+  const today = ymd.format(new Date()); const from = ymd.format(new Date(Date.now() - (days - 1) * 86400000));
+  const win = all.filter(a => { const d = ymd.format(new Date(a.at)); return d >= from && d <= today; });
+  for (let i = 0; i < win.length; i += 4) await Promise.all(win.slice(i, i + 4).map(async a => { a.score = await alertScore(a); }));
+  const byDay = {};
+  for (let i = 0; i < days; i++) { const d = ymd.format(new Date(Date.now() - i * 86400000)); byDay[d] = { date: d, visits: 0, netNew: 0, netNewIcp: 0, icp: 0, unscored: 0, companies: [] }; }
+  const seenDay = {};
+  win.forEach(a => { const d = ymd.format(new Date(a.at)), x = byDay[d]; if (!x) return; const k = normCo(a.name) || a.name.toLowerCase();
+    if (seenDay[d + '|' + k]) return; seenDay[d + '|' + k] = 1;
+    const isNew = firstSeen[k] === a.at || ymd.format(new Date(firstSeen[k])) === d, icp = a.score != null && a.score >= ICP_MIN;
+    x.visits++; if (isNew) x.netNew++; if (isNew && icp) x.netNewIcp++; if (icp) x.icp++; if (a.score == null) x.unscored++;
+    x.companies.push({ name: a.name, at: a.at, loc: a.loc, score: a.score, icp, netNew: isNew, inHubspot: a.inHubspot, link: 'https://inploi.slack.com/archives/' + VISITS_CH + '/p' + a.ts.replace('.', '') }); });
+  const list = Object.values(byDay).sort((a, b) => a.date < b.date ? 1 : -1);
+  const tot = list.reduce((t, d) => ({ visits: t.visits + d.visits, netNew: t.netNew + d.netNew, netNewIcp: t.netNewIcp + d.netNewIcp }), { visits: 0, netNew: 0, netNewIcp: 0 });
+  return { generatedAt: new Date().toISOString(), icpMin: ICP_MIN, channel: VISITS_CH, today, days: list, total: tot };
+}
 async function fixesPayload() {
   // the 30-day report and the company list load in parallel to stay inside the time limit
   // one after the other: together they hit HubSpot's rate limit
@@ -1466,14 +1522,26 @@ function familyRows(D, links, owners, sdrOpts) {
 // the day's report plus the open data fixes from the last 30 days
 async function weeklyModel(day) {
   // both in parallel so the pair stays inside the 60s function limit
-  const [R, R30] = await Promise.all([buildReport({ span: 'week', day }), buildReport({ span: 'd30' }).catch(() => null)]);
-  return slackModel(R, R30, 'weekly');
+  const [R, R30, V] = await Promise.all([buildReport({ span: 'week', day }), buildReport({ span: 'd30' }).catch(() => null), buildVisits({ days: 14 }).catch(() => null)]);
+  return withVisits(slackModel(R, R30, 'weekly'), R, V);
 }
 async function dailyModel(day) {
-  const R = await buildReport({ span: 'day', day });
+  const [R, V] = await Promise.all([buildReport({ span: 'day', day }), buildVisits({ days: 14 }).catch(() => null)]);
   let R30 = null; try { R30 = await buildReport({ span: 'd30' }); } catch (e) { /* fall back to today's gaps only */ }
-  return slackModel(R, R30);
+  return withVisits(slackModel(R, R30), R, V);
 }
+// inbound visits for the report's days (from #inbound-visits)
+function withVisits(M, R, V) {
+  if (!V) return M;
+  const ds = V.days.filter(d => d.date >= R.day && d.date <= R.last);
+  const cos = ds.flatMap(d => d.companies);
+  M.visits = { visits: ds.reduce((t, d) => t + d.visits, 0), netNew: ds.reduce((t, d) => t + d.netNew, 0), netNewIcp: ds.reduce((t, d) => t + d.netNewIcp, 0),
+    icpNames: cos.filter(c => c.netNew && c.icp).map(c => c.name + ' (' + c.score + '/10)'), unscored: ds.reduce((t, d) => t + d.unscored, 0) };
+  return M;
+}
+function visitsLine(M, bold) { const v = M.visits; if (!v) return ''; const b = x => bold ? '*' + x + '*' : x;
+  return 'Company visits: ' + b(v.visits) + '  ·  Net new companies: ' + b(v.netNew) + '  ·  Net new ICPs (6/10+): ' + b(v.netNewIcp) +
+    (v.icpNames.length ? '\nNew ICPs: ' + v.icpNames.slice(0, 8).join(', ') : '') + (v.unscored ? '\n_' + v.unscored + ' not scored yet_' : ''); }
 // the same report as an HTML email (tables with inline styles, which email clients need)
 function emailHtml(M) {
   const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -1493,6 +1561,7 @@ function emailHtml(M) {
       M.per.map(x => [x.n, x.C.cos, x.C.newCo, x.C.cons, x.C.calls, M.pct(x.C.conn, x.C.calls), x.C.ems, x.C.reps, x.C.mb]).concat([['Team', M.T.cos, M.T.newCo, M.T.cons, M.T.calls, M.pct(M.T.conn, M.T.calls), M.T.ems, M.T.reps, M.T.mb]]), true) +
     h2('Call outcomes') + (M.outcomes.length ? table(['Outcome', 'Calls', 'Share'], M.outcomes) : '<p>No calls logged.</p>') +
     h2('Leaderboard') + (M.leaders.length ? table(['Activity', '1st', '2nd', '3rd'], M.leaders.map(r => [r[0], r[1] || '', r[2] || '', r[3] || '']), false, true) : '<p>No activity yet.</p>') +
+    (M.visits ? h2('Inbound visits') + '<p style="margin:0 0 14px">' + esc(visitsLine(M, false)).replace(/\n/g, '<br>') + '</p>' : '') +
     h2('Open data fixes') + (M.windowed ? '<p style="margin:0 0 4px;color:#666;font-size:13px">Records worked in the last 30 days, as they are in HubSpot now.</p>' : '') +
     (M.gaps.length ? table(['Open fix', 'Open', M.newLabel].concat(M.sdrNames).concat(hasOther ? ['Other'] : []), M.gaps.map(g => [g.name, g.open, g.fresh].concat(g.by).concat(hasOther ? [g.other] : []))) : '<p>Nothing open.</p>') +
     '<p style="color:#666;font-size:13px">' + (others.length ? 'Other = ' + esc(others.join(', ')) + '. ' : '') + 'Each person\u2019s list, with where and why: <a href="' + PORTAL + '/#fixes">Data fixes</a></p></div>';
@@ -1509,7 +1578,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'visits' ? await buildVisits(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
