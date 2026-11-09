@@ -16,3 +16,4 @@ which is what the dashboard counts.
 | 2026-11-09 12:32 | Fortnum and Mason (282321118435, closed) | Felix | **Nikita (reverted)** | Felix: a deal closed without the meeting ever happening goes back to the SDR (this one was a no-show) | cleared again (as before) |
 
 Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an AE (Nikita's #grwth post, 26 Feb: "will assign it to someone closer to the time").
+| 2026-11-09 12:30 | Fortnum and Mason **company** (6485223872) | Account status Disqualified, no SDR Owner | **Continuation** (reason "Other (see notes)", follow-up 11 Nov 2026), SDR Owner Nikita | Arushi: no-show, back to SDR to rebook | Note 541152859351 + task 541139108050 for Nikita (due 11 Nov 09:00 UTC) |
