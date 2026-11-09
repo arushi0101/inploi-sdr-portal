@@ -24,7 +24,7 @@ Nikita Rohwer (U091M9CPELB, 29569628), Evan Williams (U091M9BGVH9, 29569626).
 | Not in HubSpot | create the company (name, domain, city, country, industry, employees) and fill the **SDR Insights** fields (ICP Status, ICP Fit, ICP Tier, Reasoning for ICP, ICP Fit Reason, Company Summary, Segment Detected, Segment Reasoning, Sector Priority, Job Count, Careers Site URL, HQ Country Found, Parent Verification, Parent Company Website), then assign round-robin | "New ICP company, now in HubSpot: assigned to @SDR (round-robin). Please reach out." + record link + SLA line |
 
 - **SLA line:** alert Monday to Thursday: reach out within 24 hours (by that time the next day, UK). Alert Friday, Saturday or Sunday: by Monday 12:00 UK.
-- **Round-robin order:** James, Matthew, Nikita, Evan, then repeat. The next person is the one after the last name in my most recent "round-robin" reply in the channel.
+- **Round-robin order:** James, Matthew, Nikita, Evan, then repeat. The next person is the one after the last "round-robin" entry in `docs/inbound-visits-log.md` (shared with form submissions).
 - **Never** overwrite an existing owner or a filled field. Only create missing companies, fill empty fields and assign unowned companies.
 - Every reply ends with `_SDR routing_` so a thread is never handled twice.
 - Every action is listed in `docs/inbound-visits-log.md` (when, company, ICP score, HubSpot record, what was done, who was tagged).
