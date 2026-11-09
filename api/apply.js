@@ -47,6 +47,11 @@ module.exports = async (req, res) => {
   if (property === '__parent') return linkParent(String(id), String(value || ''), who, token, send);
   try {
     const def = await hs('/crm/v3/properties/' + object + '/' + property, token);
+    // call outcomes live in HubSpot's dispositions list, not in the property's options
+    if (property === 'hs_call_disposition') {
+      const disp = await hs('/calling/v1/dispositions', token).catch(() => []);
+      def.options = (Array.isArray(disp) ? disp : []).map(x => ({ value: x.id, label: x.label })).concat(def.options || []);
+    }
     const opt = (def.options || []).find(o => o.value === value);
     if (!opt) return send(400, { ok: false, error: '"' + value + '" isn’t an option for ' + (def.label || property) });
     const cur = await hs('/crm/v3/objects/' + object + '/' + id + '?properties=' + property, token);
