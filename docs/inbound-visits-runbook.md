@@ -50,3 +50,36 @@ Reply text: "New demo request" or "New audit unlock" from Name (job title) at Co
 for an audit the audit URL and score, then "@SDR please pick this up", then the SLA line (Mon to Thu: within 24 hours; Fri to Sun: by Monday 12:00 UK). End with `_SDR routing_`.
 The round-robin is shared with the visits routing: the next SDR follows the last "round-robin" entry in `docs/inbound-visits-log.md`.
 Never overwrite an existing owner. Log every action (with the contact id) in `docs/inbound-visits-log.md`.
+
+## Enrich SDR Insights before posting (added 9 Nov 2026)
+For every form submission (and every company the visits routing creates), fill the company's **SDR Insights** card in HubSpot
+**before** the #sdr-hub post, then mention "SDR Insights filled" (or what couldn't be found) in the post.
+Only fill empty fields; never overwrite. Research the company's own website, careers site, Companies House, LinkedIn and the ATS
+the careers site uses (open the pages; mark each fact [OBSERVED: source] or [INFERRED]), the same way Clay's "HS Verification" fills them.
+
+| Field (label) | Property | Format (as Clay writes it) |
+|---|---|---|
+| ICP Fit | sdr_icp_fit | YES / NO / REVIEW |
+| ICP Tier | sdr_icp_tier | HIGH / MEDIUM / LOW |
+| ICP Status | sdr_icp_status | ICP / NOT ICP / REVIEW: short reason |
+| NHS Body | sdr_nhs_body | YES / NO |
+| Sector Priority | sdr_sector_priority | PRIMARY / SECONDARY / TERTIARY |
+| Segment Detected | sdr_segment_detected | e.g. CAREERS_SITES, CAREERS_SITES_PLUS_CHAT_TO_APPLY, CHAT_TO_APPLY |
+| Secondary Product | sdr_secondary_product | e.g. CHAT_TO_APPLY |
+| Job Count | sdr_job_count | number of live roles counted |
+| ATS Name | sdr_ats_name | e.g. SAP SuccessFactors, Workday, CVMinder ATS |
+| Gate ATS | sdr_gate_ats | PASS / FAIL / UNKNOWN - evidence |
+| Careers Site Type | sdr_careers_site_type | ATS_HOSTED / OWN_DOMAIN_THIN / OWN_DOMAIN_RICH |
+| Careers Site URL | sdr_careers_site_url | URL |
+| Company Summary | sdr_company_summary | 3-5 sentences with sources |
+| ICP Fit Reason | sdr_icp_fit_reason | the four gates (ATS, 40+ vacancies, UK HQ, frontline multi-site hiring) plus scale |
+| Reasoning for ICP | sdr_reasoning_for_icp | overall reasoning and confidence |
+| Segment Reasoning | sdr_segment_reasoning | why that product leads |
+| ATS Evidence | sdr_ats_evidence | URLs/domains that prove the ATS |
+| HQ Country Found | sdr_hq_country_found | e.g. United Kingdom |
+| HQ Country Verified | sdr_hq_country_verified | YES / NO - evidence (Companies House) |
+| Parent Verification | sdr_parent_verification | VERIFIED / UNVERIFIED / NONE - evidence |
+| Parent Company Website | sdr_parent_company_website | URL or None |
+| LinkedIn company page | linkedin_company_page | URL |
+
+Examples of filled records: Aramark UK (455534096579), Walsingham Support (454378769624), EG On The Move (455416279278).
