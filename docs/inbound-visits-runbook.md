@@ -83,3 +83,17 @@ the careers site uses (open the pages; mark each fact [OBSERVED: source] or [INF
 | LinkedIn company page | linkedin_company_page | URL |
 
 Examples of filled records: Aramark UK (455534096579), Walsingham Support (454378769624), EG On The Move (455416279278).
+
+## Deal owner goes to the AE (added 9 Nov 2026)
+Rule (Felix, agreed by Arushi): once a discovery meeting is booked, the deal belongs to the AE taking it, Jason Baaphy
+(owner 1709905072) or Felix Dealtry (511871441), never the SDR. Checked in the same hourly run.
+
+1. Find open deals whose owner is one of the 4 SDRs (29569627, 32364701, 29569628, 29569626).
+2. Work out the AE, in this order:
+   - the deal's associated meeting is owned by Jason or Felix, or lists one of them in attendees (`hs_attendee_owner_ids`);
+   - otherwise the SDR's "Meeting Booked" post in #grwth for that company says "with Jason" / "with Felix";
+   - otherwise Jason or Felix has their own meeting with the company (same company, around the same date).
+3. If **SDR beneficiary** (`sdr_beneficiary_s_`) is empty, set it to the SDR who owned the deal first, so the SDR keeps the
+   credit (the dashboard counts this field). Then set the deal owner to the AE. Change nothing else.
+4. If the AE can't be identified, don't guess: leave the deal and DM Arushi once with the deal and why.
+5. Log each move in `docs/deal-owner-log.md`. No Slack post for a move.
