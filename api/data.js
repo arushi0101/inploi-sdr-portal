@@ -1464,6 +1464,9 @@ async function buildVisits(q) {
   const today = ymd.format(new Date()); const from = ymd.format(new Date(Date.now() - (days - 1) * 86400000));
   const win = all.filter(a => { const d = ymd.format(new Date(a.at)); return d >= from && d <= today; });
   for (let i = 0; i < win.length; i += 4) await Promise.all(win.slice(i, i + 4).map(async a => { a.score = await alertScore(a); }));
+  // a repeat alert without its own score uses the company's latest known score
+  const known = {}; win.forEach(a => { const k = normCo(a.name) || a.name.toLowerCase(); if (a.score != null) known[k] = a.score; else if (known[k] != null) a.score = known[k]; });
+  win.slice().reverse().forEach(a => { const k = normCo(a.name) || a.name.toLowerCase(); if (a.score == null && known[k] != null) a.score = known[k]; });
   const byDay = {};
   for (let i = 0; i < days; i++) { const d = ymd.format(new Date(Date.now() - i * 86400000)); byDay[d] = { date: d, visits: 0, netNew: 0, netNewIcp: 0, icp: 0, unscored: 0, companies: [] }; }
   const seenDay = {};
