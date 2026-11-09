@@ -18,7 +18,8 @@ var VIEWS=[
  {k:'pipeline',label:'Pipeline & revenue',title:'Pipeline and revenue'},
  {k:'review',label:'Weekly review',title:'Weekly review'},
  {k:'kb',label:'Knowledge base',title:'Knowledge base: keeping HubSpot accurate',group:'res'},
- {k:'defs',label:'Definitions',title:'Definitions',group:'res'}
+ {k:'defs',label:'Definitions',title:'Definitions',group:'res'},
+ {k:'arushi',label:'Arushi\u2019s report',title:'Arushi\u2019s report: HubSpot changes'}
 ];
 
 (function(){var ov=document.querySelector('.view[data-view="overview"]');if(ov&&!document.querySelector('.view[data-view="matt"]'))ov.insertAdjacentHTML('afterend','<div class="view" data-view="matt" hidden><div class="rp" id="mattRoot"><div class="card"><p class="muted">Loading Matt\u2019s dashboard\u2026</p></div></div></div>');})();
@@ -364,6 +365,7 @@ function render(){
   if(window.SDRMatt)try{window.SDRMatt({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReport)try{window.SDRReport({view:state.view,pod:state.pod,byK:byK});}catch(err){console.error(err);}
   if(window.SDRVisits)try{window.SDRVisits({view:state.view});}catch(err){console.error(err);}
+  if(window.SDRAdmin)try{window.SDRAdmin({view:state.view});}catch(err){console.error(err);}
   if(window.SDRCalls)try{window.SDRCalls({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReports)try{window.SDRReports({view:state.view,P:P,S:S,all:all,pod:state.pod,byK:byK,dn:dn,fmtK:fmtK,ct:ct,DEALS:DEALS,LISTS:LISTS,TRENDS:TRENDS,PERIODS:PERIODS});}catch(err){console.error(err);}
 }
@@ -492,7 +494,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')drClose();})
 MEETINGS=MEETINGS.filter(function(m){return !m.kind||m.kind==='First meeting';});
 WINS=WINS.filter(function(w){return w.t!=='held'||!/proposal/i.test(w.x);});
 render();load(false);
-['matt.js','calls.js','daily.js','booked.js','visits.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
+['matt.js','calls.js','daily.js','booked.js','visits.js','admin.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
 var rs=document.createElement('script');rs.src='reports.js';rs.onload=function(){render();};document.body.appendChild(rs);
 window.addEventListener('hashchange',function(){var h=(location.hash||'').slice(1);if(VIEWS.some(function(v){return v.k===h;})&&h!==state.view){state.view=h;render();}});
 })();

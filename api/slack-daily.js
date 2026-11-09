@@ -16,6 +16,17 @@ module.exports = async (req, res) => {
   const qs = new URL(req.url, 'http://x').searchParams;
   const manual = !!secret && qs.get('secret') === secret;
   if (!manual && (secret ? auth !== 'Bearer ' + secret : !/^vercel-cron\//.test(ua))) { send(401, { error: 'not_cron' }); return; }
+  // Arushi's end-of-day HubSpot report (?kind=admin): only to her DM (SLACK_WEBHOOK_URL)
+  if (qs.get('kind') === 'admin') {
+    const dm = list(process.env.SLACK_WEBHOOK_URL);
+    if (!dm.length) { send(503, { error: 'SLACK_WEBHOOK_URL is not set' }); return; }
+    let text;
+    try { data.setToken(process.env.HUBSPOT_TOKEN); const A = await data.buildAdmin({ day: /^\d{4}-\d{2}-\d{2}$/.test(qs.get('day') || '') ? qs.get('day') : undefined }); text = data.adminSlack(A); }
+    catch (e) { text = 'Arushi\u2019s HubSpot report couldn\u2019t be generated (' + String(e.message || e).slice(0, 200) + '). https://inploi-sdr-portal.vercel.app/#arushi'; }
+    const st = [];
+    for (const h of dm) { try { const r = await fetch(h, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, unfurl_links: false }) }); st.push(r.status); } catch (e) { st.push('error'); } }
+    send(st.every(x => x === 200) ? 200 : 502, { slack: st }); return;
+  }
   const weekly = qs.get('kind') === 'week', label = weekly ? 'weekly' : 'daily';
   const day = /^\d{4}-\d{2}-\d{2}$/.test(qs.get('day') || '') ? qs.get('day') : undefined;
   const hooks = list(process.env.SLACK_WEBHOOK_URL), to = list(process.env.EMAIL_TO), key = process.env.RESEND_API_KEY || '', from = process.env.EMAIL_FROM || '';

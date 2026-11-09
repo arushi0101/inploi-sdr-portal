@@ -1479,6 +1479,74 @@ async function buildVisits(q) {
   const tot = list.reduce((t, d) => ({ visits: t.visits + d.visits, netNew: t.netNew + d.netNew, netNewIcp: t.netNewIcp + d.netNewIcp }), { visits: 0, netNew: 0, netNewIcp: 0 });
   return { generatedAt: new Date().toISOString(), icpMin: ICP_MIN, channel: VISITS_CH, today, days: list, total: tot };
 }
+
+/* ---------- Arushi's report: what changed in HubSpot on a day ----------
+   New contacts, companies and deals, and deal stage/pipeline moves, each with who did it and why (HubSpot's record source),
+   split by user. Shown on the dashboard (Arushi's report) and sent to Arushi's Slack DM at the end of each day. */
+const SOURCE_LABEL = { FORM: 'Form submission', CRM_UI: 'Created in HubSpot', IMPORT: 'Import', INTEGRATION: 'Integration', API: 'API', AUTOMATION_PLATFORM: 'Workflow', WORKFLOW: 'Workflow',
+  MOBILE_IOS: 'HubSpot mobile app', MOBILE_ANDROID: 'HubSpot mobile app', SALES: 'Sales tools', EMAIL_INTEGRATION: 'Email integration', CONVERSATIONS: 'Chat', MEETINGS: 'Meetings booking',
+  ANALYTICS: 'Website tracking', CALCULATED: 'HubSpot (calculated)', MIGRATION: 'Migration', BATCH_UPDATE: 'Bulk update', SALESFORCE: 'Salesforce sync', AI_GROUP: 'HubSpot AI', CRM_UI_BULK_ACTION: 'Bulk edit in HubSpot' };
+async function buildAdmin(q) {
+  const lp = londonParts(new Date());
+  const day = /^\d{4}-\d{2}-\d{2}$/.test((q && q.day) || '') ? q.day : lp.y + '-' + String(lp.m).padStart(2, '0') + '-' + String(lp.d).padStart(2, '0');
+  const [y, m, d] = day.split('-').map(Number), start = londonMidnight(y, m, d), end = londonMidnight(y, m, d + 1);
+  const win = [{ propertyName: 'createdate', operator: 'GTE', value: String(start) }, { propertyName: 'createdate', operator: 'LT', value: String(end) }];
+  const src = ['hs_object_source', 'hs_object_source_label', 'hs_object_source_detail_1', 'hs_object_source_detail_2', 'hs_created_by_user_id', 'hubspot_owner_id', 'createdate'];
+  const [owners, pipes, contacts, companies, deals, touched] = await Promise.all([
+    ownerNames(), hs('/crm/v3/pipelines/deals').catch(() => ({ results: [] })),
+    searchAll('contacts', [{ filters: win }], src.concat(['firstname', 'lastname', 'email', 'company', 'jobtitle', 'recent_conversion_event_name', 'lifecyclestage']), 'createdate'),
+    searchAll('companies', [{ filters: win }], src.concat(['name', 'domain', 'sdr_owner', 'account_status']), 'createdate'),
+    searchAll('deals', [{ filters: win }], src.concat(['dealname', 'pipeline', 'dealstage', 'amount']), 'createdate'),
+    searchAll('deals', [{ filters: [{ propertyName: 'hs_lastmodifieddate', operator: 'GTE', value: String(start) }] }], ['dealname', 'pipeline', 'dealstage'])
+  ]);
+  const P = {}, S = {}; (pipes.results || []).forEach(p => { P[p.id] = p.label; (p.stages || []).forEach(st => { S[st.id] = { label: st.label, pipe: p.label }; }); });
+  const user = id => id ? (owners['u' + id] || 'User ' + id) : '';
+  const who = p => user(p.hs_created_by_user_id) || [SOURCE_LABEL[p.hs_object_source] || p.hs_object_source_label || p.hs_object_source || 'Unknown', p.hs_object_source_detail_1].filter(Boolean).join(': ');
+  const why = (p, extra) => { const s = p.hs_object_source, det = [p.hs_object_source_detail_1, p.hs_object_source_detail_2].filter(Boolean).join(' · ');
+    let r = s === 'CRM_UI' ? 'Created by ' + (user(p.hs_created_by_user_id) || 'a user') + ' in HubSpot' : (SOURCE_LABEL[s] || p.hs_object_source_label || s || 'Unknown source') + (det ? ': ' + det : '');
+    if (s !== 'CRM_UI' && p.hs_created_by_user_id) r += ' (by ' + user(p.hs_created_by_user_id) + ')';
+    return r + (extra ? '. ' + extra : ''); };
+  const at = p => toMs(p.createdate);
+  const C = contacts.map(c => { const p = c.properties; return { id: c.id, name: [p.firstname, p.lastname].filter(Boolean).join(' ') || p.email || 'Unnamed contact', email: p.email || '', company: p.company || '', title: p.jobtitle || '',
+    owner: owners[p.hubspot_owner_id] || '', by: who(p), at: at(p), reason: why(p, p.recent_conversion_event_name && p.hs_object_source === 'FORM' ? 'Converted on ' + p.recent_conversion_event_name : '') }; });
+  const CO = companies.map(c => { const p = c.properties; return { id: c.id, name: (p.name || p.domain || 'Unnamed company').trim(), domain: p.domain || '', owner: owners[p.hubspot_owner_id] || '', sdr: p.sdr_owner || '', status: p.account_status || '', by: who(p), at: at(p), reason: why(p) }; });
+  const D = deals.map(c => { const p = c.properties; return { id: c.id, name: p.dealname || 'Unnamed deal', pipeline: P[p.pipeline] || p.pipeline || '', stage: (S[p.dealstage] || {}).label || p.dealstage || '', amount: p.amount || '',
+    owner: owners[p.hubspot_owner_id] || '', by: who(p), at: at(p), reason: why(p) }; });
+  // stage and pipeline moves made on the day (from the property history, so each move is listed with who made it)
+  const moves = [], ids = touched.map(x => x.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    const r = await hs('/crm/v3/objects/deals/batch/read', { inputs: ids.slice(i, i + 50).map(id => ({ id })), properties: ['dealname', 'pipeline', 'createdate'], propertiesWithHistory: ['dealstage', 'pipeline'] }).catch(() => ({ results: [] }));
+    (r.results || []).forEach(x => {
+      const h = ((x.propertiesWithHistory || {}).dealstage || []).map(e => ({ v: e.value, t: toMs(e.timestamp), src: e.sourceType, by: e.updatedByUserId, sid: e.sourceId })).filter(e => e.t != null).sort((a, b) => a.t - b.t);
+      h.forEach((e, k) => { if (e.t < start || e.t >= end) return; const prev = k > 0 ? h[k - 1].v : null; if (prev === e.v) return;
+        const to = S[e.v] || {}, from = prev ? (S[prev] || {}) : null;
+        const actor = user(e.by) || (e.src === 'CRM_UI' ? 'A user' : SOURCE_LABEL[e.src] || e.src || 'HubSpot');
+        moves.push({ id: x.id, deal: (x.properties || {}).dealname || 'Unnamed deal', pipeline: to.pipe || '', from: from ? from.label || prev : '(new deal)', to: to.label || e.v, at: e.t, by: actor,
+          reason: (from ? 'Stage changed' : 'Deal created in this stage') + ' by ' + actor + (e.src && e.src !== 'CRM_UI' ? ' (' + (SOURCE_LABEL[e.src] || e.src) + (e.sid ? ': ' + e.sid : '') + ')' : ' in HubSpot') }); });
+      const ph = ((x.propertiesWithHistory || {}).pipeline || []).map(e => ({ v: e.value, t: toMs(e.timestamp), by: e.updatedByUserId, src: e.sourceType })).filter(e => e.t != null).sort((a, b) => a.t - b.t);
+      ph.forEach((e, k) => { if (k === 0 || e.t < start || e.t >= end || ph[k - 1].v === e.v) return; const actor = user(e.by) || SOURCE_LABEL[e.src] || e.src || 'HubSpot';
+        moves.push({ id: x.id, deal: (x.properties || {}).dealname || 'Unnamed deal', pipeline: P[e.v] || e.v, from: 'Pipeline: ' + (P[ph[k - 1].v] || ph[k - 1].v), to: 'Pipeline: ' + (P[e.v] || e.v), at: e.t, by: actor, reason: 'Moved to another pipeline by ' + actor }); });
+    });
+  }
+  moves.sort((a, b) => a.at - b.at);
+  const by = {}; const bump = (k, f) => { (by[k] = by[k] || { who: k, contacts: 0, companies: 0, deals: 0, moves: 0 })[f]++; };
+  C.forEach(x => bump(x.by, 'contacts')); CO.forEach(x => bump(x.by, 'companies')); D.forEach(x => bump(x.by, 'deals')); moves.forEach(x => bump(x.by, 'moves'));
+  const byUser = Object.values(by).sort((a, b) => (b.contacts + b.companies + b.deals + b.moves) - (a.contacts + a.companies + a.deals + a.moves));
+  return { generatedAt: new Date().toISOString(), day, totals: { contacts: C.length, companies: CO.length, deals: D.length, moves: moves.length }, byUser, contacts: C, companies: CO, deals: D, moves };
+}
+function adminSlack(A) {
+  const t = ms => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
+  const rec = (type, id) => 'https://app-eu1.hubspot.com/contacts/25735731/record/' + type + '/' + id;
+  const cap = (arr, f, n) => arr.slice(0, n).map(f).concat(arr.length > n ? ['… and ' + (arr.length - n) + ' more on the dashboard'] : []);
+  const L = ['*Arushi’s HubSpot report · ' + A.day + '*', 'New contacts: *' + A.totals.contacts + '*  ·  New companies: *' + A.totals.companies + '*  ·  New deals: *' + A.totals.deals + '*  ·  Pipeline moves: *' + A.totals.moves + '*', ''];
+  if (A.byUser.length) { L.push('*By user*'); A.byUser.forEach(u => L.push('• ' + u.who + ': ' + [u.contacts && u.contacts + ' contacts', u.companies && u.companies + ' companies', u.deals && u.deals + ' deals', u.moves && u.moves + ' moves'].filter(Boolean).join(', '))); L.push(''); }
+  if (A.companies.length) { L.push('*Companies created*'); L.push(...cap(A.companies, c => '• <' + rec('0-2', c.id) + '|' + c.name + '> — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : '. No owner'), 15)); L.push(''); }
+  if (A.deals.length) { L.push('*Deals created*'); L.push(...cap(A.deals, c => '• <' + rec('0-3', c.id) + '|' + c.name + '> — ' + c.pipeline + ' / ' + c.stage + ' — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : ''), 15)); L.push(''); }
+  if (A.moves.length) { L.push('*Pipeline moves*'); L.push(...cap(A.moves, c => '• ' + t(c.at) + ' <' + rec('0-3', c.id) + '|' + c.deal + '> (' + c.pipeline + '): ' + c.from + ' → ' + c.to + ' — ' + c.reason, 20)); L.push(''); }
+  if (A.contacts.length) { L.push('*Contacts created*'); L.push(...cap(A.contacts, c => '• <' + rec('0-1', c.id) + '|' + c.name + '>' + (c.company ? ' (' + c.company + ')' : '') + ' — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : '. No owner'), 15)); L.push(''); }
+  L.push('Full list with reasons: https://inploi-sdr-portal.vercel.app/#arushi');
+  return L.join('\n');
+}
 async function fixesPayload() {
   // the 30-day report and the company list load in parallel to stay inside the time limit
   // one after the other: together they hit HubSpot's rate limit
@@ -1491,7 +1559,7 @@ async function fixesPayload() {
 // every HubSpot user's name by owner id (for the company owner columns)
 async function ownerNames() {
   const m = Object.assign({}, OWNER_NAMES); let after = '';
-  try { for (let i = 0; i < 10; i++) { const r = await hs('/crm/v3/owners?limit=500' + (after ? '&after=' + after : '')); (r.results || []).forEach(o => { m[String(o.id)] = [o.firstName, o.lastName].filter(Boolean).join(' ') || o.email || String(o.id); }); after = r.paging && r.paging.next && r.paging.next.after; if (!after) break; } } catch (e) { /* fall back to the names we know */ }
+  try { for (let i = 0; i < 10; i++) { const r = await hs('/crm/v3/owners?limit=500' + (after ? '&after=' + after : '')); (r.results || []).forEach(o => { const n = [o.firstName, o.lastName].filter(Boolean).join(' ') || o.email || String(o.id); m[String(o.id)] = n; if (o.userId) m['u' + o.userId] = n; }); after = r.paging && r.paging.next && r.paging.next.after; if (!after) break; } } catch (e) { /* fall back to the names we know */ }
   return m;
 }
 // sheet rows for parent/child links; who = the SDR Owner of the child (else the parent), else whoever worked them most
@@ -1582,7 +1650,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), days: (req.query && req.query.days) || sp.get('days'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'visits' ? await buildVisits(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
@@ -1597,6 +1665,8 @@ module.exports = async (req, res) => {
 // for api/slack-daily.js
 module.exports.buildReport = buildReport;
 module.exports.slackPayload = slackPayload;
+module.exports.buildAdmin = buildAdmin;
+module.exports.adminSlack = adminSlack;
 module.exports.dailyModel = dailyModel;
 module.exports.weeklyModel = weeklyModel;
 module.exports.fixRows = fixRows;

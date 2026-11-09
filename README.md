@@ -120,3 +120,9 @@ Set `SLACK_THANKS_CHANNEL` to send them to a different channel.
 - **Dashboard → Inbound visits:** company visits, net new companies and net new ICPs per day (last 30 days), from the Dealfront alerts in #inbound-visits. Net new = the day of a company's first-ever alert in the channel. ICP = scored 6/10 or higher in the alert's thread (Claude in Slack, or the SDR routing reply). Click a day to see each company.
 - The same numbers are a section in the daily (5pm) and weekly Slack reports and the email.
 - Routing of each new ICP alert to an SDR: see `docs/inbound-visits-runbook.md` (runs hourly from Arushi's Claude session; log in `docs/inbound-visits-log.md`).
+
+## Arushi's report (HubSpot changes per day)
+Bottom of the nav (`#arushi`, `admin.js`, data from `api/data?part=admin&day=YYYY-MM-DD`). For one UK day it lists every
+contact, company and deal created and every deal stage move, each with who did it (HubSpot user, or the tool: import, form,
+integration, workflow) and the reason (HubSpot's record source), plus totals split by user. The same summary goes to
+Arushi's Slack DM (SLACK_WEBHOOK_URL) at 18:45 UTC every day via `/api/slack-daily?kind=admin`.
