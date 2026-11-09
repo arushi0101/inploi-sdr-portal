@@ -100,3 +100,50 @@ Rule (Felix, agreed by Arushi): once a discovery meeting is booked, the deal bel
 6. **Closed deals where the meeting never happened go back to the SDR** (Felix, 9 Nov 2026): if a deal is closed lost and its
    discovery meeting never took place (outcome No show / Cancelled, or closed lost reason "No Show"), the owner is the SDR who
    booked it, not the AE. Only ever move OPEN deals to the AE; never move a closed deal to an AE.
+
+## End-of-day confirmations (added 9 Nov 2026, every day at 17:38 UK)
+No confirmations for deal-owner moves (Arushi, 9 Nov): those are only logged.
+
+### 1. #inbound-visits daily summary (post in C0BLTRVSEKA, top-level, not a thread)
+Before posting, make sure every ICP company (6/10+) seen today is assigned in HubSpot: if any is missing an owner or isn't in
+HubSpot, run it through the visits table now (create, fill SDR Insights, round-robin). Companies below 6/10 are NOT created in HubSpot.
+Numbers for the UK day (from `api/data?part=visits&days=1`, cross-checked against the channel):
+- **Visits**: every Dealfront alert today. **Company visits**: unique companies. **ICP**: unique companies scored 6/10+.
+Format:
+```
+*Inbound visits · <Day date>*
+• Visits: N  · Company visits: N  · Fit our ICP: N
+*ICP companies and who's on them*
+• <Company> (8/10): @SDR, <HubSpot link>
+• ...
+Not ICP (not added to HubSpot): <names, comma separated>
+_SDR routing_
+```
+If there were no alerts, post one line saying so.
+
+### 2. Form submissions daily summary (post in #sdr-hub C0CEEB94MB2, top-level)
+Every demo request (Contact Us Form Website V2) and audit unlock (Hiring Experience Audit) converted on the UK day, excluding
+@inploi.com and test addresses. For each: make sure the company has the SDR as **SDR Owner and Company owner** (fill empty only;
+if a different SDR/owner is already there, keep it and report that person as point), the contact owner is the same SDR and the
+contact is linked to the company; then add a **note on the company record** (structured, see below).
+Slack format (one block per submission):
+```
+*Form submissions · <Day date>* (N demo requests · N audit unlocks)
+1. *Demo request* · <Contact name> (<title>) at <Company>
+   • Point: @SDR (contact owner) · Company assigned to: <SDR> (SDR Owner + Company owner)
+   • ICP: <Fit> / <Tier>, <one-line reason>
+   • Records: <contact link> · <company link>
+2. ...
+_SDR routing_
+```
+Company note (one per submission, owner = the SDR):
+```
+Form submission · <date time UK>
+Type: Demo request | Audit unlock (<audit URL, score>)
+Contact: <name>, <title>, <email>
+Point: <SDR> (contact owner)
+Company assigned to: <SDR> (SDR Owner + Company owner)
+ICP: <Fit> / <Tier>: <reason>
+Routing: <round-robin | existing owner> (logged in docs/inbound-visits-log.md)
+```
+If there were none, post one line saying so. Log both posts in `docs/inbound-visits-log.md`.
