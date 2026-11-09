@@ -1485,7 +1485,7 @@ async function buildVisits(q) {
    split by user. Shown on the dashboard (Arushi's report) and sent to Arushi's Slack DM at the end of each day. */
 const SOURCE_LABEL = { FORM: 'Form submission', CRM_UI: 'Created in HubSpot', IMPORT: 'Import', INTEGRATION: 'Integration', API: 'API', AUTOMATION_PLATFORM: 'Workflow', WORKFLOW: 'Workflow',
   MOBILE_IOS: 'HubSpot mobile app', MOBILE_ANDROID: 'HubSpot mobile app', SALES: 'Sales tools', EMAIL_INTEGRATION: 'Email integration', CONVERSATIONS: 'Chat', MEETINGS: 'Meetings booking',
-  ANALYTICS: 'Website tracking', CALCULATED: 'HubSpot (calculated)', MIGRATION: 'Migration', BATCH_UPDATE: 'Bulk update', SALESFORCE: 'Salesforce sync', AI_GROUP: 'HubSpot AI', CRM_UI_BULK_ACTION: 'Bulk edit in HubSpot' };
+  ANALYTICS: 'Website tracking', CALCULATED: 'HubSpot (calculated)', MIGRATION: 'Migration', BATCH_UPDATE: 'Bulk update', SALESFORCE: 'Salesforce sync', AI_GROUP: 'HubSpot AI', CRM_UI_BULK_ACTION: 'Bulk edit in HubSpot', CRM_SETTING: 'Auto-created by HubSpot' };
 async function buildAdmin(q) {
   const lp = londonParts(new Date());
   const day = /^\d{4}-\d{2}-\d{2}$/.test((q && q.day) || '') ? q.day : lp.y + '-' + String(lp.m).padStart(2, '0') + '-' + String(lp.d).padStart(2, '0');
@@ -1500,9 +1500,14 @@ async function buildAdmin(q) {
     searchAll('deals', [{ filters: [{ propertyName: 'hs_lastmodifieddate', operator: 'GTE', value: String(start) }] }], ['dealname', 'pipeline', 'dealstage'])
   ]);
   const P = {}, S = {}; (pipes.results || []).forEach(p => { P[p.id] = p.label; (p.stages || []).forEach(st => { S[st.id] = { label: st.label, pipe: p.label }; }); });
-  const user = id => id ? (owners['u' + id] || 'User ' + id) : '';
-  const who = p => user(p.hs_created_by_user_id) || [SOURCE_LABEL[p.hs_object_source] || p.hs_object_source_label || p.hs_object_source || 'Unknown', p.hs_object_source_detail_1].filter(Boolean).join(': ');
+  // users who aren't owners (or whose owner record lacks the user id): fill from the users object
+  try { let after = ''; for (let i = 0; i < 5; i++) { const r = await hs('/crm/v3/objects/users?limit=100&properties=hs_internal_user_id,hs_given_name,hs_family_name,hs_email' + (after ? '&after=' + after : ''));
+    (r.results || []).forEach(u => { const x = u.properties || {}, n = [x.hs_given_name, x.hs_family_name].filter(Boolean).join(' ') || x.hs_email; if (x.hs_internal_user_id && n && !owners['u' + x.hs_internal_user_id]) owners['u' + x.hs_internal_user_id] = n; });
+    after = r.paging && r.paging.next && r.paging.next.after; if (!after) break; } } catch (e) { /* keep ids */ }
+  const user = id => id ? (owners['u' + id] || 'HubSpot user ' + id) : '';
+  const who = p => user(p.hs_created_by_user_id) || (p.hs_object_source === 'CRM_SETTING' ? 'HubSpot auto-create (contact email domain)' : [SOURCE_LABEL[p.hs_object_source] || p.hs_object_source_label || p.hs_object_source || 'Unknown', p.hs_object_source_detail_1].filter(Boolean).join(': '));
   const why = (p, extra) => { const s = p.hs_object_source, det = [p.hs_object_source_detail_1, p.hs_object_source_detail_2].filter(Boolean).join(' · ');
+    if (s === 'CRM_SETTING') return 'Auto-created by HubSpot from a contact\u2019s email domain (setting: “Create and associate companies with contacts”), not by a person' + (extra ? '. ' + extra : '');
     let r = s === 'CRM_UI' ? 'Created by ' + (user(p.hs_created_by_user_id) || 'a user') + ' in HubSpot' : (SOURCE_LABEL[s] || p.hs_object_source_label || s || 'Unknown source') + (det ? ': ' + det : '');
     if (s !== 'CRM_UI' && p.hs_created_by_user_id) r += ' (by ' + user(p.hs_created_by_user_id) + ')';
     return r + (extra ? '. ' + extra : ''); };
@@ -1540,7 +1545,9 @@ function adminSlack(A) {
   const cap = (arr, f, n) => arr.slice(0, n).map(f).concat(arr.length > n ? ['… and ' + (arr.length - n) + ' more on the dashboard'] : []);
   const L = ['*Arushi’s HubSpot report · ' + A.day + '*', 'New contacts: *' + A.totals.contacts + '*  ·  New companies: *' + A.totals.companies + '*  ·  New deals: *' + A.totals.deals + '*  ·  Pipeline moves: *' + A.totals.moves + '*', ''];
   if (A.byUser.length) { L.push('*By user*'); A.byUser.forEach(u => L.push('• ' + u.who + ': ' + [u.contacts && u.contacts + ' contacts', u.companies && u.companies + ' companies', u.deals && u.deals + ' deals', u.moves && u.moves + ' moves'].filter(Boolean).join(', '))); L.push(''); }
-  if (A.companies.length) { L.push('*Companies created*'); L.push(...cap(A.companies, c => '• <' + rec('0-2', c.id) + '|' + c.name + '> — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : '. No owner'), 15)); L.push(''); }
+  const autoCo = A.companies.filter(c => /^HubSpot auto-create/.test(c.by || '')), manCo = A.companies.filter(c => autoCo.indexOf(c) < 0);
+  if (autoCo.length) { L.push('*Companies auto-created by HubSpot: ' + autoCo.length + '*'); L.push('From contacts\u2019 email domains (setting \u201cCreate and associate companies with contacts\u201d), not by a person. ' + autoCo.filter(c => !c.owner || c.owner === 'None').length + ' have no owner. ' + (autoCo.length > 20 ? 'This is unusually high: check whether the setting was switched on and backfilled. ' : '') + 'Full list: https://inploi-sdr-portal.vercel.app/#arushi'); L.push(''); }
+  if (manCo.length) { L.push('*Companies created*'); L.push(...cap(manCo, c => '• <' + rec('0-2', c.id) + '|' + c.name + '> — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : '. No owner'), 15)); L.push(''); }
   if (A.deals.length) { L.push('*Deals created*'); L.push(...cap(A.deals, c => '• <' + rec('0-3', c.id) + '|' + c.name + '> — ' + c.pipeline + ' / ' + c.stage + ' — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : ''), 15)); L.push(''); }
   if (A.moves.length) { L.push('*Pipeline moves*'); L.push(...cap(A.moves, c => '• ' + t(c.at) + ' <' + rec('0-3', c.id) + '|' + c.deal + '> (' + c.pipeline + '): ' + c.from + ' → ' + c.to + ' — ' + c.reason, 20)); L.push(''); }
   if (A.contacts.length) { L.push('*Contacts created*'); L.push(...cap(A.contacts, c => '• <' + rec('0-1', c.id) + '|' + c.name + '>' + (c.company ? ' (' + c.company + ')' : '') + ' — ' + c.reason + (c.owner ? '. Owner: ' + c.owner : '. No owner'), 15)); L.push(''); }
