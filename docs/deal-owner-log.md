@@ -13,5 +13,6 @@ which is what the dashboard counts.
 | 2026-11-09 12:10 | Aegon Ltd. (534705293506) | Evan Williams | Jason | Evan's #grwth post 31 Oct: "with Jason" | Evan (already set) |
 | 2026-11-09 12:10 | AJ Bell (532919454918) | Evan Williams | Felix | Evan's #grwth post 29 Oct: "with Felix" | Evan (already set) |
 | 2026-11-09 12:10 | Fortnum and Mason (282321118435, closed) | Nikita Rohwer | Felix | meeting attendee Felix (Aug 2025, no-show) | Nikita (was empty, now set) |
+| 2026-11-09 12:32 | Fortnum and Mason (282321118435, closed) | Felix | **Nikita (reverted)** | Felix: a deal closed without the meeting ever happening goes back to the SDR (this one was a no-show) | cleared again (as before) |
 
 Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an AE (Nikita's #grwth post, 26 Feb: "will assign it to someone closer to the time").

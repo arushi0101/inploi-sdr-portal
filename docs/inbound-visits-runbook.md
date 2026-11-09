@@ -97,3 +97,6 @@ Rule (Felix, agreed by Arushi): once a discovery meeting is booked, the deal bel
    credit (the dashboard counts this field). Then set the deal owner to the AE. Change nothing else.
 4. If the AE can't be identified, don't guess: leave the deal and DM Arushi once with the deal and why.
 5. Log each move in `docs/deal-owner-log.md`. No Slack post for a move.
+6. **Closed deals where the meeting never happened go back to the SDR** (Felix, 9 Nov 2026): if a deal is closed lost and its
+   discovery meeting never took place (outcome No show / Cancelled, or closed lost reason "No Show"), the owner is the SDR who
+   booked it, not the AE. Only ever move OPEN deals to the AE; never move a closed deal to an AE.
