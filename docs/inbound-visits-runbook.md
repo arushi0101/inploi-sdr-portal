@@ -37,7 +37,7 @@ Checked in the same hourly run. Forms:
 Which contacts: `recent_conversion_event_name` from one of these forms and `recent_conversion_date` after 2026-11-09 10:30 UK,
 not already in `docs/inbound-visits-log.md`. Skip internal or test addresses (ending @inploi.com). Every one counts as ICP (no score cut-off).
 
-| Situation | What I do in HubSpot | Post in #sdr-hub (C0CEEB94MB2) |
+| Situation | What I do in HubSpot | Post in #inbound-leads (C05CYATGALC) |
 |---|---|---|
 | Contact already has an owner | nothing | tag the owner: new demo request / audit unlock, please pick up |
 | Company found (email domain, then company name) and owned by one of the 4 SDRs (SDR Owner or Company owner) | set the **contact owner** to that SDR; link contact to company | tag that SDR |
@@ -121,7 +121,7 @@ _SDR routing_
 ```
 If there were no alerts, post one line saying so.
 
-### 2. Form submissions daily summary (post in #sdr-hub C0CEEB94MB2, top-level)
+### 2. Form submissions daily summary (post in #inbound-leads C05CYATGALC, top-level)
 Every demo request (Contact Us Form Website V2) and audit unlock (Hiring Experience Audit) converted on the UK day, excluding
 @inploi.com and test addresses. For each: make sure the company has the SDR as **SDR Owner and Company owner** (fill empty only;
 if a different SDR/owner is already there, keep it and report that person as point), the contact owner is the same SDR and the
@@ -147,3 +147,5 @@ ICP: <Fit> / <Tier>: <reason>
 Routing: <round-robin | existing owner> (logged in docs/inbound-visits-log.md)
 ```
 If there were none, post one line saying so. Log both posts in `docs/inbound-visits-log.md`.
+
+> 9 Nov 2026: Arushi moved all form submission posts (hourly and end of day) from #sdr-hub to **#inbound-leads (C05CYATGALC)**.
