@@ -1440,9 +1440,10 @@ async function visitAlerts() {
     msgs.push(...(j.messages || [])); cursor = j.response_metadata && j.response_metadata.next_cursor; if (!j.has_more || !cursor) break; }
   const clean = t => String(t || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
   const v = msgs.map(m => { const a = (m.attachments || []).find(x => x.title); if (!a) return null;
-    const loc = /^([^:\n]+?):\s*Industry/m.exec(clean(a.text || '')) || [];
-    const hub = /<(https:\/\/app\.leadfeeder\.com\/link\/[^|>]+)\|View in HubSpot>/.exec(a.text || '') || [];
-    return { ts: m.ts, at: Number(m.ts) * 1000, name: clean(a.title), link: a.title_link || '', loc: loc[1] || '', inHubspot: !!hub[1], replies: m.reply_count || 0 }; })
+    const raw = JSON.stringify(m.attachments || []).replace(/\\n/g, '\n');
+    const t = /<[^|>]+\|([^>]+)>/.exec(a.title); const name = clean(t ? t[1] : a.title).replace(/\s*\((All ICP companies|[^)]*feed[^)]*)\)\s*$/i, '').trim();
+    const loc = /(?:^|\n|")([^"\n:]+?):\s*Industry/.exec(raw) || [];
+    return { ts: m.ts, at: Number(m.ts) * 1000, name, link: a.title_link || '', loc: clean(loc[1] || ''), inHubspot: /View in HubSpot/i.test(raw), replies: m.reply_count || 0 }; })
     .filter(Boolean).sort((x, y) => x.at - y.at);
   visitsHist = { at: Date.now(), v }; return v;
 }
@@ -1577,7 +1578,7 @@ module.exports = async (req, res) => {
   if (!TOKEN) { res.statusCode = 503; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify({ error: 'missing_token' })); return; }
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
-    const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
+    const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), days: (req.query && req.query.days) || sp.get('days'), span: (req.query && req.query.span) || sp.get('span') };
     const data = part === 'visits' ? await buildVisits(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
