@@ -149,3 +149,23 @@ Routing: <round-robin | existing owner> (logged in docs/inbound-visits-log.md)
 If there were none, post one line saying so. Log both posts in `docs/inbound-visits-log.md`.
 
 > 9 Nov 2026: Arushi moved all form submission posts (hourly and end of day) from #sdr-hub to **#inbound-leads (C05CYATGALC)**.
+
+## Tone for every Slack post (Arushi, 9 Nov 2026)
+Polite, soft and supportive. Write like a helpful teammate, never like a ticket system:
+- Open warmly ("Hi @Evan 👋", "Lovely news", "A nice one for you").
+- Ask, don't instruct: "would you mind picking this up?", "when you get a chance", "no rush if you're tied up, just shout and someone can help".
+- Say the SLA kindly: "ideally within the next 24 hours, so they hear from us while it's fresh 🙂" (Fri–Sun: "ideally by Monday lunchtime").
+- Give context that helps, not pressure (what they asked for, what we already know).
+- Close with thanks or encouragement ("Thank you!", "Good luck, sounds like a great fit 🙌"). Keep `_SDR routing_` as the last line.
+- No ALL CAPS, no "must", "please action", "required".
+
+Examples:
+```
+Hi @Evan 👋 lovely news: Hayley Connor at Joe & the Juice has asked for a demo!
+• Contact: <link> · Company: <link> (already yours, In Progress)
+• Why it looks promising: 70 live UK frontline roles across their stores, hiring on Greenhouse (ICP YES / HIGH)
+Would you mind reaching out when you get a chance? Ideally within the next 24 hours so she hears from us while it's fresh 🙂
+If you're tied up, just shout and someone can jump in. Thank you!
+_SDR routing_
+```
+End of day: "Here's today's round-up 🌟 … Thanks everyone for jumping on these!" and, when there was nothing, "A quiet one today, no visit alerts came in. Have a lovely evening!"
