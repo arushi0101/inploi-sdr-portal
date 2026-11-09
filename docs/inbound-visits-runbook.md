@@ -28,3 +28,25 @@ Nikita Rohwer (U091M9CPELB, 29569628), Evan Williams (U091M9BGVH9, 29569626).
 - **Never** overwrite an existing owner or a filled field. Only create missing companies, fill empty fields and assign unowned companies.
 - Every reply ends with `_SDR routing_` so a thread is never handled twice.
 - Every action is listed in `docs/inbound-visits-log.md` (when, company, ICP score, HubSpot record, what was done, who was tagged).
+
+## Form submissions (added 9 Nov 2026): demo requests and audit unlocks
+Checked in the same hourly run. Forms:
+- **Contact Us Form Website V2** (book a demo, form 333cdbe8-14af-4312-9272-fce963d20097): conversion name starts "Book a demo · inploi"
+- **Hiring Experience Audit** (audit unlock, form d21219f6-269c-487a-a342-b2a87be5651a): conversion name starts "Hiring experience grader"
+
+Which contacts: `recent_conversion_event_name` from one of these forms and `recent_conversion_date` after 2026-11-09 10:30 UK,
+not already in `docs/inbound-visits-log.md`. Skip internal or test addresses (ending @inploi.com). Every one counts as ICP (no score cut-off).
+
+| Situation | What I do in HubSpot | Post in #sdr-hub (C0CEEB94MB2) |
+|---|---|---|
+| Contact already has an owner | nothing | tag the owner: new demo request / audit unlock, please pick up |
+| Company found (email domain, then company name) and owned by one of the 4 SDRs (SDR Owner or Company owner) | set the **contact owner** to that SDR; link contact to company | tag that SDR |
+| Company owned by someone else | set the contact owner to the company owner; link | tag that owner |
+| Company in HubSpot with no owner | round-robin SDR: set **contact owner, Company owner and SDR Owner**; link | tag the SDR |
+| No company in HubSpot | create it (from the email domain, with research), fill SDR Insights, round-robin assign contact + company; link | tag the SDR |
+| Personal email (gmail etc.) with no company | round-robin assign the contact only | tag the SDR |
+
+Reply text: "New demo request" or "New audit unlock" from Name (job title) at Company, with links to the contact and company records,
+for an audit the audit URL and score, then "@SDR please pick this up", then the SLA line (Mon to Thu: within 24 hours; Fri to Sun: by Monday 12:00 UK). End with `_SDR routing_`.
+The round-robin is shared with the visits routing: the next SDR follows the last "round-robin" entry in `docs/inbound-visits-log.md`.
+Never overwrite an existing owner. Log every action (with the contact id) in `docs/inbound-visits-log.md`.
