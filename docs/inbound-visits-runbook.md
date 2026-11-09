@@ -53,7 +53,7 @@ Never overwrite an existing owner. Log every action (with the contact id) in `do
 
 ## Enrich SDR Insights before posting (added 9 Nov 2026)
 For every form submission (and every company the visits routing creates), fill the company's **SDR Insights** card in HubSpot
-**before** the #sdr-hub post, then mention "SDR Insights filled" (or what couldn't be found) in the post.
+**before** the #inbound-leads post, then mention "SDR Insights filled" (or what couldn't be found) in the post.
 Only fill empty fields; never overwrite. Research the company's own website, careers site, Companies House, LinkedIn and the ATS
 the careers site uses (open the pages; mark each fact [OBSERVED: source] or [INFERRED]), the same way Clay's "HS Verification" fills them.
 
