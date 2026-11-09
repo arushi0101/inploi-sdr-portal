@@ -1509,10 +1509,10 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'scopes' ? await (async () => { // which permissions the HubSpot key has (names only, never the key)
-      const r = await fetch(API + '/oauth/v2/private-apps/get/access-token-info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokenKey: TOKEN }) });
-      const j = await r.json().catch(() => ({})); const sc = (j.scopes || []).slice().sort();
-      return { status: r.status, scopes: sc, canWrite: { companies: sc.includes('crm.objects.companies.write'), contacts: sc.includes('crm.objects.contacts.write'), calls: sc.some(x => /calls?\.write|engagements\.write/.test(x)) || sc.includes('crm.objects.contacts.write'), meetings: sc.some(x => /meetings?\.write/.test(x)) } };
+    const data = part === 'writecheck' ? await (async () => { // can the key write? rewrites a value that is already there (no data changes)
+      const test = async (obj, id, prop) => { try { const cur = await hs('/crm/v3/objects/' + obj + '/' + id + '?properties=' + prop); const v = (cur.properties || {})[prop];
+          if (!v) return 'skipped (empty)'; await hs('/crm/v3/objects/' + obj + '/' + id, { properties: { [prop]: v } }, 'PATCH'); return 'ok'; } catch (e) { return 'refused: ' + String(e.message || e).slice(0, 120); } };
+      return { companies: await test('companies', '455385510100', 'account_status'), calls: await test('calls', '526552666338', 'hs_activity_type') };
     })() : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
