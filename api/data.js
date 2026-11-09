@@ -1486,6 +1486,8 @@ async function buildVisits(q) {
 const SOURCE_LABEL = { FORM: 'Form submission', CRM_UI: 'Created in HubSpot', IMPORT: 'Import', INTEGRATION: 'Integration', API: 'API', AUTOMATION_PLATFORM: 'Workflow', WORKFLOW: 'Workflow',
   MOBILE_IOS: 'HubSpot mobile app', MOBILE_ANDROID: 'HubSpot mobile app', SALES: 'Sales tools', EMAIL_INTEGRATION: 'Email integration', CONVERSATIONS: 'Chat', MEETINGS: 'Meetings booking',
   ANALYTICS: 'Website tracking', CALCULATED: 'HubSpot (calculated)', MIGRATION: 'Migration', BATCH_UPDATE: 'Bulk update', SALESFORCE: 'Salesforce sync', AI_GROUP: 'HubSpot AI', CRM_UI_BULK_ACTION: 'Bulk edit in HubSpot', CRM_SETTING: 'Auto-created by HubSpot' };
+// HubSpot user id -> name (from the users object, 9 Nov 2026); used when the owners API doesn't carry the user id
+const USER_NAMES = {"39760315": "Emerson Welch", "39424239": "Nicholas Masters", "38716950": "Emilie Bastrup", "38636883": "Elzane Dougall", "38079469": "Sean-Stanley Mbaeri", "37987484": "Raamis Abdul Razaque", "98497526": "James Badenhorst", "36339106": "Claude inploi", "36331131": "Joe Draper", "36304602": "Joseph Williams", "35568600": "Jolanta Jas", "35222671": "Arushi Mittal", "33852382": "Ares QA", "32978778": "Anushca Claassens", "32364701": "Matthew Meehan", "29569628": "Nikita Rohwer", "29569626": "Evan Williams", "29569627": "James Crawford", "69117355": "Jason Baaphy", "59791670": "Jake Donald", "51979207": "Raamis Abdul Razaque", "47708088": "Alexander Hanson-Smith", "47662469": "Matthew de la Hey", "47662451": "Felix Dealtry", "35660427": "Claude (HubSpot connector, Arushi's session)"};
 async function buildAdmin(q) {
   const lp = londonParts(new Date());
   const day = /^\d{4}-\d{2}-\d{2}$/.test((q && q.day) || '') ? q.day : lp.y + '-' + String(lp.m).padStart(2, '0') + '-' + String(lp.d).padStart(2, '0');
@@ -1504,10 +1506,11 @@ async function buildAdmin(q) {
   try { let after = ''; for (let i = 0; i < 5; i++) { const r = await hs('/crm/v3/objects/users?limit=100&properties=hs_internal_user_id,hs_given_name,hs_family_name,hs_email' + (after ? '&after=' + after : ''));
     (r.results || []).forEach(u => { const x = u.properties || {}, n = [x.hs_given_name, x.hs_family_name].filter(Boolean).join(' ') || x.hs_email; if (x.hs_internal_user_id && n && !owners['u' + x.hs_internal_user_id]) owners['u' + x.hs_internal_user_id] = n; });
     after = r.paging && r.paging.next && r.paging.next.after; if (!after) break; } } catch (e) { /* keep ids */ }
-  const user = id => id ? (owners['u' + id] || 'HubSpot user ' + id) : '';
-  const who = p => user(p.hs_created_by_user_id) || (p.hs_object_source === 'CRM_SETTING' ? 'HubSpot auto-create (contact email domain)' : [SOURCE_LABEL[p.hs_object_source] || p.hs_object_source_label || p.hs_object_source || 'Unknown', p.hs_object_source_detail_1].filter(Boolean).join(': '));
+  const user = id => id ? (owners['u' + id] || USER_NAMES[id] || 'HubSpot user ' + id) : '';
+  const isAuto = p => /CRM_SETTING/.test((p.hs_object_source || '') + ' ' + (p.hs_object_source_label || ''));
+  const who = p => user(p.hs_created_by_user_id) || (isAuto(p) ? 'HubSpot auto-create (contact email domain)' : [SOURCE_LABEL[p.hs_object_source] || p.hs_object_source_label || p.hs_object_source || 'Unknown', p.hs_object_source_detail_1].filter(Boolean).join(': '));
   const why = (p, extra) => { const s = p.hs_object_source, det = [p.hs_object_source_detail_1, p.hs_object_source_detail_2].filter(Boolean).join(' · ');
-    if (s === 'CRM_SETTING') return 'Auto-created by HubSpot from a contact\u2019s email domain (setting: “Create and associate companies with contacts”), not by a person' + (extra ? '. ' + extra : '');
+    if (isAuto(p)) return 'Auto-created by HubSpot from a contact\u2019s email domain (setting: “Create and associate companies with contacts”), not by a person' + (extra ? '. ' + extra : '');
     let r = s === 'CRM_UI' ? 'Created by ' + (user(p.hs_created_by_user_id) || 'a user') + ' in HubSpot' : (SOURCE_LABEL[s] || p.hs_object_source_label || s || 'Unknown source') + (det ? ': ' + det : '');
     if (s !== 'CRM_UI' && p.hs_created_by_user_id) r += ' (by ' + user(p.hs_created_by_user_id) + ')';
     return r + (extra ? '. ' + extra : ''); };
