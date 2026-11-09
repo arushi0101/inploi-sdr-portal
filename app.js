@@ -110,17 +110,20 @@ function setCustom(from,to,tag){
 function clearCustom(){if(!state.cus)return;state.cus=null;try{localStorage.removeItem('sdrPortalCus');}catch(e){}load(true);}
 window.SDRCustom={set:setCustom,clear:clearCustom,get:function(){return state.cus;},name:cusName};
 // Apply works without a form submit: HubSpot's embedded view blocks form submission
-function applyDates(e){if(e)e.preventDefault();setCustom($('dbFrom').value,$('dbTo').value,'custom');}
+// dates typed but not yet applied are kept when data finishes loading in the background
+var DB_DIRTY=false;
+['dbFrom','dbTo'].forEach(function(id){['input','change'].forEach(function(ev){$(id).addEventListener(ev,function(){DB_DIRTY=true;});});});
+function applyDates(e){if(e)e.preventDefault();if(setCustom($('dbFrom').value,$('dbTo').value,'custom'))DB_DIRTY=false;}
 $('dbApply').addEventListener('click',applyDates);
 $('dbForm').addEventListener('submit',applyDates);
 ['dbFrom','dbTo'].forEach(function(id){$(id).addEventListener('keydown',function(e){if(e.key==='Enter')applyDates(e);});});
 Array.prototype.forEach.call(document.querySelectorAll('#dateBar [data-p]'),function(b){b.addEventListener('click',function(){var k=b.dataset.p;
-  if(k==='wk'||k==='mtd'){state.per=k;try{localStorage.setItem('sdrPortalPer',k);}catch(e){}if(state.cus)clearCustom();render();return;}
-  var r=presetRange(k);setCustom(r.from,r.to,k);});});
+  if(k==='wk'||k==='mtd'){DB_DIRTY=false;state.per=k;try{localStorage.setItem('sdrPortalPer',k);}catch(e){}if(state.cus)clearCustom();render();return;}
+  DB_DIRTY=false;var r=presetRange(k);setCustom(r.from,r.to,k);});});
 function syncDateBar(){if(!PERIODS)return;var cur=state.cus?(state.cus.tag||'custom'):state.per;
   Array.prototype.forEach.call(document.querySelectorAll('#dateBar [data-p]'),function(b){b.setAttribute('aria-pressed',String(b.dataset.p===cur));});
   var f=state.cus?state.cus.from:PERIODS[state.per].start,t=state.cus?state.cus.to:PERIODS[state.per].end;
-  if(document.activeElement!==$('dbFrom'))$('dbFrom').value=f;if(document.activeElement!==$('dbTo'))$('dbTo').value=t;$('dbFrom').max=$('dbTo').max=ukToday();}
+  if(!DB_DIRTY){if(document.activeElement!==$('dbFrom'))$('dbFrom').value=f;if(document.activeElement!==$('dbTo'))$('dbTo').value=t;}$('dbFrom').max=$('dbTo').max=ukToday();}
 
 /* Not interested gets its own column, legend entry and definition */
 (function(){var leg=document.querySelector('#statusBars')&&document.querySelector('#statusBars').previousElementSibling;
@@ -140,22 +143,34 @@ function ago(iso){var m=Math.round((Date.now()-Date.parse(iso))/60000);if(m<1)re
 function status(kind,text){$('statusDot').className=kind;$('statusText').textContent=text;}
 function stamp(){if(SOURCE==='live')status('live','Live from HubSpot \u00b7 updated '+ago(GENERATED));else if(SOURCE==='snapshot')status('err','Not connected to HubSpot');}
 function banner(html){var b=$('banner');b.hidden=!html;b.innerHTML=html||'';}
-function load(fresh){
-  if(loading)return;loading=true;$('refreshBtn').disabled=true;
-  if(SOURCE!=='live'){status('','Connecting to HubSpot\u2026');document.body.classList.add('sdr-wait');banner('<b>Loading live data from HubSpot\u2026</b> Longer date ranges can take up to a minute. The daily, weekly and monthly reports load on their own.');}
-  var qs=(state.cus?['from='+state.cus.from,'to='+state.cus.to]:[]).concat(fresh?['t='+Date.now()]:[]);
-  fetch('api/data'+(qs.length?'?'+qs.join('&'):'')).then(function(r){return r.json().catch(function(){return {error:'bad_response'};}).then(function(d){return {ok:r.ok,d:d};});})
+var LOAD_SEQ=0,LOAD_CTRL=null;
+function niceD(iso){var p=iso.split('-');return new Date(Date.UTC(+p[0],+p[1]-1,+p[2],12)).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'});}
+// a new load (e.g. Apply) cancels the one in progress instead of being ignored; failures retry once
+function load(fresh,retry){
+  var seq=++LOAD_SEQ;if(LOAD_CTRL)try{LOAD_CTRL.abort();}catch(e){}
+  LOAD_CTRL=typeof AbortController!=='undefined'?new AbortController():null;
+  loading=true;$('refreshBtn').disabled=true;
+  var ap=$('dbApply');if(ap){ap.disabled=true;ap.textContent='Loading…';}
+  var rng=state.cus?niceD(state.cus.from)+' – '+niceD(state.cus.to):'';
+  if(SOURCE!=='live'){status('','Connecting to HubSpot…');document.body.classList.add('sdr-wait');}
+  banner('<b>Loading '+(rng?esc(rng):'live data')+' from HubSpot…</b> '+(retry?'Trying again. ':'')+'Longer date ranges can take up to a minute; the page updates when it’s ready.');
+  var qs=(state.cus?['from='+state.cus.from,'to='+state.cus.to]:[]).concat(fresh||retry?['t='+Date.now()]:[]);
+  fetch('api/data'+(qs.length?'?'+qs.join('&'):''),LOAD_CTRL?{signal:LOAD_CTRL.signal}:undefined).then(function(r){return r.json().catch(function(){return {error:'bad_response',status:r.status};}).then(function(d){return {ok:r.ok,d:d};});})
   .then(function(x){
+    if(seq!==LOAD_SEQ)return;
     if(!x.ok||x.d.error)throw x.d;var d=x.d;
     SDRS=d.SDRS;NF=d.NF;TEAM_CQ=d.TEAM_CQ;OUT=d.OUT;MEETINGS=d.MEETINGS;DEALS=d.DEALS;LEADS=d.LEADS;WINS=d.WINS;PERIODS=d.periods;PIPE=d.pipeline;GENERATED=d.generatedAt;LISTS=d.LISTS||null;CO=d.CO||null;TRENDS=d.TRENDS||null;
     SOURCE='live';document.body.classList.remove('sdr-wait','sdr-fail');banner('');render();
   }).catch(function(e){
+    if(seq!==LOAD_SEQ||(e&&e.name==='AbortError'))return;
     var code=e&&e.error;
-    if(SOURCE==='live'){status('err','Refresh failed \u00b7 showing data from '+ago(GENERATED));return;}
+    if(!retry&&code!=='locked'&&code!=='no_password'&&code!=='missing_token'&&code!=='bad_token'&&code!=='missing_scope'){setTimeout(function(){if(seq===LOAD_SEQ)load(fresh,true);},2000);return 'retry';}
+    if(SOURCE==='live'){status('err','Refresh failed · showing data from '+ago(GENERATED));banner('<b>Couldn’t load '+(rng?esc(rng):'the new dates')+'.</b> HubSpot was slow to answer. Still showing the previous dates; click Apply to try again.');return;}
     SOURCE='snapshot';render();
     if(code==='locked'||code==='no_password')return;
-    banner('<b>Live data couldn\u2019t load.</b> '+(code==='missing_token'?'The HubSpot key hasn\u2019t been added to Vercel yet.':code==='bad_token'?'HubSpot rejected the key.':code==='missing_scope'?'The HubSpot key is missing a read permission.':'HubSpot couldn\u2019t be reached just now. Try Refresh now in a few minutes.'));
-  }).then(function(){loading=false;if(SOURCE!=='live'&&document.body.classList.contains('sdr-wait')){document.body.classList.remove('sdr-wait');document.body.classList.add('sdr-fail');}$('refreshBtn').disabled=false;$('refreshBtn').hidden=false;stamp();});
+    banner('<b>Live data couldn’t load.</b> '+(code==='missing_token'?'The HubSpot key hasn’t been added to Vercel yet.':code==='bad_token'?'HubSpot rejected the key.':code==='missing_scope'?'The HubSpot key is missing a read permission.':'HubSpot couldn’t be reached just now. Try Refresh in a minute.'));
+  }).then(function(r){if(r==='retry'||seq!==LOAD_SEQ)return;loading=false;var ap=$('dbApply');if(ap){ap.disabled=false;ap.textContent='Apply';}
+    if(SOURCE!=='live'&&document.body.classList.contains('sdr-wait')){document.body.classList.remove('sdr-wait');document.body.classList.add('sdr-fail');}$('refreshBtn').disabled=false;$('refreshBtn').hidden=false;stamp();});
 }
 $('refreshBtn').addEventListener('click',function(){load(true);});
 setInterval(function(){if(SOURCE==='live'&&!loading)stamp();},60000);
