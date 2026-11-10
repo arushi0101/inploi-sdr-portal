@@ -399,8 +399,9 @@ function drOpen(){if(dr)return;dr=document.createElement('div');dr.className='dr
 function drClose(){if(!dr)return;dr.remove();dr=null;drStack=[];document.body.style.overflow='';}
 function drHead(title,sub,extra){$('drHead').innerHTML=(drStack.length>1?'<button class="dr-back" id="drBack">\u2190 Back to the list</button>':'')+'<div class="dr-top"><h2>'+title+'</h2><button class="dr-x" id="drX">Close</button></div>'+(sub?'<div class="dr-sub">'+sub+'</div>':'')+(extra||'');
   $('drX').addEventListener('click',drClose);if($('drBack'))$('drBack').addEventListener('click',function(){drStack.pop();var f=drStack.pop();f();});}
-function showList(title,sub,ids,note){
-  var rows=ids.map(function(id){var c=CO&&CO[id]||['Company '+id,'','',''];var k=c[2]&&byK(c[2]);return [[id,c[0]],c[1]||'',k?k.short:'',c[3]?Date.parse(c[3]+'T00:00:00Z'):null];});
+// credit: optional {companyId: SDR short name} from the list being opened, used when the company has no SDR Owner (e.g. pod bookings)
+function showList(title,sub,ids,note,credit){
+  var rows=ids.map(function(id){var c=CO&&CO[id]||['Company '+id,'','',''];var k=c[2]&&byK(c[2]);var cr=credit&&credit[id];return [[id,c[0]],c[1]||'',k?k.short:(cr?cr+' (pod)':''),c[3]?Date.parse(c[3]+'T00:00:00Z'):null];});
   showTable(title,sub,[{h:'Company',t:'co'},{h:'Account Status',t:'text'},{h:'SDR',t:'text'},{h:'Last contacted',t:'date'}],rows,note);
 }
 /* generic drill table: any records, sortable, filterable, CSV export; company cells open the journey */
@@ -454,9 +455,9 @@ function showTable(title,sub,cols,rows,note){
 }
 window.SDRDrill={table:function(t,s,c,r,n){drStack=[];showTable(t,s,c,r,n);},names:function(m){CO=CO||{};Object.keys(m).forEach(function(id){if(!CO[id])CO[id]=m[id];});}};
 function openDrill(spec){var p=spec.split('|'),m=p[0],per=p[1],sk=p[2];
-  var ids={};(sk?[byK(sk)]:sel()).forEach(function(s){var a=LISTS[m]&&LISTS[m][s.k]&&LISTS[m][s.k][per];(a||[]).forEach(function(id){ids[id]=1;});});
+  var ids={},credit={};(sk?[byK(sk)]:sel()).forEach(function(s){var a=LISTS[m]&&LISTS[m][s.k]&&LISTS[m][s.k][per];(a||[]).forEach(function(id){ids[id]=1;if(!credit[id])credit[id]=s.short;});});
   var who=sk?byK(sk).short:(state.pod==='all'?'All SDRs':byK(state.pod).short);
-  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?cusName()+' \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m]);}
+  showList(DRILL_NAMES[m]||'Companies',who+' \u00b7 '+(per==='all'?'current':(per==='wk'?'This week':(PERIODS.mtd&&PERIODS.mtd.custom?cusName()+' \u00b7 '+rangeLabel('mtd'):'Month to date'))),Object.keys(ids),DRILL_NOTES[m],credit);}
 var J_TYPES=[['all','All'],['call','Calls'],['email','Emails'],['meeting','Meetings'],['note','Notes'],['deal','Deals']];
 var J_LABEL={call:'Call',email:'Email sent',reply:'Email received',meeting:'Meeting',note:'Note',deal:'Deal created'};
 function showJourney(id){

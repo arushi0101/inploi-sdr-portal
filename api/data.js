@@ -498,9 +498,9 @@ async function build(q) {
   Object.keys(LISTS).forEach(m => { L[m] = {}; Object.keys(LISTS[m]).forEach(sk => { L[m][sk] = {}; Object.keys(LISTS[m][sk]).forEach(k => { const a = [...LISTS[m][sk][k]]; L[m][sk][k] = a; a.forEach(id => allIds.add(id)); }); }); });
   WINS.forEach(w => (w.ids || []).forEach(id => allIds.add(String(id))));
   const missing = [...allIds].filter(id => !coById[id]);
-  const extra = missing.length ? await batchRead('companies', missing, ['name', 'account_status']) : {};
+  const extra = missing.length ? await batchRead('companies', missing, ['name', 'account_status', 'notes_last_contacted']) : {};
   const CO = {};
-  allIds.forEach(id => { const c = coById[id]; if (c) CO[id] = [c.name, c.status, c.sdr ? c.sdr.k : '', c.last ? iso(c.last) : '']; else { const p = extra[id] || {}; CO[id] = [(p.name || 'Unnamed company').trim(), statusOpts[p.account_status] || p.account_status || '', '', '']; } });
+  allIds.forEach(id => { const c = coById[id]; if (c) CO[id] = [c.name, c.status, c.sdr ? c.sdr.k : '', c.last ? iso(c.last) : '']; else { const p = extra[id] || {}; const lc = toMs(p.notes_last_contacted); CO[id] = [(p.name || 'Unnamed company').trim(), statusOpts[p.account_status] || p.account_status || '', '', lc != null ? iso(lc) : '']; } });
   const order = { book: 0, held: 1, today: 2, conv: 3, later: 4 };
   WINS.sort((a, b) => order[a.t] - order[b.t]);
 
