@@ -188,9 +188,11 @@ HubSpot is **not** changed. The responsible SDR gets a polite DM asking them to 
 - **Timing:** only on weekdays, 09:00 to 17:30 London time.
 - **Reminders:** don't re-DM about the same company within 2 working days. After that, send one gentle reminder at most, then stop and list the company for Arushi.
 - **Resolved:** when the status becomes Meeting Booked, log it as resolved.
-- **Open deals (Arushi, 10 Nov):**
-  - A company with an **open deal** (`hs_is_closed` false) and status New, In Progress, Inbound, Nurture, Exhausted, Not Interested or empty: ask for **Open Opportunity**.
-  - A company with only an upcoming meeting: ask for **Meeting Booked**.
-  - "Meeting Booked" plus an open deal is not flagged.
-  - Who gets the DM: the SDR Owner, else the deal's SDR beneficiary. If neither, nobody is DM'd and the company is listed for Arushi.
+- **Open deals (Arushi, 10 Nov, revised):** no DMs. A HubSpot workflow sets the company's Account Status to Open Opportunity when an open deal exists (see "HubSpot workflow: Open Opportunity" below). This check only covers booked meetings, which get a *Meeting Booked* nudge.
 - **Logging:** all of this goes in `docs/account-status-nudges-log.md`. Nothing is posted in channels.
+
+
+## HubSpot workflow: Open Opportunity (Arushi, 10 Nov)
+The workflow is built in HubSpot by Arushi. It is deal-based:
+- **Enrolment:** Is closed = false, and the associated company's Account Status is New, In Progress (SDR actively working), Inbound, Nurture, Exhausted, Not Interested or unknown. Re-enrolment is on.
+- **Action:** edit the associated company and set Account Status = Open Opportunity.
