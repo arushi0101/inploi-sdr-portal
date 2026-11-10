@@ -8,18 +8,18 @@ var VIEWS=[
  {k:'daily',label:'Daily report',title:'Daily report',group:'ov'},
  {k:'weekly',label:'Weekly report',title:'Weekly report',group:'ov'},
  {k:'monthly',label:'Monthly report',title:'Monthly report',group:'ov'},
- {k:'fixes',label:'Data fixes',title:'Data fixes'},
- {k:'matt',label:'Matt\u2019s dashboard',title:'Matt\u2019s dashboard'},
- {k:'meetings',label:'Meetings',title:'Meetings booked'},
- {k:'visits',label:'Inbound visits',title:'Inbound visits'},
- {k:'calls',label:'Calls',title:'Calls'},
- {k:'outreach',label:'Emails & sequences',title:'Emails, sequences and channel mix'},
- {k:'accounts',label:'Accounts & engagement',title:'Accounts and engagement'},
- {k:'pipeline',label:'Pipeline & revenue',title:'Pipeline and revenue'},
- {k:'review',label:'Weekly review',title:'Weekly review'},
+ {k:'calls',label:'Calls',title:'Calls',sec:'Activity'},
+ {k:'outreach',label:'Emails & sequences',title:'Emails, sequences and channel mix',sec:'Activity'},
+ {k:'meetings',label:'Meetings',title:'Meetings booked',sec:'Activity'},
+ {k:'accounts',label:'Accounts & engagement',title:'Accounts and engagement',sec:'Accounts'},
+ {k:'pipeline',label:'Pipeline & revenue',title:'Pipeline and revenue',sec:'Accounts'},
+ {k:'visits',label:'Inbound visits',title:'Inbound visits',sec:'Accounts'},
+ {k:'review',label:'Weekly review',title:'Weekly review',sec:'Team'},
+ {k:'fixes',label:'Data fixes',title:'Data fixes',sec:'Team'},
+ {k:'matt',label:'Matt’s dashboard',title:'Matt’s dashboard',sec:'Team'},
  {k:'kb',label:'Knowledge base',title:'Knowledge base: keeping HubSpot accurate',group:'res'},
  {k:'defs',label:'Definitions',title:'Definitions',group:'res'},
- {k:'arushi',label:'Arushi\u2019s report',title:'Arushi\u2019s report: HubSpot changes'}
+ {k:'arushi',label:'Arushi’s report',title:'Arushi’s report: HubSpot changes',sec:'Admin'}
 ];
 
 (function(){var ov=document.querySelector('.view[data-view="overview"]');if(ov&&!document.querySelector('.view[data-view="matt"]'))ov.insertAdjacentHTML('afterend','<div class="view" data-view="matt" hidden><div class="rp" id="mattRoot"><div class="card"><p class="muted">Loading Matt\u2019s dashboard\u2026</p></div></div></div>');})();
@@ -63,6 +63,8 @@ var resOpen=false;try{resOpen=localStorage.getItem('sdrPortalRes')==='1';}catch(
 var resBtn=null,resBox=null;
 var ovOpen=true;try{ovOpen=localStorage.getItem('sdrPortalOv')!=='0';}catch(e){}
 var ovBox=null,ovChev=null;
+document.head.insertAdjacentHTML('beforeend','<style>.nav-sec,.nav button.nav-sec-btn{font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--rail-muted);font-weight:600;padding:14px 10px 4px}.nav button.nav-sec-btn{padding-top:14px}.nav button.nav-sec-btn:hover{background:none;color:var(--rail-fg)}.nav button.nav-sec-btn .chev{font-size:.8rem}.nav .count:not(#cnt-meetings){display:none}.nav .count#cnt-meetings:not(:empty){background:var(--rail-hi);color:var(--rail-fg);padding:1px 7px;font-size:.7rem}.rail .opt[aria-pressed=true] span:first-child{margin-left:8px;margin-right:auto}.rail .nav-sub button{padding-left:22px;font-size:.86rem;color:var(--rail-muted)}.rail .nav-sub button[aria-current=page]{color:#fff}</style>');
+var LAST_SEC='';
 VIEWS.forEach(function(v){var b=document.createElement('button');b.id='nav-'+v.k;b.dataset.view=v.k;b.innerHTML='<span>'+esc(v.label)+'</span><span class="count" id="cnt-'+v.k+'"></span>';
   b.addEventListener('click',function(){if(v.k==='overview'){ovOpen=true;try{localStorage.setItem('sdrPortalOv','1');}catch(e){}}setView(v.k);});
   if(v.k==='overview'){
@@ -73,8 +75,9 @@ VIEWS.forEach(function(v){var b=document.createElement('button');b.id='nav-'+v.k
     b.querySelector('.count').replaceWith(ovChev);
     nav.appendChild(b);ovBox=document.createElement('div');ovBox.className='nav-sub';nav.appendChild(ovBox);return;}
   if(v.group==='ov'){ovBox.appendChild(b);return;}
+  if(v.sec&&v.sec!==LAST_SEC){LAST_SEC=v.sec;var h=document.createElement('div');h.className='nav-sec';h.textContent=v.sec;nav.appendChild(h);}
   if(v.group==='res'){
-    if(!resBox){resBtn=document.createElement('button');resBtn.className='nav-group';resBtn.setAttribute('aria-expanded','false');resBtn.innerHTML='<span>Resources</span><span class="chev" aria-hidden="true">\u25be</span>';
+    if(!resBox){LAST_SEC='Resources';resBtn=document.createElement('button');resBtn.className='nav-group nav-sec-btn';resBtn.setAttribute('aria-expanded','false');resBtn.innerHTML='<span>Resources</span><span class="chev" aria-hidden="true">\u25be</span>';
       resBox=document.createElement('div');resBox.className='nav-sub';
       resBtn.addEventListener('click',function(){resOpen=!resOpen;try{localStorage.setItem('sdrPortalRes',resOpen?'1':'0');}catch(e){}syncRes();syncOv();});
       nav.appendChild(resBtn);nav.appendChild(resBox);}
@@ -198,7 +201,7 @@ function render(){
   $('twHead').textContent='Two-way contacts ('+(P==='wk'?'week':isCus?'period':'MTD')+')';
 
   /* nav counts */
-  $('cnt-meetings').textContent=sum(S,function(s){return s.first[P];});
+  var nMeet=sum(S,function(s){return s.first[P];});$('cnt-meetings').textContent=nMeet?nMeet:'';
   $('cnt-calls').textContent=sum(S,function(s){return ct(s.calls[P]);});
   $('cnt-pipeline').textContent=DEALS.filter(function(d){return all||d.s===state.pod;}).length;
   $('cnt-review').textContent=sum(S,function(s){return s.review.stuck;});
