@@ -169,3 +169,23 @@ If you're tied up, just shout and someone can jump in. Thank you!
 _SDR routing_
 ```
 End of day: "Here's today's round-up 🌟 … Thanks everyone for jumping on these!" and, when there was nothing, "A quiet one today, no visit alerts came in. Have a lovely evening!"
+
+
+## Account Status nudge: meeting booked but status not "Meeting Booked" (Arushi, 10 Nov)
+HubSpot is **not** changed. The responsible SDR gets a polite DM asking them to update it.
+
+- **Flag a company when both are true:**
+  - It has an upcoming prospect meeting (intro, demo or discovery) owned by an SDR, Jason or Felix, and not cancelled.
+  - Its `account_status` is New, In Progress, Inbound, Nurture, Exhausted, Not Interested, or empty.
+- **Never flag:**
+  - Meeting Booked, Open Opportunity, Continuation or Disqualified.
+  - Customer check-ins, partner and internal meetings, where the owner is CS (38079469) or Arushi, or the title says catch-up, check-in, sync or placeholder.
+- **Who gets the DM:**
+  1. The company's SDR Owner.
+  2. Otherwise, the meeting creator or owner if they're an SDR.
+  3. If neither, nobody is DM'd. The company is listed in Arushi's end-of-day report.
+- **The DM:** one per SDR, grouping all their companies, in the soft tone. Include the meeting, the date, the AE, the current status and the HubSpot link. Ask kindly to switch it to *Meeting Booked*.
+- **Timing:** only on weekdays, 09:00 to 17:30 London time.
+- **Reminders:** don't re-DM about the same company within 2 working days. After that, send one gentle reminder at most, then stop and list the company for Arushi.
+- **Resolved:** when the status becomes Meeting Booked, log it as resolved.
+- **Logging:** all of this goes in `docs/account-status-nudges-log.md`. Nothing is posted in channels.
