@@ -4,8 +4,8 @@ Companies with an upcoming booked meeting whose Account Status isn't "Meeting Bo
 
 | Date (UTC) | Company | Meeting | Status at the time | DM'd | Slack ts | Outcome |
 |---|---|---|---|---|---|---|
-| 2026-11-10 10:10 | Bill's Restaurants (425746880742) | Intro Chat, 2 Feb 2027 with Felix | In Progress (SDR actively working) | Evan | 1794305418.248059 | open |
-| 2026-11-10 10:10 | University of Arts London (176818194663) | Intro, 18 Nov 2026 with Jason | Inbound | James | 1794305420.613339 | open |
+| 2026-11-10 10:10 | Bill's Restaurants (425746880742) | Intro Chat, 2 Feb 2027 with Felix | In Progress (SDR actively working) | Evan | 1794305418.248059 | resolved: Open Opportunity at 10:11 |
+| 2026-11-10 10:10 | University of Arts London (176818194663) | Intro, 18 Nov 2026 with Jason | Inbound | James | 1794305420.613339 | resolved: Meeting Booked at 10:10 |
 | 2026-11-10 10:10 | Boots (459393335503) | Candidate Experience Discussion, 10 Nov with Jason | In Progress (SDR actively working) | nobody (no SDR Owner, meeting created by Jason) | — | for Arushi |
 
 Notes from the first sweep (10 Nov):
