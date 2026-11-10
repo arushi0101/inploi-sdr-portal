@@ -15,3 +15,5 @@
 | 2026-11-10 02:07 | Rowda Abdi (demo request, contact 918182865100, converted 01:23 UTC, abdiroodaabdi@gmail.co, company field "Kiwi for Gmail") | form | none (personal email, no real company) | existing owner: contact already owned by James; no company created, no SDR Insights (likely job seeker / mistaken fill). Posted gently in #inbound-leads for James to check | existing owner |
 
 - 2026-11-10 13:55 UTC: Form: Hiring Experience Audit, Clare Mortimer (905364582620) at AJ Bell (422374444246), converted 11:40 UTC. Existing owner Evan, not round-robin. SDR Insights filled (ICP REVIEW/LOW; ATS SmartRecruiters inferred because ajbell.co.uk was blocked in the session). Posted in #inbound-leads, tagging Evan.
+
+- 2026-11-10 14:10 UTC: Visit: Manchester Metropolitan University (alert ts 1794318914.236189). Claude in Slack scored it 1/10; the visit was referred from jobs.wagamama.uk, so it's likely a candidate. Below 6/10, so it was logged only: no post and no HubSpot change.
