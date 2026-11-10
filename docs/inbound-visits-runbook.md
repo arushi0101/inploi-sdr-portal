@@ -188,4 +188,9 @@ HubSpot is **not** changed. The responsible SDR gets a polite DM asking them to 
 - **Timing:** only on weekdays, 09:00 to 17:30 London time.
 - **Reminders:** don't re-DM about the same company within 2 working days. After that, send one gentle reminder at most, then stop and list the company for Arushi.
 - **Resolved:** when the status becomes Meeting Booked, log it as resolved.
+- **Open deals (Arushi, 10 Nov):**
+  - A company with an **open deal** (`hs_is_closed` false) and status New, In Progress, Inbound, Nurture, Exhausted, Not Interested or empty: ask for **Open Opportunity**.
+  - A company with only an upcoming meeting: ask for **Meeting Booked**.
+  - "Meeting Booked" plus an open deal is not flagged.
+  - Who gets the DM: the SDR Owner, else the deal's SDR beneficiary. If neither, nobody is DM'd and the company is listed for Arushi.
 - **Logging:** all of this goes in `docs/account-status-nudges-log.md`. Nothing is posted in channels.
