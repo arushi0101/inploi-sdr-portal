@@ -248,3 +248,11 @@ Every hourly run, read the replies under the last 7 days of "_SDR routing_" post
 - If an SDR says a lead isn't worth pursuing, set the contact's Lead Status to Unqualified (only if empty) and add a short note.
 - If a reply changes how we should route, update this runbook, and say so in a short, warm thank-you reply in the thread.
 - List the day's feedback in the end-of-day round-up to Arushi's DM.
+
+## AE conversations: visits and forms (Arushi, 11 Nov 2026)
+The in-meeting rule now covers **website visits as well as forms**. If the company has an open deal owned by Jason or Felix, or
+had a meeting with them in the last 14 days or has one booked:
+- Post to the AE as a **positive-intent signal**, e.g. "Lovely signal for <AE>: <Contact> was back on the site ahead of
+  <next step> 🎉". Point out that the interest is good news.
+- **Don't mention ICP fit or scores** in these posts, and don't ask SDRs to follow up ("nothing needed from <SDR>").
+- Add the Context line (last touch and next step) so the AE has what they need.
