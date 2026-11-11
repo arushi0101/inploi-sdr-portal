@@ -267,3 +267,20 @@ the SDR Owner (`sdr_beneficiary_s_`). The hourly deal-owner check now includes t
 - Leave older or customer deals where Jake is the real owner (e.g. Wagamama) alone.
 
 Example: SpaMedica (535012857072), fixed 11 Nov. Evan booked it with Felix, so the SDR Owner was changed from Jake to Evan and the deal owner from Jake to Felix.
+
+## Deal hygiene audit (Arushi, 11 Nov 2026)
+Every hourly run checks open discovery deals created in the last 30 days for these errors, and fixes them where the evidence is clear:
+1. **Deal owner is an SDR, Jake Donald, or empty** → move it to the AE taking the meeting (meeting owner/attendee, else "with Jason/Felix"
+   in the #grwth "Meeting Booked" post, else the AE who posted the booking themselves).
+2. **SDR Owner (`sdr_beneficiary_s_`) is empty or Jake** → set it to the SDR who booked: the author of the #grwth "Meeting Booked" post
+   if they're an SDR, else the SDR who created the meeting. If the booking came from an AE or from marketing (e.g. "Booked by Alex from the event"),
+   leave it empty, or as the AE if it's already set that way. Don't credit an SDR.
+3. **Unclear** (e.g. the #grwth post author and the SDR Owner disagree) → change nothing and list it for Arushi once.
+
+Fixed in the first audit (11 Nov):
+- SpaMedica: Jake → Felix (owner) and Evan (SDR Owner).
+- Hesley Group: empty → Felix (owner) and Evan (SDR Owner), from Evan's #grwth post on 28 Oct.
+- Gleeds: empty → Felix (owner). Alex booked it from the event, so there's no SDR credit.
+
+Listed for Arushi:
+- Pets At Home: Felix posted the booking himself, but the SDR Owner is Matthew.
