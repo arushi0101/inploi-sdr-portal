@@ -196,3 +196,19 @@ HubSpot is **not** changed. The responsible SDR gets a polite DM asking them to 
 The workflow is built in HubSpot by Arushi. It is deal-based:
 - **Enrolment:** Is closed = false, and the associated company's Account Status is New, In Progress (SDR actively working), Inbound, Nurture, Exhausted, Not Interested or unknown. Re-enrolment is on.
 - **Action:** edit the associated company and set Account Status = Open Opportunity.
+
+## In-meeting submissions: AE stays on point (Evan, 10 Nov 2026)
+AEs often run the Hiring Experience Audit live during a call, and the report is emailed in the meeting. That unlock is part of the
+conversation, not a fresh inbound, and an SDR follow-up would cross the AE's. Before routing any form submission, check:
+- **In-meeting:** the contact or their company had a meeting (any owner) starting within 3 hours before or 1 hour after the
+  conversion time; or
+- **Live AE deal:** the company has an open deal owned by Jason (1709905072) or Felix (511871441).
+
+If either is true:
+- Don't ask the SDR to follow up and don't use the SLA line.
+- The AE who held the meeting, or owns the deal, is on point.
+- Post one short FYI in #inbound-leads: "<Contact> unlocked the audit during/after the call with <AE>, nothing needed from SDRs, just for visibility", with no tags.
+- Fill SDR Insights and the company note as usual, with Point = the AE and Routing = "in-meeting (AE on point)".
+- In the end-of-day form round-up, show Point: the AE and the same "no SDR follow-up needed" line.
+
+Example: AJ Bell, 10 Nov. Clare Mortimer's audit unlock at 11:40 came from Felix running it live in the 11:00 intro.
