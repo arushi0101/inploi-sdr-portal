@@ -232,6 +232,16 @@ Put the result in the post as one short **Contact check** line, e.g.
 Keep the verdict kind and factual. If it looks like a vendor or spam, say so gently and suggest it's fine to skip.
 Use Clay for the person lookup, not Apollo (Arushi, 11 Nov).
 
+### HubSpot comms context (Arushi, 11 Nov)
+Before every routing post (forms and 6/10+ visits), read the last 90 days of activity on the contact and the company: emails,
+calls, meetings, notes and open deals (newest first). Add one short **Context** line so nobody has to dig:
+- the last touch: who, when and what (e.g. "Felix emailed intro follow-up + next steps, 10 Nov");
+- what's in play: an open deal and its stage, the next meeting and its date, any agreed next step;
+- warning signs: an active conversation with someone else (in-meeting rule), recently disqualified, or "not interested".
+
+If there's no history, say "No previous contact in HubSpot". Summarise only; never paste personal phone numbers, personal emails
+or private note text into Slack.
+
 ## Replies to routing posts (Arushi, 11 Nov 2026)
 Every hourly run, read the replies under the last 7 days of "_SDR routing_" posts in #inbound-leads and #inbound-visits.
 - Log each SDR or AE reply in `docs/inbound-visits-log.md` with the outcome: worked, not worth it, covered by an AE, wrong person, and so on.
