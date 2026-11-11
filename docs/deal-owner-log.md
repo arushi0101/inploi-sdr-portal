@@ -19,3 +19,5 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 | 2026-11-09 12:30 | Fortnum and Mason **company** (6485223872) | Account status Disqualified, no SDR Owner | **Continuation** (reason "Other (see notes)", follow-up 11 Nov 2026), SDR Owner Nikita | Arushi: no-show, back to SDR to rebook | Note 541152859351 + task 541139108050 for Nikita (due 11 Nov 09:00 UTC) |
 
 - 2026-11-10 13:54 UTC: Bill's Restaurants deal 538608048346 moved from Evan (29569626) to Felix (511871441). AE taken from the calendar invite "Bill's Restaurant x inploi | Intro Chat … (Felix Dealtry)", 2 Feb 2027. SDR beneficiary stays Evan. No confirmation posted.
+
+- 2026-11-11 17:48 UTC: SpaMedica deal 535012857072 (Emerson flagged it). The SDR Owner (sdr_beneficiary_s_) was changed from Jake Donald (1221748725) to Evan (29569626), and the deal owner from Jake to Felix (511871441). Evan booked the intro (meeting 537167349969, 12 Nov 14:30) "with Felix" (#grwth post). The hourly routing missed it because it only checked SDR-owned deals; the rule now covers Jake-owned deals too.

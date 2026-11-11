@@ -256,3 +256,14 @@ had a meeting with them in the last 14 days or has one booked:
   <next step> 🎉". Point out that the interest is good news.
 - **Don't mention ICP fit or scores** in these posts, and don't ask SDRs to follow up ("nothing needed from <SDR>").
 - Add the Context line (last touch and next step) so the AE has what they need.
+
+## Deals created under Jake Donald (Emerson, 11 Nov 2026)
+HubSpot's "New Discovery Meeting Booked" flow sometimes creates the deal with **Jake Donald (1221748725)** as both the deal owner and
+the SDR Owner (`sdr_beneficiary_s_`). The hourly deal-owner check now includes these deals as well as SDR-owned ones:
+- **Open deals** where the owner or the SDR Owner is Jake, created in the last 30 days, with a discovery meeting.
+- **Credited SDR:** the person who booked the meeting (meeting creator or owner, if they're an SDR), else whoever posted "Meeting Booked" in #grwth.
+  Set `sdr_beneficiary_s_` to that SDR, overwriting Jake (Emerson approved this).
+- **Deal owner:** the AE taking the meeting, using the usual AE rules. Change nothing else.
+- Leave older or customer deals where Jake is the real owner (e.g. Wagamama) alone.
+
+Example: SpaMedica (535012857072), fixed 11 Nov. Evan booked it with Felix, so the SDR Owner was changed from Jake to Evan and the deal owner from Jake to Felix.
