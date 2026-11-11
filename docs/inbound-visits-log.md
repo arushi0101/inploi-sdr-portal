@@ -17,3 +17,8 @@
 - 2026-11-10 13:55 UTC: Form: Hiring Experience Audit, Clare Mortimer (905364582620) at AJ Bell (422374444246), converted 11:40 UTC. Existing owner Evan, not round-robin. SDR Insights filled (ICP REVIEW/LOW; ATS SmartRecruiters inferred because ajbell.co.uk was blocked in the session). Posted in #inbound-leads, tagging Evan.
 
 - 2026-11-10 14:10 UTC: Visit: Manchester Metropolitan University (alert ts 1794318914.236189). Claude in Slack scored it 1/10; the visit was referred from jobs.wagamama.uk, so it's likely a candidate. Below 6/10, so it was logged only: no post and no HubSpot change.
+
+- 2026-11-10 16:06 UTC: Visit: Salford City College Group (alert ts 1794322230.016789). Claude in Slack 1/10, likely a candidate via jobs.wagamama.uk. Logged only.
+- 2026-11-10 16:06 UTC: Visit: Maki & Ramen (alert ts 1794325560.524389). Claude in Slack 7/10; existing owner Evan. The thread reply was held overnight because approvals were interrupted, then scheduled for 11 Nov 09:00 UK.
+- 2026-11-10 17:06 UTC: Form: demo request from Sohaila elsheikh (919003864254), Software Finder, owner Nikita (HubSpot-assigned). Likely a software-directory vendor pitch, so no company was created. #inbound-leads heads-up scheduled for 11 Nov 09:00 UK. Existing owner.
+- 2026-11-11 07:08 UTC: End of day for 10 Nov (run late). AJ Bell: SDR Owner set to Evan Williams (was empty); form-submission note 542461977806 added. Both round-ups (#inbound-visits and #inbound-leads) scheduled for 11 Nov 09:01 UK.
