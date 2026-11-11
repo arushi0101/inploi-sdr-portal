@@ -217,7 +217,9 @@ Example: AJ Bell, 10 Nov. Clare Mortimer's audit unlock at 11:40 came from Felix
 SDRs shouldn't have to verify a lead themselves before they can judge it. Before posting a form submission, check the person:
 1. **Email domain:** a work domain matching the company, a personal address (gmail etc.), or a vendor, agency or software directory
    (e.g. softwarefinder.com, Capterra, G2, recruiters, agencies) that is likely selling to us.
-2. **Person:** web-search "<name>" "<company>" plus LinkedIn. Record the title and LinkedIn URL if found, or "not found online".
+2. **Person (Clay first, Arushi 11 Nov):** run Clay `search-contacts-by-name` with the name and the email domain. If found, use the
+   current title and LinkedIn URL in the post. If Clay finds the company but not the person, say "not found at <company>".
+   Use Clay's company description to spot vendors and directories. If needed, web-search "<name>" "<company>" plus LinkedIn as well.
    Flag it if the name only matches someone at a different company or in a different country.
 3. **Phone:** the country and area from the dialling code compared with the company's location (e.g. +1 213 is Los Angeles).
    Flag a mismatch.
@@ -228,7 +230,7 @@ Put the result in the post as one short **Contact check** line, e.g.
 "Contact check: verified, Head of Talent on LinkedIn, work email ✅" or "Contact check: couldn't verify. No LinkedIn match,
 +1 (LA) number on a listing-site email, likely a vendor pitch 🙏".
 Keep the verdict kind and factual. If it looks like a vendor or spam, say so gently and suggest it's fine to skip.
-Paid Apollo enrichment (1 credit per person) is only used once Arushi approves it.
+Use Clay for the person lookup, not Apollo (Arushi, 11 Nov).
 
 ## Replies to routing posts (Arushi, 11 Nov 2026)
 Every hourly run, read the replies under the last 7 days of "_SDR routing_" posts in #inbound-leads and #inbound-visits.
