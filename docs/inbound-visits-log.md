@@ -28,3 +28,4 @@
 - 2026-11-11 11:07 UTC: Visit: Newham Foundation (alert ts 1794393388.435609). Claude in Slack scored it 1/10: a property charity with no staff, and the visit came via jobs.wagamama.uk. No AE conversation, so it was logged only. No new forms, deal moves, meetings or replies.
 - 2026-11-11 12:09 UTC: Hourly run: nothing new (no visits, forms, deal moves or meetings). Reply logged: Evan acknowledged the Maki & Ramen update ('Thanks Arushi'), outcome: handled by the AE (Jason). The Software Finder feedback was already logged.
 - 2026-11-11 13:09 UTC: Hourly run: no new visits, forms, deal moves or replies. New meetings Hesley pricing (Felix, 20 Nov) and Müller product demo (Jason, 10 Dec) both have open deals, so no status nudge (the workflow handles them).
+- 2026-11-11 14:09 UTC: Hourly run: no new visits, forms, deal moves or replies. New meeting: MTC demo (Jason, 8 Dec), which has an open deal, so no nudge.
