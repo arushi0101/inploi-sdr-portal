@@ -273,7 +273,7 @@ Every hourly run checks open discovery deals created in the last 30 days for the
 1. **Deal owner is an SDR, Jake Donald, or empty** → move it to the AE taking the meeting (meeting owner/attendee, else "with Jason/Felix"
    in the #grwth "Meeting Booked" post, else the AE who posted the booking themselves).
 2. **SDR Owner (`sdr_beneficiary_s_`) is empty or Jake** → set it to the SDR who booked: the author of the #grwth "Meeting Booked" post
-   if they're an SDR, else the SDR who created the meeting. If the booking came from an AE or from marketing (e.g. "Booked by Alex from the event"),
+   if they're an SDR, else the SDR who created the meeting. If an AE booked it themselves,
    credit the AE's pod SDR (Felix → Matthew Meehan, Jason → James Crawford; Arushi, 12 Nov). Marketing/event bookings with no SDR or AE booker (e.g. "Booked by Alex from the event") stay empty. Never put an AE in SDR Owner.
 3. **Unclear** (e.g. the #grwth post author and the SDR Owner disagree) → change nothing and list it for Arushi once.
 
