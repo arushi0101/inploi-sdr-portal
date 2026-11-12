@@ -11,9 +11,9 @@ Result: 208 Keep, 245 Remove, 4 no decision. Applied on 12 Nov by Claude (Arushi
 - 227 Remove: SDR Owner cleared, Account Status set to New.
 - 11 Remove that were already Disqualified: SDR Owner cleared, status left Disqualified (so they aren't picked up again).
 - 3 Remove that are current clients (Bloom Energy, Browns Brasserie & Bar, LSS Facilities): SDR Owner cleared, status unchanged until Account Status has a Current Client option.
-- Not changed, to check with Matt: KPMG UK, V&C (Meeting Booked), Harding+, Insanity (Open Opportunity), all marked Remove.
-- Not changed (no decision): chec.uk, Norwood, Rubix, West Lothian Council.
-- Every record was checked to still have Matt as SDR Owner before the write (0 skipped) and re-read afterwards (0 mismatches). Matt now has 217 companies.
+- KPMG UK, V&C (Meeting Booked), Harding+, Insanity (Open Opportunity) were marked Remove but left unchanged; Matt confirmed on 12 Nov to keep them.
+- chec.uk, Norwood, Rubix, West Lothian Council had no decision; Matt confirmed on 12 Nov to remove them (applied 13:28 UTC, below).
+- Every record was checked to still have Matt as SDR Owner before the write (0 skipped) and re-read afterwards (0 mismatches). Matt now has 213 companies.
 
 | Company | HubSpot ID | Status before | Change |
 |---|---|---|---|
@@ -258,3 +258,7 @@ Result: 208 Keep, 245 Remove, 4 no decision. Applied on 12 Nov by Claude (Arushi
 | Seashell | [394561624254](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/394561624254) | Disqualified | SDR Owner cleared (disqualified, status kept) |
 | University Of The West Of England | [199883268284](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/199883268284) | Disqualified | SDR Owner cleared (disqualified, status kept) |
 | Womble Bond Dickinson (UK) LLP | [422537322741](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/422537322741) | Disqualified | SDR Owner cleared (disqualified, status kept) |
+| chec.uk | [226336440519](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/226336440519) | In Progress (SDR actively working) | SDR Owner cleared, status New (12 Nov, Matt's follow-up) |
+| Norwood | [422542194932](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/422542194932) | In Progress (SDR actively working) | SDR Owner cleared, status New (12 Nov, Matt's follow-up) |
+| Rubix | [381832597690](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/381832597690) | In Progress (SDR actively working) | SDR Owner cleared, status New (12 Nov, Matt's follow-up) |
+| West Lothian Council | [199900947681](https://app-eu1.hubspot.com/contacts/25735731/record/0-2/199900947681) | In Progress (SDR actively working) | SDR Owner cleared, status New (12 Nov, Matt's follow-up) |
