@@ -274,7 +274,7 @@ Every hourly run checks open discovery deals created in the last 30 days for the
    in the #grwth "Meeting Booked" post, else the AE who posted the booking themselves).
 2. **SDR Owner (`sdr_beneficiary_s_`) is empty or Jake** → set it to the SDR who booked: the author of the #grwth "Meeting Booked" post
    if they're an SDR, else the SDR who created the meeting. If the booking came from an AE or from marketing (e.g. "Booked by Alex from the event"),
-   leave it empty, or as the AE if it's already set that way. Don't credit an SDR.
+   leave it empty. Don't credit an SDR, and never put an AE in SDR Owner.
 3. **Unclear** (e.g. the #grwth post author and the SDR Owner disagree) → change nothing and list it for Arushi once.
 
 Fixed in the first audit (11 Nov):
@@ -282,5 +282,11 @@ Fixed in the first audit (11 Nov):
 - Hesley Group: empty → Felix (owner) and Evan (SDR Owner), from Evan's #grwth post on 28 Oct.
 - Gleeds: empty → Felix (owner). Alex booked it from the event, so there's no SDR credit.
 
-Listed for Arushi:
-- Pets At Home: Felix posted the booking himself, but the SDR Owner is Matthew.
+Resolved by Arushi (12 Nov):
+- Pets At Home: Felix stays deal owner (AE) and Matthew keeps the SDR credit. When an AE posts the booking but an SDR is already set, keep the SDR.
+
+### Roles (Arushi, 12 Nov 2026)
+- **AEs (always the deal owner):** Felix Dealtry (511871441), Jason Baaphy (1709905072).
+- **SDRs (the only people who go in SDR Owner / `sdr_beneficiary_s_`):** James Crawford (29569627), Matthew Meehan (32364701), Nikita (29569628), Evan Williams (29569626).
+- Every open sales-pipeline deal's owner is an AE, and SDR Owner holds an SDR or stays empty, never an AE.
+- Deals that already have an AE as SDR Owner aren't changed automatically. They're listed for Arushi: Culina Group, Ole & Steen, Bristol Airport, Popeyes UK, and V&C (closed).

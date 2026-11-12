@@ -26,3 +26,5 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
   - Gleeds (535103251650): owner empty → Felix; SDR Owner left empty (Felix's post says "Booked by Alex from the event").
   - Not changed, for Arushi: Pets At Home (538179273970). Felix posted the booking himself on 9 Nov, but the SDR Owner is Matthew.
   - Checked and correct: Culina, Ole & Steen, Bristol Airport and Popeyes have Felix as SDR Owner because Felix booked them himself or they came in inbound to him.
+
+- 2026-11-12 08:20 UTC: Arushi confirmed the roles: AEs (Felix, Jason) always own deals, and SDRs (Matthew, James, Nikita, Evan) get the SDR credit. Pets At Home is resolved as it stands (owner Felix, SDR Owner Matthew), so no change was needed. All 19 open sales-pipeline deals since 1 Sep already have an AE as owner. Felix is SDR Owner on Culina Group, Ole & Steen, Bristol Airport, Popeyes UK and V&C (closed); I asked Arushi before changing them.
