@@ -274,7 +274,7 @@ Every hourly run checks open discovery deals created in the last 30 days for the
    in the #grwth "Meeting Booked" post, else the AE who posted the booking themselves).
 2. **SDR Owner (`sdr_beneficiary_s_`) is empty or Jake** → set it to the SDR who booked: the author of the #grwth "Meeting Booked" post
    if they're an SDR, else the SDR who created the meeting. If the booking came from an AE or from marketing (e.g. "Booked by Alex from the event"),
-   leave it empty. Don't credit an SDR, and never put an AE in SDR Owner.
+   credit the AE's pod SDR (Felix → Matthew Meehan, Jason → James Crawford; Arushi, 12 Nov). Marketing/event bookings with no SDR or AE booker (e.g. "Booked by Alex from the event") stay empty. Never put an AE in SDR Owner.
 3. **Unclear** (e.g. the #grwth post author and the SDR Owner disagree) → change nothing and list it for Arushi once.
 
 Fixed in the first audit (11 Nov):
@@ -289,4 +289,5 @@ Resolved by Arushi (12 Nov):
 - **AEs (always the deal owner):** Felix Dealtry (511871441), Jason Baaphy (1709905072).
 - **SDRs (the only people who go in SDR Owner / `sdr_beneficiary_s_`):** James Crawford (29569627), Matthew Meehan (32364701), Nikita (29569628), Evan Williams (29569626).
 - Every open sales-pipeline deal's owner is an AE, and SDR Owner holds an SDR or stays empty, never an AE.
-- Deals that already have an AE as SDR Owner aren't changed automatically. They're listed for Arushi: Culina Group, Ole & Steen, Bristol Airport, Popeyes UK, and V&C (closed).
+- **Pods:** an AE's own booking credits their pod SDR: Felix → Matthew Meehan (Sales Pod 2), Jason → James Crawford (Sales Pod 1). The dashboard uses the same pairing.
+- 12 Nov: SDR Owner changed from Felix to Matthew on Culina Group, Ole & Steen, Bristol Airport, Popeyes UK and V&C (Arushi).
