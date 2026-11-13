@@ -38,3 +38,4 @@
 - 2026-11-12 18:08 UTC: Hourly run: no new visits, forms or replies. New deal "Haven AI Expansion" (539885645023, owner Felix, no SDR credit) is an expansion deal for an existing customer, with no #grwth booking post, so it's left as is, like AIG, Boots and MHA.
 - 2026-11-12 23:08 UTC: Visit: The Raise Up Foundation (alert ts 1794522648.072439, visit 22:24). Claude in Slack scored it 1/10: a volunteer-run Luton charity, and the geo-IP may be wrong. Not in HubSpot and no AE conversation, so it was logged only. No new forms, deals or replies.
 - 2026-11-13 09:08 UTC: Hourly run: no new visits, forms, deals or replies. Status nudge: DM'd Matthew about FIFA (status empty, meeting 18 Nov). Skipped Jason's 'Catch Up and Q&A' meeting (a catch-up).
+- 2026-11-13 11:12 UTC: Hourly runs 10:07–11:08: no new visits, forms or replies. FIFA status is now Open Opportunity (Matthew); nudge resolved.
