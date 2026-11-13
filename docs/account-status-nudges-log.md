@@ -13,3 +13,4 @@ Notes from the first sweep (10 Nov):
 - No7 Beauty (463734423771) is linked to the Boots meeting. It was auto-created on 9 Nov and has no status; not nudged.
 - The Crick Institute demo (25 Nov) has no company associated in HubSpot.
 - All other prospect meetings were already Meeting Booked or Open Opportunity.
+| 2026-11-13 09:07 | FIFA (448944047302) | "Felix x Mark", 18 Nov with Felix | empty | Matthew (pod SDR) | 1794560847.792979 | open |
