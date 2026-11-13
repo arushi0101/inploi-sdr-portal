@@ -33,3 +33,4 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 - 2026-11-13 08:11 UTC: FIFA (448944047302): SDR Owner set to Matthew Meehan (was empty), per Arushi's pod rule (Felix's meeting goes to Felix's pod). Company owner (Annie) left as is.
 - 2026-11-13 11:11 UTC: FIFA deal (541282858230), created 13 Nov 09:36: owner Felix (correct). SDR Owner was Felix (an AE), changed to Matthew Meehan under the pod rule. This was attempted at 10:07, but a worker restart interrupted it.
 - 2026-11-13 15:52 UTC: BBC (541154735313): deal owner Nikita → Jason (Nikita's #grwth post 13 Nov says 'Assigned: Jason'; Jason owns the 23 Nov intro meeting). SDR Owner empty → Nikita (she booked it).
+- 2026-11-13 18:15 UTC: BBC (deal 541154735313): Arushi sent the credit question herself (Matt, Joseph and Emerson, plus a heads-up to Nikita). Still on hold: deal owner Jason, SDR credit Nikita. No change until a decision comes back.
