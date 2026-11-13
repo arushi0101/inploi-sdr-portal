@@ -29,6 +29,23 @@ Nikita Rohwer (U091M9CPELB, 29569628), Evan Williams (U091M9BGVH9, 29569626).
 - Every reply ends with `_SDR routing_` so a thread is never handled twice.
 - Every action is listed in `docs/inbound-visits-log.md` (when, company, ICP score, HubSpot record, what was done, who was tagged).
 
+### 3b. Contacts for every 6/10+ visit (Arushi, 13 Nov 2026)
+Do this for every company that scores 6/10 or more, before replying in the thread.
+1. **Never create duplicates.** Search the company by name variants, domain and the Dealfront "View in HubSpot" link before creating it. Search each contact by email, then by full name and company, before creating it.
+2. **Existing contacts:** list the contacts on the company record. Also search contacts whose email domain matches the company domain, or whose Company Name field matches, but which aren't linked yet. **Associate every one of them with the company record.**
+3. **Most recent touch:** across those contacts and the company, find the latest email, call, meeting or note in the last 90 days. Record who on our side, when, which contact, and what it was about, as a one-line summary. Never paste private note text or personal contact details into Slack.
+4. **No contacts in HubSpot:** find the best-fit person to approach with Clay. Prefer Head of Talent Acquisition, TA or Recruitment Manager, Head of Resourcing, then HR Director or People Director (UK-based where possible).
+   - Use `search-contacts` for the company domain and these titles, then `add-contact-data-points` for a work email.
+   - Create the contact in HubSpot with first name, last name, job title, work email (only if Clay returns one) and LinkedIn URL.
+   - Set the contact owner to the company's SDR. Associate the contact with the company.
+   - Don't use Apollo. Never invent an email. If Clay finds no one, say so in the post.
+5. **In the thread reply**, tag the SDR as usual and add:
+   - *Contacts:* the number in HubSpot (and how many were newly linked), the best person to approach (name and title) with a contact link, and "new in HubSpot, found via Clay" when it's a new contact.
+   - *Context:* the most recent touch (who, when, what), or "No previous contact in HubSpot".
+6. **Log** in `docs/inbound-visits-log.md`:
+   - Contact IDs created or linked, and which one is the suggested person.
+   - Only IDs, never emails or phone numbers.
+
 ## Form submissions (added 9 Nov 2026): demo requests and audit unlocks
 Checked in the same hourly run. Forms:
 - **Contact Us Form Website V2** (book a demo, form 333cdbe8-14af-4312-9272-fce963d20097): conversion name starts "Book a demo · inploi"
