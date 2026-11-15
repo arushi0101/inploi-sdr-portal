@@ -11,6 +11,10 @@ const SDRS = [
 const SDR_IDS = SDRS.map(s => s.id);
 const OWNER_NAMES = { '1709905072': 'Jason Baaphy', '511871441': 'Felix Dealtry', '32978778': 'Annie Claassens', '511871465': 'Matt de la Hey', '36304602': 'Joseph Williams' };
 SDRS.forEach(s => { OWNER_NAMES[s.id] = s.name; });
+// Agreed exceptions to the usual SDR credit rules, keyed by HubSpot company ID. Shown as a note on the dashboard.
+const CREDIT_NOTES = {
+  '387891749106': 'BBC: credited to Nikita (account owner) although Jason booked it. Agreed with Matt, Joseph and Emerson, confirmed by Arushi 15 Nov 2026.'
+};
 
 // Call outcome ids
 const DISP = {
@@ -434,6 +438,7 @@ async function build(q) {
       title = mt.t; by = OWNER_NAMES[mt.owner] || 'Someone else'; d = nice(sIso); ds = sIso; heldWk = done && mt.start >= P.wk.start && mt.start < P.today + 86400000;
       if (gh && !/COMPLETED/i.test(mt.out)) xx = ['warn', 'Held per Gong; outcome not updated'];
     }
+    if (CREDIT_NOTES[id]) xx = ['info', CREDIT_NOTES[id] + (xx ? '; ' + xx[1] : '')];
     const row = { c: c.name, id: Number(id), now: c.status, m: title, s: c.sdr.k, by, d, ds, booked: nice(iso(at)), bs: iso(at), kind: 'Meeting booked ' + nice(iso(at)), o, x: xx, wk: at >= P.wk.start || (mt && mt.start >= P.wk.start && mt.start < P.wk.start + 7 * 86400000), bookedWk: at >= P.wk.start, heldWk: false };
     if (inTable[id]) { inTable[id].now = row.now; inTable[id].kind = row.kind; inTable[id].bs = row.bs; inTable[id].booked = row.booked; inTable[id].bookedWk = row.bookedWk; inTable[id].wk = inTable[id].wk || row.wk; } else MEETINGS.push(row);
   });
@@ -754,7 +759,7 @@ async function buildMatt(q) {
   const DEALS = dealsRaw.map(d => { const p = d.properties;
     return { id: d.id, n: (p.dealname || '').replace(/&amp;/g, '&'), s: sdrIx(p.sdr_beneficiary_s_), st: stageLabel[p.dealstage] || p.dealstage || '', so: stageOrder[p.dealstage] != null ? stageOrder[p.dealstage] : 99,
       amt: Number(p.amount || 0), arr: p.hs_arr ? Number(p.hs_arr) : null, cr: toMs(p.createdate), cl: toMs(p.closedate), closed: p.hs_is_closed === 'true', won: p.hs_is_closed_won === 'true',
-      next: p.hs_next_step || '', acc: p.meeting_accepted === 'true', ae: ownerName(p.hubspot_owner_id), co: (dCo[d.id] || [])[0] || null }; }).filter(d => d.s >= 0);
+      next: p.hs_next_step || '', acc: p.meeting_accepted === 'true', ae: ownerName(p.hubspot_owner_id), co: (dCo[d.id] || [])[0] || null, cn: CREDIT_NOTES[(dCo[d.id] || [])[0]] || '' }; }).filter(d => d.s >= 0);
   DEALS.forEach(d => { if (d.co && !CO[d.co]) CO[d.co] = null; });
 
   // Partner, event and inbound leads (the other three streams)
