@@ -76,14 +76,19 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
  '.fm-dr-p{background:var(--bg);width:min(720px,100%);height:100%;overflow-y:auto;box-shadow:-12px 0 32px rgba(0,0,0,.18);animation:fmSlide .2s ease}@keyframes fmSlide{from{transform:translateX(24px)}}'+
  '.fm-dr-p header{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--line);padding:16px 20px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;z-index:1}.fm-dr-p h3{margin:0 0 2px;font-family:var(--f-display)}.fm-dr-p header span{font-size:.8rem;color:var(--muted)}'+
  '.fm-dr-b{padding:16px 20px 40px;display:grid;gap:10px}.fm-li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:6px}.fm-li-h{display:flex;justify-content:space-between;gap:10px}.fm-li-m{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.8rem;color:var(--muted);align-items:center}.fm-li-m .fm-sub{display:inline;margin-left:6px}'+
+ '.fm-as{display:flex;gap:6px;align-items:center}.fm-as select{font:inherit;font-size:.82rem;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:5px 6px;cursor:pointer}.fm-as .fm-btn{padding:5px 10px}.fm-btn:disabled,.fm-as select:disabled{opacity:.6;cursor:default}'+
+ '.fm-t td{white-space:normal}.fm-ctx{display:block;min-width:170px;max-width:240px}'+
+ '.fm-why{font-size:.8rem;color:var(--fg);display:block;min-width:160px;max-width:220px}'+
+ '.fm-toast{position:sticky;top:8px;z-index:20;background:var(--ok-bg);color:var(--ok-fg);border-radius:10px;padding:10px 14px;font-size:.86rem;font-weight:500;box-shadow:var(--fm-shadow);animation:fmIn .2s ease}'+
  '.fm-skel{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--bg),var(--line),var(--bg));background-size:200% 100%;animation:fmSk 1.2s infinite}@keyframes fmSk{to{background-position:-200% 0}}'+
  '@media (max-width:620px){.fm-card{padding:14px}.fm-tabs{margin:-4px -14px 12px;padding:0 14px}}'+
  '</style>');
 
 function slot(){var el=document.getElementById('formsView');if(el)return el;var any=document.querySelector('.view');if(!any)return null;
   el=document.createElement('section');el.className='view';el.dataset.view='forms';el.id='formsView';el.hidden=true;any.parentNode.appendChild(el);return el;}
+function bust(){try{var b=Number(localStorage.getItem('fmBust')||0);return Date.now()-b<600000?'&b='+b:'';}catch(x){return '';}}
 function load(){if(LOADING)return;LOADING=true;ERR=null;
-  fetch('api/data?part=forms&days='+DAYS).then(function(r){return r.json();}).then(function(d){if(d&&d.external)DATA=d;else ERR=(d&&(d.message||d.error))||'no data';})
+  fetch('api/data?part=forms&days='+DAYS+bust()).then(function(r){return r.json();}).then(function(d){if(d&&d.external)DATA=d;else ERR=(d&&(d.message||d.error))||'no data';})
   .catch(function(x){ERR=String(x&&x.message||x);}).then(function(){LOADING=false;draw();});}
 function loadHist(){if(HLOADING||HIST)return;HLOADING=true;
   fetch('api/data?part=formshist&months=13').then(function(r){return r.json();}).then(function(d){if(d&&d.rows)HIST=d;else HERR=(d&&(d.message||d.error))||'no data';})
@@ -178,9 +183,28 @@ function sel(k,label,opts,v){return '<label class="fm-f">'+label+'<select data-r
 /* ---------- leads ---------- */
 function pill(r){return '<span class="fm-pill'+(r.form==='demo'?' fm-p-demo':'')+'">'+e(r.formLabel)+'</span>'+(r.site?'<span class="fm-sub">'+e(r.site)+'</span>':'');}
 function who(r){return '<a href="'+HSB+'0-1/'+e(r.id)+'" target="_blank" rel="noopener"><b>'+e(r.name)+'</b></a>'+(r.title?'<span class="fm-sub">'+e(r.title)+'</span>':'');}
+var SDRLIST=[['29569627','James'],['32364701','Matthew'],['29569628','Nikita'],['29569626','Evan']],SAVING={},TOAST='';
+function why(r){var o=r.owner||'',t;
+  if(r.spam)t='Likely spam'+(r.note?': '+r.note.toLowerCase():'');
+  else if(!r.ownerId)t='No contact owner in HubSpot';
+  else if(/\(left\)/.test(o))t='Owner has left inploi ('+o.replace(' (left)','')+')';
+  else t='Owned by '+o.replace(/ \(.*\)$/,'')+', who isn’t an SDR or AE';
+  var c=r.co||{},D=c.openDeals||[];
+  if(r.bucket==='customer')t+='. Existing customer'+(D[0]?', '+D[0].owner+' has an open deal':'')+': check with them first';
+  else if(r.bucket==='pipeline')t+='. Already in the pipeline'+(D[0]?' with '+D[0].owner:'')+': check with them first';
+  return '<span class="fm-why">'+e(t)+'</span>';}
+function assign(id){var el=document.querySelector('[data-asel="'+id+'"]'),sdr=el&&el.value;if(!sdr){SAVING[id]={err:'Pick an SDR first.'};draw();return;}
+  SAVING[id]={busy:true,sdr:sdr};draw();
+  fetch('api/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contactId:id,sdr:sdr})}).then(function(r){return r.json().catch(function(){return {ok:false,error:'HubSpot didn’t answer'};});})
+  .then(function(d){if(!d.ok){SAVING[id]={sdr:sdr,err:d.error||'Couldn’t save'};draw();return;}
+    try{localStorage.setItem('fmBust',String(Date.now()));}catch(x){}var name=SDRLIST.filter(function(x){return x[0]===sdr;})[0][1];delete SAVING[id];
+    DATA.external.forEach(function(r){if(r.id===id){r.assigned=true;r.ownerId=sdr;r.owner=name;if(r.co&&d.company&&d.company.filled.indexOf('sdr_owner')>=0)r.co.sdr=name;if(r.co&&d.company&&d.company.filled.indexOf('hubspot_owner_id')>=0)r.co.owner=name;r.working=r.working&&r.bucket!=='new'?r.working:name;}});
+    TOAST=(DATA.external.filter(function(r){return r.id===id;})[0]||{}).name+' is now assigned to '+name+' in HubSpot'+(d.company&&d.company.filled.length?' (company '+d.company.filled.map(function(f){return f==='sdr_owner'?'SDR Owner':'Company owner';}).join(' and ')+' filled too)':'')+'.';draw();
+    setTimeout(function(){TOAST='';draw();},6000);})
+  .catch(function(x){SAVING[id]={sdr:sdr,err:String(x&&x.message||x)};draw();});}
 function cname(r){var c=r.co;return c?'<a href="'+HSB+'0-2/'+e(c.id)+'" target="_blank" rel="noopener">'+e(c.name)+'</a>':e(r.company);}
 function ctx(r){var c=r.co||{};var t=r.bucket==='customer'?'<span class="fm-pill fm-p-cust">Existing customer</span>':r.bucket==='pipeline'?'<span class="fm-pill fm-p-pipe">In the pipeline</span>':'<span class="fm-pill fm-p-new">New business</span>';
-  var D=c.openDeals||[];return t+'<span class="fm-sub">Account Status: '+e(c.accountStatus||'empty')+'</span>'+(D.length?'<span class="fm-sub">Open deal: '+D.map(function(d){return e(d.stage)+' ('+e(d.owner)+')';}).join(', ')+'</span>':'');}
+  var D=c.openDeals||[];return '<span class="fm-ctx">'+t+'<span class="fm-sub">Account Status: '+e(c.accountStatus||'empty')+'</span>'+(D.length?'<span class="fm-sub">Open deal: '+D.map(function(d){return e(d.stage)+' ('+e(d.owner)+')';}).join(', ')+'</span>':'')+'</span>';}
 function own(r){var c=r.co||{};return '<b>'+e(c.sdr||r.owner||'None')+'</b><span class="fm-sub">Company owner: '+e(c.owner||'none')+'</span><span class="fm-sub">Working on it: '+e(r.working||'nobody yet')+'</span>';}
 function touch(r){if(!r.touch)return '<span class="muted">None logged</span>';return e(nice(r.touch))+'<span class="fm-sub">'+ago(r.touch)+'</span>';}
 function match(r){if(!Q)return true;return JSON.stringify([r.name,r.company,r.title,r.owner,r.formLabel,r.co&&r.co.name,r.co&&r.co.sdr]).toLowerCase().indexOf(Q)>=0;}
@@ -193,9 +217,10 @@ function leadsHTML(){
   if(TAB==='un'){
     o+='<div class="fm-seg" role="group" aria-label="Filter" style="margin-bottom:12px">'+[['all','All'],['real','Real leads'],['spam','Likely spam']].map(function(f){return '<button type="button" data-ffil="'+f[0]+'" aria-pressed="'+(FILTER===f[0])+'">'+f[1]+'</button>';}).join('')+'</div>';
     var L=un.filter(function(r){return (FILTER==='all'||(FILTER==='spam'?r.spam:!r.spam))&&match(r);});
-    o+=table([['Submitted'],['Form'],['Company'],['Contact'],['Customer or pipeline'],['Current owner'],['Last touch'],['Next step']],
-      L.map(function(r){return '<tr><td>'+e(nice(r.at))+'</td><td>'+pill(r)+'</td><td>'+cname(r)+'</td><td>'+who(r)+'</td><td>'+ctx(r)+'</td><td>'+e(r.owner)+'</td><td>'+touch(r)+'</td><td>'+
-        (r.spam?'<span class="fm-pill fm-p-spam">Likely spam</span>':r.bucket==='new'?'<span class="fm-pill fm-p-warn">Assign an SDR</span>':'<span class="fm-pill">Check with the account owner</span>')+(r.note?'<span class="fm-sub">'+e(r.note)+'</span>':'')+'</td></tr>';}).join(''),8);
+    o+=table([['Submitted'],['Lead'],['Customer or pipeline'],['Current owner'],['Why it isn’t assigned'],['Last touch'],['Assign an SDR']],
+      L.map(function(r){var st=SAVING[r.id];return '<tr><td style="white-space:nowrap">'+e(nice(r.at))+'<div style="margin-top:4px">'+pill(r)+'</div></td><td>'+who(r)+'<span class="fm-sub">'+cname(r)+'</span></td><td>'+ctx(r)+'</td><td>'+e(r.owner)+'</td><td>'+why(r)+'</td><td style="white-space:nowrap">'+touch(r)+'</td><td>'+
+        '<div class="fm-as"><select data-asel="'+e(r.id)+'" aria-label="Assign an SDR to '+e(r.name)+'"'+(st&&st.busy?' disabled':'')+'><option value="">Choose SDR…</option>'+SDRLIST.map(function(x){return '<option value="'+x[0]+'"'+(st&&st.sdr===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('')+'</select>'+
+        '<button type="button" class="fm-btn pri" data-assign="'+e(r.id)+'"'+(st&&st.busy?' disabled':'')+'>'+(st&&st.busy?'Saving…':'Assign')+'</button></div>'+(st&&st.err?'<span class="fm-sub" style="color:var(--bad-fg)">'+e(st.err)+'</span>':'')+'</td></tr>';}).join(''),7);
   } else if(TAB==='as'){
     var order=D.order.slice();as.forEach(function(r){if(order.indexOf(r.owner)<0)order.push(r.owner);});
     o+=table([['Submitted'],['Form'],['Company'],['Contact'],['Customer or pipeline'],['SDR and owners'],['Last touch']],
@@ -262,7 +287,7 @@ function html(){
   var head='<div class="fm-head"><p>Every website form from prospects: demo requests, audit unlocks and other forms, with who owns each lead and where the company stands. Internal and test submissions are kept apart.</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><select class="fm-sel" data-fsel="1" aria-label="Which form">'+formOptions().map(function(x){return '<option value="'+e(x[0])+'"'+(x[0]===FSEL?' selected':'')+'>'+e(x[1])+'</option>';}).join('')+'</select><div class="fm-seg" role="group" aria-label="Period">'+[7,30,90].map(function(d){return '<button type="button" data-fdays="'+d+'" aria-pressed="'+(d===DAYS)+'">'+d+' days</button>';}).join('')+'</div></div></div>';
   if(!DATA)return head+(ERR?'<div class="fm-card"><p class="muted">Couldn’t load form submissions ('+e(ERR)+').</p></div>':'<div class="fm-kpis">'+[1,2,3,4].map(function(){return '<div class="fm-card fm-kpi"><div class="fm-skel" style="width:60%"></div><div class="fm-skel" style="height:28px;width:40%"></div></div>';}).join('')+'</div>')+reportHTML();
-  return head+kpis()+matrixHTML()+reportHTML()+leadsHTML()+drawerHTML()+'<p class="fm-note">Updated '+e(new Date(DATA.generatedAt).toLocaleString('en-GB',{timeZone:'Europe/London',dateStyle:'medium',timeStyle:'short'}))+' UK.</p>';
+  return head+(TOAST?'<div class="fm-toast" role="status">\u2713 '+e(TOAST)+'</div>':'')+kpis()+matrixHTML()+reportHTML()+leadsHTML()+drawerHTML()+'<p class="fm-note">Updated '+e(new Date(DATA.generatedAt).toLocaleString('en-GB',{timeZone:'Europe/London',dateStyle:'medium',timeStyle:'short'}))+' UK.</p>';
 }
 function draw(){var el=slot();if(!el)return;CW=Math.round((el.clientWidth||800)-42);
   var a=document.activeElement,wasSearch=a&&a.classList&&a.classList.contains('fm-search'),pos=wasSearch?a.selectionStart:0;
@@ -272,6 +297,7 @@ function bind(el){
   el.querySelectorAll('[data-fdays]').forEach(function(b){b.onclick=function(){var d=Number(b.dataset.fdays);if(d===DAYS)return;DAYS=d;DATA=null;draw();load();};});
   el.querySelectorAll('[data-ffil]').forEach(function(b){b.onclick=function(){FILTER=b.dataset.ffil;draw();};});
   el.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){TAB=b.dataset.tab;draw();};});
+  el.querySelectorAll('[data-assign]').forEach(function(b){b.onclick=function(){assign(b.dataset.assign);};});
   el.querySelectorAll('[data-drill]').forEach(function(b){b.onclick=function(){openDrill(b.dataset.drill);};});
   el.querySelectorAll('[data-mx]').forEach(function(b){b.onclick=function(){MXBY=b.dataset.mx;draw();};});
   var fs=el.querySelector('[data-fsel]');if(fs)fs.onchange=function(){FSEL=fs.value;R.form=FSEL;saveR();draw();};
