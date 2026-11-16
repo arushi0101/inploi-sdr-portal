@@ -13,7 +13,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 '.cx-donut{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr);gap:20px;align-items:center}.cx-donut svg{width:100%;height:auto;display:block}'+
 '.cx-donut circle[data-ck]{cursor:pointer}.cx-donut circle[data-ck]:hover{opacity:.75}.cx-donut text{pointer-events:none;fill:var(--fg);font-family:var(--f-display)}'+
 '.cx-leg{width:100%;border-collapse:collapse;font-size:.83rem}.cx-leg td{padding:4px 6px;border-bottom:1px solid var(--line)}.cx-leg td.n{text-align:right;font-family:var(--f-data)}.cx-leg i{display:inline-block;width:10px;height:10px;margin-right:8px;vertical-align:-1px}'+
-'.cx-line svg{width:100%;height:auto;display:block;overflow:visible}.cx-line circle{cursor:pointer}.cx-line circle:hover{r:6}.cx-line text{fill:var(--muted);font-size:11px;font-family:var(--f-data)}'+
+'.cx-line svg{max-width:100%;height:auto;display:block;overflow:visible}.cx-line circle{cursor:pointer}.cx-line circle:hover{r:6}.cx-line text{fill:var(--muted);font-size:11px;font-family:var(--f-data)}'+
 '.cx-mx th{font-size:.7rem;line-height:1.2}.cx-mx th i{display:block;width:100%;height:4px;margin-bottom:4px}'+
 '@media (max-width:620px){.cx-donut{grid-template-columns:1fr}.cx-donut svg{max-width:220px;margin:0 auto}}'+
 '</style>');
@@ -137,7 +137,8 @@ function trend(){var team=SI().length===D.SDRS.length,per=D.MONTHS.map(function(
       ks.map(function(k){return t[k]?'<span style="height:'+(t[k]/tot[i]*100)+'%;background:'+colour(k)+'"></span>':'';}).join('')+'</span></button>';}).join('')+'</div>'+
     '<div class="mt-xl">'+D.MONTHS.map(function(M){return '<span>'+mlabel(M.m)+'</span>';}).join('')+'</div>'+
     (team?'':'<p class="mt-note">For one SDR this shows calls with an outcome other than No answer. HubSpot only splits No answer and no-outcome calls by month for the whole team.</p>');}
-function lines(){var s=SI(),M=D.MONTHS,W=600,Ht=220,pl=34,pr=12,pt=12,pb=26;
+function lineW(){var c=document.querySelector('.cx-line'),v=document.querySelector('.view[data-view="calls"]');var w=c&&c.clientWidth?c.clientWidth:(v&&v.clientWidth?v.clientWidth-60:600);return Math.max(320,Math.round(w));}
+function lines(){var s=SI(),M=D.MONTHS,W=lineW(),Ht=220,pl=34,pr=12,pt=12,pb=26;
   var ser=s.map(function(i){var k=D.SDRS[i].k;return {i:i,v:M.map(function(m){var c=m.c[k]||{};return Object.keys(c).reduce(function(a,d){return a+(isConn(d)?c[d]:0);},0);})};});
   var mx=Math.max.apply(null,[].concat.apply([4],ser.map(function(x){return x.v;}))),step=Math.pow(10,Math.floor(Math.log10(mx))),top=Math.ceil(mx/step)*step;if(top/step<3)step/=2;
   var X=function(j){return pl+(M.length<2?(W-pl-pr)/2:j*(W-pl-pr)/(M.length-1));},Y=function(v){return pt+(1-v/top)*(Ht-pt-pb);};
@@ -146,7 +147,7 @@ function lines(){var s=SI(),M=D.MONTHS,W=600,Ht=220,pl=34,pr=12,pt=12,pb=26;
   var body=ser.map(function(x,n){var c=SDRC[x.i%SDRC.length],nm=D.SDRS[x.i].short;return '<polyline fill="none" stroke="'+c+'" stroke-width="2.2" points="'+x.v.map(function(v,j){return X(j)+','+Y(v);}).join(' ')+'"/>'+
     x.v.map(function(v,j){return '<circle cx="'+X(j)+'" cy="'+Y(v)+'" r="4" fill="'+c+'" stroke="var(--surface)" stroke-width="1.5" data-ck="'+reg(function(){goMonth(M[j].m);})+'"><title>'+e(nm+' · '+mlabel(M[j].m)+': '+v+' connected calls. Click to view this month.')+'</title></circle>';}).join('');}).join('');
   return '<div class="mt-legend">'+ser.map(function(x){return '<span><i style="background:'+SDRC[x.i%SDRC.length]+'"></i>'+e(D.SDRS[x.i].short)+'</span>';}).join('')+'</div>'+
-    '<div class="cx-line"><svg viewBox="0 0 '+W+' '+Ht+'" role="img" aria-label="Connected calls by SDR each month">'+grid+xl+body+'</svg></div>';}
+    '<div class="cx-line"><svg viewBox="0 0 '+W+' '+Ht+'" width="'+W+'" height="'+Ht+'" role="img" aria-label="Connected calls by SDR each month">'+grid+xl+body+'</svg></div>';}
 
 function render(){var root=document.getElementById('callsRoot');if(!root)return;H={};hid=0;
   if(err){view.classList.remove('cx-on');root.innerHTML='<div class="card"><p class="muted">Call reports couldn’t load ('+e(err)+'). The tables below still work.</p></div>';return;}
