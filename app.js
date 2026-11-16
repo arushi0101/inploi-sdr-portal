@@ -384,7 +384,7 @@ function render(){
   if(window.SDRMatt)try{window.SDRMatt({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReport)try{window.SDRReport({view:state.view,pod:state.pod,byK:byK});}catch(err){console.error(err);}
   if(window.SDRVisits)try{window.SDRVisits({view:state.view});}catch(err){console.error(err);}
-  if(window.SDRForms)try{window.SDRForms({view:state.view});}catch(err){console.error(err);}
+  if(window.SDRForms)try{window.SDRForms({view:state.view,per:P,cus:state.cus});}catch(err){console.error(err);}
   if(window.SDRAdmin)try{window.SDRAdmin({view:state.view});}catch(err){console.error(err);}
   if(window.SDRCalls)try{window.SDRCalls({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReports)try{window.SDRReports({view:state.view,P:P,S:S,all:all,pod:state.pod,byK:byK,dn:dn,fmtK:fmtK,ct:ct,DEALS:DEALS,LISTS:LISTS,TRENDS:TRENDS,PERIODS:PERIODS});}catch(err){console.error(err);}

@@ -3,7 +3,7 @@
    Layout: header + period switch, KPI cards, an editable report (week on week / month on month, break down by any field),
    then the leads in tabs: needs an owner, assigned (by owner), internal, tests. */
 (function(){
-var DATA=null,ERR=null,LOADING=false,DAYS=30,TAB='un',FILTER='all',Q='',FSEL='all',MXBY='type',DRILL=null,CW=760;
+var DATA=null,ERR=null,LOADING=false,DAYS=30,RG=null,TAB='un',FILTER='all',Q='',FSEL='all',MXBY='type',DRILL=null,CW=760;
 var HIST=null,HERR=null,HLOADING=false,SHOWTABLE=false;
 var HSB='https://app-eu1.hubspot.com/contacts/25735731/record/';
 var PRESETS=[
@@ -80,6 +80,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
  '.fm-t td{white-space:normal}.fm-ctx{display:block;min-width:170px;max-width:240px}'+
  '.fm-why{font-size:.8rem;color:var(--fg);display:block;min-width:160px;max-width:220px}'+
  '.fm-toast{position:sticky;top:8px;z-index:20;background:var(--ok-bg);color:var(--ok-fg);border-radius:10px;padding:10px 14px;font-size:.86rem;font-weight:500;box-shadow:var(--fm-shadow);animation:fmIn .2s ease}'+
+ '.fm-range{display:grid;font-size:.86rem;font-weight:600;text-align:right}.fm-range .fm-sub{font-weight:400}'+
  '.fm-skel{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--bg),var(--line),var(--bg));background-size:200% 100%;animation:fmSk 1.2s infinite}@keyframes fmSk{to{background-position:-200% 0}}'+
  '@media (max-width:620px){.fm-card{padding:14px}.fm-tabs{margin:-4px -14px 12px;padding:0 14px}}'+
  '</style>');
@@ -87,9 +88,15 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
 function slot(){var el=document.getElementById('formsView');if(el)return el;var any=document.querySelector('.view');if(!any)return null;
   el=document.createElement('section');el.className='view';el.dataset.view='forms';el.id='formsView';el.hidden=true;any.parentNode.appendChild(el);return el;}
 function bust(){try{var b=Number(localStorage.getItem('fmBust')||0);return Date.now()-b<600000?'&b='+b:'';}catch(x){return '';}}
-function load(){if(LOADING)return;LOADING=true;ERR=null;
-  fetch('api/data?part=forms&days='+DAYS+bust()).then(function(r){return r.json();}).then(function(d){if(d&&d.external)DATA=d;else ERR=(d&&(d.message||d.error))||'no data';})
-  .catch(function(x){ERR=String(x&&x.message||x);}).then(function(){LOADING=false;draw();});}
+var UKD=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
+function rangeFrom(a){var t=UKD.format(new Date());if(a.cus&&a.cus.from&&a.cus.to)return {from:a.cus.from,to:a.cus.to};
+  if(a.per==='wk'){var d=new Date(t+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));return {from:d.toISOString().slice(0,10),to:t};}
+  return {from:t.slice(0,8)+'01',to:t};}
+function rgMs(){return {a:Date.parse(RG.from+'T00:00:00Z'),b:Date.parse(RG.to+'T00:00:00Z')+86400000};}
+function rgLabel(){var f=function(x){return new Date(x+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'});};return RG.from===RG.to?f(RG.from):f(RG.from)+' \u2013 '+f(RG.to);}
+function load(){var key=RG.from+'|'+RG.to;if(LOADING===key)return;LOADING=key;ERR=null;
+  fetch('api/data?part=forms&from='+RG.from+'&to='+RG.to+bust()).then(function(r){return r.json();}).then(function(d){if(LOADING!==key)return;if(d&&d.external)DATA=d;else ERR=(d&&(d.message||d.error))||'no data';})
+  .catch(function(x){if(LOADING===key)ERR=String(x&&x.message||x);}).then(function(){if(LOADING!==key)return;LOADING=false;draw();});}
 function loadHist(){if(HLOADING||HIST)return;HLOADING=true;
   fetch('api/data?part=formshist&months=13').then(function(r){return r.json();}).then(function(d){if(d&&d.rows)HIST=d;else HERR=(d&&(d.message||d.error))||'no data';})
   .catch(function(x){HERR=String(x&&x.message||x);}).then(function(){HLOADING=false;draw();});}
@@ -105,14 +112,14 @@ function periods(){var out=[],now=Date.now();
   return out;}
 function plabel(k,short){if(R.group==='week'){var d=new Date(k+'T12:00:00Z');return (short?'':'w/c ')+d.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'});}
   var p=k.split('-');return new Date(Date.UTC(+p[0],+p[1]-1,1)).toLocaleDateString('en-GB',{month:'short',year:short?'2-digit':'numeric',timeZone:'UTC'});}
-function inScope(r){if(R.scope==='external'&&r.src!=='External')return false;if(R.scope==='nointernal'&&r.src==='Test')return false;if(R.scope==='all'&&r.src==='Test')return false;
+function inScope(r){if(R.scope==='external'&&r.src!=='External')return false;if(R.scope==='nointernal'&&r.src==='Test')return false;if(R.scope==='all'&&(r.src==='Test'||r.src==='Meeting booking'))return false;
   return formOk(R.form,r.kind,r.form);}
 function formOk(f,kind,label){if(!f||f==='all')return true;if(f.indexOf('type:')===0)return kind===f.slice(5);return label===f.slice(5);}
 function leadKind(r){return r.form==='demo'?'Demo request':r.formLabel==='Audit unlock'?'Audit unlock':'Other';}
 function leadOk(r){return formOk(FSEL,leadKind(r),r.formLabel);}
 function formOptions(){var L={};(HIST?HIST.rows:[]).forEach(function(r){L[r.form]=1;});if(DATA)DATA.external.concat(DATA.internal).forEach(function(r){L[r.formLabel]=1;});
   return [['all','All forms'],['type:Demo request','All demo requests'],['type:Audit unlock','All audit unlocks'],['type:Other','All other forms']].concat(Object.keys(L).sort().map(function(k){return ['form:'+k,'Form: '+k];}));}
-var ORDER={kind:['Demo request','Audit unlock','Other'],stage:['New business','In pipeline','Existing customer','No company'],owner:['James','Matthew','Nikita','Evan','Jason (AE)','Felix (AE)','No SDR or AE'],src:['External','Internal','Test'],mail:['Work email','Personal email','Unknown']};
+var ORDER={kind:['Demo request','Audit unlock','Other'],stage:['New business','In pipeline','Existing customer','No company'],owner:['James','Matthew','Nikita','Evan','Jason (AE)','Felix (AE)','No SDR or AE'],src:['External','Internal','Meeting booking','Test'],mail:['Work email','Personal email','Unknown']};
 function seriesKeys(rows){if(R.by==='none')return ['Submissions'];
   if(ORDER[R.by])return ORDER[R.by].filter(function(k){return rows.some(function(r){return r[R.by]===k;});});
   // 'form': fixed order by all-time volume across the whole history, so a filter never repaints a form
@@ -165,7 +172,7 @@ function reportHTML(){
     sel('range','Range',R.group==='week'?[['8','Last 8 weeks'],['12','Last 12 weeks'],['26','Last 26 weeks']]:[['3','Last 3 months'],['6','Last 6 months'],['12','Last 12 months']],String(R.range))+
     sel('by','Break down by',BY,R.by)+
     sel('form','Which form',formOptions(),R.form)+
-    sel('scope','Include',[['external','Prospects only'],['all','Prospects + internal'],['tests','Everything, incl. tests']],R.scope)+
+    sel('scope','Include',[['external','Prospects only'],['all','Prospects + internal'],['tests','Everything, incl. tests and meeting bookings']],R.scope)+
     sel('type','Chart',[['bar','Stacked bars'],['line','Lines']],R.type)+'</div>';
   if(!HIST)return o+(HERR?'<p class="muted">Couldn’t load the history ('+e(HERR)+').</p>':'<div class="fm-skel" style="height:220px"></div>')+'</div>';
   var C=compute(),n=C.P.length,last=C.tot[n-1],prev=C.tot[n-2],sum=C.tot.reduce(function(a,b){return a+b;},0),unit=R.group==='week'?'week':'month';
@@ -211,7 +218,7 @@ function match(r){if(!Q)return true;return JSON.stringify([r.name,r.company,r.ti
 function table(head,body,cols){return '<div class="fm-tw"><table class="fm-t"><thead><tr>'+head.map(function(h){return '<th'+(h[1]?' class="'+h[1]+'"':'')+'>'+h[0]+'</th>';}).join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols+'" class="muted">Nothing here.</td></tr>')+'</tbody></table></div>';}
 function leadsHTML(){
   var D=view(),ext=D.external,un=ext.filter(function(r){return !r.assigned;}),as=ext.filter(function(r){return r.assigned;});
-  var tabs=[['un','Needs an owner',un.length],['as','Assigned',as.length],['in','Internal',D.internal.length],['te','Tests',D.tests.length]];
+  var tabs=[['un','Needs an owner',un.length],['as','Assigned',as.length],['in','Internal',D.internal.length],['te','Tests',D.tests.length],['mt','Meeting bookings',D.meetings.length]];
   var o='<div class="fm-card"><div class="fm-tabs"><nav role="tablist">'+tabs.map(function(t){return '<button type="button" role="tab" data-tab="'+t[0]+'" aria-selected="'+(TAB===t[0])+'">'+t[1]+'<span class="c">'+t[2]+'</span></button>';}).join('')+'</nav>'+
     '<input type="search" class="fm-search" placeholder="Search name, company, owner…" aria-label="Search leads" value="'+e(Q)+'"></div>';
   if(TAB==='un'){
@@ -226,6 +233,9 @@ function leadsHTML(){
     o+=table([['Submitted'],['Form'],['Company'],['Contact'],['Customer or pipeline'],['SDR and owners'],['Last touch']],
       order.map(function(w){var G=as.filter(function(r){return r.owner===w&&match(r);});if(!G.length)return '';
         return '<tr class="fm-grp"><td colspan="7">'+e(w)+' · '+G.length+'</td></tr>'+G.map(function(r){return '<tr><td>'+e(nice(r.at))+'</td><td>'+pill(r)+'</td><td>'+cname(r)+'</td><td>'+who(r)+(r.note?'<span class="fm-sub">'+e(r.note)+'</span>':'')+'</td><td>'+ctx(r)+'</td><td>'+own(r)+'</td><td>'+touch(r)+'</td></tr>';}).join('');}).join(''),7);
+  } else if(TAB==='mt'){
+    o+='<p class="fm-note" style="margin:0 0 10px">People who booked through a HubSpot meetings link, such as interview calls. They aren\u2019t website forms, so they\u2019re left out of every count here.</p>';
+    o+=table([['Booked'],['Person'],['Meetings link'],['Owner']],D.meetings.filter(match).map(function(r){return '<tr><td>'+e(nice(r.at))+'</td><td><a href="'+HSB+'0-1/'+e(r.id)+'" target="_blank" rel="noopener">'+e(r.name)+'</a>'+(r.title?'<span class="fm-sub">'+e(r.title)+'</span>':'')+'</td><td>'+e(r.site||'\u2013')+'</td><td>'+e(r.owner)+'</td></tr>';}).join(''),4);
   } else if(TAB==='in'){
     o+='<p class="fm-note" style="margin:0 0 10px">The inploi team running the audit or testing forms. Not leads, no action needed.</p>';
     o+=table([['Latest'],['Form'],['Person'],['Forms in total','n'],['Latest site checked']],
@@ -237,13 +247,13 @@ function leadsHTML(){
   return o+'<p class="fm-note">Each person appears once, under their latest form. Click a name or company to open it in HubSpot.</p></div>';
 }
 
-function view(){var D=DATA;return {order:D.order,generatedAt:D.generatedAt,external:D.external.filter(leadOk),internal:D.internal.filter(leadOk),tests:D.tests.filter(leadOk)};}
+function view(){var D=DATA;return {order:D.order,generatedAt:D.generatedAt,external:D.external.filter(leadOk),internal:D.internal.filter(leadOk),tests:D.tests.filter(leadOk),meetings:FSEL==='all'?(D.meetings||[]):[]};}
 function kpis(){var D=view(),ext=D.external,un=ext.filter(function(r){return !r.assigned;}),real=un.filter(function(r){return !r.spam;});
-  var hr=HIST?HIST.rows.filter(function(r){return r.src==='External'&&formOk(FSEL,r.kind,r.form);}):null,now=Date.now(),a=now-DAYS*86400000,b=a-DAYS*86400000;
-  var prev=hr?hr.filter(function(r){return r.t>=b&&r.t<a;}).length:null,cur=hr?hr.filter(function(r){return r.t>=a;}).length:null;
+  var hr=HIST?HIST.rows.filter(function(r){return r.src==='External'&&formOk(FSEL,r.kind,r.form);}):null,M=rgMs(),a=M.a,b=a-(M.b-M.a);DAYS=Math.round((M.b-M.a)/86400000);
+  var prev=hr?hr.filter(function(r){return r.t>=b&&r.t<a;}).length:null;
   var c=function(x){return ext.filter(function(r){return !r.spam&&r.bucket===x;}).length;};
   return '<div class="fm-kpis">'+
-    k('ext','Prospect submissions',ext.length,(cur!=null&&prev!=null?delta(cur,prev)+' vs previous '+DAYS+' days':cntForms(ext)),'')+
+    k('ext','Prospect submissions',ext.length,(prev!=null?delta(ext.length,prev)+' vs '+prev+' in the '+DAYS+' days before':cntForms(ext)),'')+
     k('as','Assigned',ext.length-un.length,'Owned by an active SDR or AE','')+
     k('un','Needs an owner',un.length,real.length+' real lead'+(real.length===1?'':'s')+', '+(un.length-real.length)+' likely spam',real.length?'hot':'')+
     k('new','New business',c('new'),c('pipeline')+' in the pipeline, '+c('customer')+' existing customer'+(c('customer')===1?'':'s'),'')+
@@ -268,9 +278,9 @@ function openDrill(key){var p=key.split('|'),D=view(),L=[],t='';
     if(p[1]==='ext'){L=ext;t='Prospect submissions';}if(p[1]==='as'){L=ext.filter(function(r){return r.assigned;});t='Assigned';}
     if(p[1]==='un'){L=ext.filter(function(r){return !r.assigned;});t='Needs an owner';}if(p[1]==='new'){L=ext.filter(function(r){return !r.spam&&r.bucket==='new';});t='New business';}
     if(p[1]==='in'){L=D.internal;t='Internal submissions';}
-    DRILL={t:t,sub:'Last '+DAYS+' days'+(FSEL!=='all'?' · '+fname(FSEL):''),leads:L};}
+    DRILL={t:t,sub:rgLabel()+(FSEL!=='all'?' · '+fname(FSEL):''),leads:L};}
   if(p[0]==='m'){var row=mxRows().filter(function(r){return r[0]===p[1];})[0],C=mxCols();L=row[2];if(p[2]!=='t'){var c=C[Number(p[2])];L=L.filter(function(x){return inCol(x,c.k);});t=row[1]+' · '+c.l;}else t=row[1]+' · all forms';
-    DRILL={t:t,sub:'Last '+DAYS+' days',leads:L};}
+    DRILL={t:t,sub:rgLabel(),leads:L};}
   if(p[0]==='c'){var Cc=compute(),per=Cc.P[Number(p[1])],gk=R.group==='week'?weekKey:monthKey;
     var H=HIST.rows.filter(inScope).filter(function(r){return gk(r.t)===per;});DRILL={t:plabel(per),sub:curName()+' · '+H.length+' submission'+(H.length===1?'':'s'),hist:H};}
   draw();}
@@ -284,8 +294,8 @@ function drawerHTML(){if(!DRILL)return '';var o='<div class="fm-dr" data-close="
 function cntForms(L){var f=function(x){return L.filter(function(r){return r.form===x;}).length;};return f('demo')+' demo · '+f('audit')+' audit · '+f('other')+' other';}
 
 function html(){
-  var head='<div class="fm-head"><p>Every website form from prospects: demo requests, audit unlocks and other forms, with who owns each lead and where the company stands. Internal and test submissions are kept apart.</p>'+
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><select class="fm-sel" data-fsel="1" aria-label="Which form">'+formOptions().map(function(x){return '<option value="'+e(x[0])+'"'+(x[0]===FSEL?' selected':'')+'>'+e(x[1])+'</option>';}).join('')+'</select><div class="fm-seg" role="group" aria-label="Period">'+[7,30,90].map(function(d){return '<button type="button" data-fdays="'+d+'" aria-pressed="'+(d===DAYS)+'">'+d+' days</button>';}).join('')+'</div></div></div>';
+  var head='<div class="fm-head"><p>Every website form from prospects: demo requests, audit unlocks and other forms, with who owns each lead and where the company stands. Internal submissions, tests and meeting-link bookings are kept apart and never counted as leads.</p>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><select class="fm-sel" data-fsel="1" aria-label="Which form">'+formOptions().map(function(x){return '<option value="'+e(x[0])+'"'+(x[0]===FSEL?' selected':'')+'>'+e(x[1])+'</option>';}).join('')+'</select><span class="fm-range">'+e(rgLabel())+'<span class="fm-sub">Change the dates in the bar above</span></span></div></div>';
   if(!DATA)return head+(ERR?'<div class="fm-card"><p class="muted">Couldn’t load form submissions ('+e(ERR)+').</p></div>':'<div class="fm-kpis">'+[1,2,3,4].map(function(){return '<div class="fm-card fm-kpi"><div class="fm-skel" style="width:60%"></div><div class="fm-skel" style="height:28px;width:40%"></div></div>';}).join('')+'</div>')+reportHTML();
   return head+(TOAST?'<div class="fm-toast" role="status">\u2713 '+e(TOAST)+'</div>':'')+kpis()+matrixHTML()+reportHTML()+leadsHTML()+drawerHTML()+'<p class="fm-note">Updated '+e(new Date(DATA.generatedAt).toLocaleString('en-GB',{timeZone:'Europe/London',dateStyle:'medium',timeStyle:'short'}))+' UK.</p>';
 }
@@ -324,5 +334,5 @@ function bind(el){
       h.addEventListener('mouseleave',function(){tip.style.opacity='0';cross.setAttribute('opacity','0');});});}
 }
 document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&DRILL){DRILL=null;draw();}});
-window.SDRForms=function(a){var el=slot();if(!el)return;el.hidden=a.view!=='forms';if(a.view!=='forms')return;if(!DATA&&!ERR)load();loadHist();if(!el.innerHTML)draw();};
+window.SDRForms=function(a){var el=slot();if(!el)return;var ng=rangeFrom(a);if(!RG||ng.from!==RG.from||ng.to!==RG.to){RG=ng;DATA=null;ERR=null;if(a.view==='forms'){load();draw();}}el.hidden=a.view!=='forms';if(a.view!=='forms')return;if(!DATA&&!ERR)load();loadHist();if(!el.innerHTML)draw();};
 })();

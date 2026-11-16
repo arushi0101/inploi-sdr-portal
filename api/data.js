@@ -1520,7 +1520,7 @@ function formKind(ev) {
   const e = String(ev || '');
   if (/Hiring Experience (Audit|grader)/i.test(e)) { const m = /grader:\s*([^:]+):/i.exec(e); return { form: 'audit', label: 'Audit unlock', site: m ? m[1].trim() : '' }; }
   if (/^Book a demo/i.test(e) || /^Contact Us Form Website V2$/i.test(e)) return { form: 'demo', label: 'Demo request', site: '' };
-  if (/^[\w.-]+\/[\w.-]+$/.test(e)) return { form: 'other', label: 'Meeting booking link', site: '' };
+  if (/^Meetings Link/i.test(e) || /^[\w.-]+\/[\w.-]+$/.test(e)) { const m = /([\w.-]+)\/([\w.-]+)\s*$/.exec(e); return { form: 'meeting', label: 'Meeting booking', site: m ? m[2].replace(/-/g, ' ') : '', link: m ? m[1] : '' }; }
   return { form: 'other', label: (e.split(/\s[|·]\s|:\s/)[0] || 'Other form').trim(), site: '' };
 }
 async function buildForms(q) {
@@ -1539,10 +1539,12 @@ async function buildForms(q) {
   const short = id => { const s = SDRS.find(x => x.id === id); if (s) return s.short; if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return ''; };
   const person = id => !id ? '' : short(id) || FORM_OWNER_LABEL[id] || owners[id] || 'Another owner';
   const ms = v => { if (!v) return 0; const n = Number(v); return isNaN(n) ? Date.parse(v) || 0 : n; };
-  const out = { external: [], internal: [], tests: [] };
+  const out = { external: [], internal: [], tests: [], meetings: [] };
   rows.forEach(c => {
     const p = c.properties || {}, email = String(p.email || '').toLowerCase(), name = [p.firstname, p.lastname].filter(Boolean).join(' ') || email || 'Unnamed contact';
     const k = formKind(p.recent_conversion_event_name), at = ms(p.recent_conversion_date);
+    // bookings through a HubSpot meetings link aren't website forms (e.g. interview calls): kept apart, out of every count
+    if (k.form === 'meeting') { out.meetings.push({ id: c.id, name, title: p.jobtitle || '', at, formLabel: k.label, site: k.site, owner: person(p.hubspot_owner_id) || 'No owner' }); return; }
     const base = { id: c.id, name, title: p.jobtitle || '', company: p.company || (email.split('@')[1] || ''), at, form: k.form, formLabel: k.label, site: k.site, event: p.recent_conversion_event_name || '', runs: Number(p.num_conversion_events) || 1 };
     if (/^test\b/i.test(name) || /@(example\.com|hubspot\.com)$/.test(email) || /^Sample Form$/i.test(p.recent_conversion_event_name || '') || /sample contact/i.test(name)) {
       out.tests.push(Object.assign(base, { why: /hubspot|sample/i.test(email + name + base.event) ? 'HubSpot sample contact' : 'Test record' })); return; }
@@ -1629,7 +1631,7 @@ async function buildFormsHistory(q) {
     const internal = /@inploi\.com$/.test(x.email), test = /@(example\.com|hubspot\.com)$/.test(x.email) || /^Sample Form$|^TEST\b/i.test(x.formName);
     const k = formKind(x.formName), c = byEmail[x.email] || {}, co = cos[c.associatedcompanyid] || null, o = c.hubspot_owner_id || '';
     return { t: x.t, id: c._id || '', name: [c.firstname, c.lastname].filter(Boolean).join(' ') || (x.email && !/@inploi\.com$/.test(x.email) ? x.email : 'inploi team member'), company: c.company || '', form: k.label, kind: k.label === 'Audit unlock' ? 'Audit unlock' : k.form === 'demo' ? 'Demo request' : 'Other',
-      src: test ? 'Test' : internal ? 'Internal' : 'External', owner: active.has(o) ? ownerName(o) : 'No SDR or AE',
+      src: k.form === 'meeting' ? 'Meeting booking' : test ? 'Test' : internal ? 'Internal' : 'External', owner: active.has(o) ? ownerName(o) : 'No SDR or AE',
       stage: !co ? 'No company' : co.lifecyclestage === 'customer' ? 'Existing customer' : Number(co.hs_num_open_deals) > 0 ? 'In pipeline' : 'New business',
       mail: !x.email ? 'Unknown' : FREE_MAIL.test(x.email) ? 'Personal email' : 'Work email' };
   }).sort((a, b) => a.t - b.t);
