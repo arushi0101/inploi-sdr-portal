@@ -1518,7 +1518,7 @@ async function leadStatusMap() {
 }
 function formKind(ev) {
   const e = String(ev || '');
-  if (/Hiring Experience Audit/i.test(e)) { const m = /grader:\s*([^:]+):/i.exec(e); return { form: 'audit', label: 'Audit unlock', site: m ? m[1].trim() : '' }; }
+  if (/Hiring Experience (Audit|grader)/i.test(e)) { const m = /grader:\s*([^:]+):/i.exec(e); return { form: 'audit', label: 'Audit unlock', site: m ? m[1].trim() : '' }; }
   if (/^Book a demo/i.test(e)) return { form: 'demo', label: 'Demo request', site: '' };
   return { form: 'other', label: (e.split(/\s[|·]\s|:\s/)[0] || 'Other form').trim(), site: '' };
 }
