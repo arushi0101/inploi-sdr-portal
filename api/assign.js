@@ -23,11 +23,6 @@ module.exports = async (req, res) => {
   if (!allowed(req, res)) return;
   const token = process.env.HUBSPOT_WRITE_TOKEN || process.env.HUBSPOT_TOKEN || '';
   if (!token) return send(503, { ok: false, error: 'missing_token' });
-  if (req.method === 'GET') { // can this key write owners? (returns the scope check only, never the key)
-    try { const r = await fetch(API + '/oauth/v2/private-apps/get/access-token-info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokenKey: token }) });
-      const j = await r.json(); const sc = j.scopes || [];
-      return send(200, { ok: true, contactsWrite: sc.includes('crm.objects.contacts.write'), companiesWrite: sc.includes('crm.objects.companies.write'), usingWriteKey: !!process.env.HUBSPOT_WRITE_TOKEN });
-    } catch (e) { return send(502, { ok: false, error: 'couldn’t check the key' }); } }
   if (req.method !== 'POST') return send(405, { ok: false, error: 'POST only' });
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = null; } }
@@ -39,9 +34,10 @@ module.exports = async (req, res) => {
   if (!/^\d+$/.test(contactId)) return send(400, { ok: false, error: 'bad contact id' });
   if (!SDRS[sdr]) return send(400, { ok: false, error: 'pick one of the four SDRs' });
   try {
-    const c = await hs('/crm/v3/objects/contacts/' + contactId + '?properties=hubspot_owner_id,recent_conversion_date,associatedcompanyid', token);
+    const c = await hs('/crm/v3/objects/contacts/' + contactId + '?properties=hubspot_owner_id,recent_conversion_date,associatedcompanyid,email', token);
     const p = c.properties || {}, old = p.hubspot_owner_id || '';
     const conv = Date.parse(p.recent_conversion_date) || Number(p.recent_conversion_date) || 0;
+    if (/@inploi\.com$/i.test(p.email || '')) return send(400, { ok: false, error: 'inploi team contacts can’t be assigned here' });
     if (!conv || Date.now() - conv > 366 * 86400000) return send(400, { ok: false, error: 'only contacts who sent a form in the last year can be assigned here' });
     if (old === sdr) return send(200, { ok: true, unchanged: true, owner: SDRS[sdr] });
     if (ACTIVE.has(old)) return send(409, { ok: false, error: 'this contact is already owned by an SDR or AE; change it in HubSpot if needed' });
@@ -51,7 +47,7 @@ module.exports = async (req, res) => {
     if (coId) {
       const co = await hs('/crm/v3/objects/companies/' + coId + '?properties=hubspot_owner_id,sdr_owner,lifecyclestage,hs_num_open_deals,domain', token);
       const q = co.properties || {}, domain = String(q.domain || '').replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-      const prospect = q.lifecyclestage !== 'customer' && !(Number(q.hs_num_open_deals) > 0) && !FREE_DOMAIN.test(domain);
+      const prospect = !/(^|\.)inploi\.com$/i.test(domain) && q.lifecyclestage !== 'customer' && !(Number(q.hs_num_open_deals) > 0) && !FREE_DOMAIN.test(domain);
       const set = {};
       if (prospect && !q.hubspot_owner_id) set.hubspot_owner_id = sdr;
       if (prospect && !q.sdr_owner) set.sdr_owner = SDRS[sdr];
