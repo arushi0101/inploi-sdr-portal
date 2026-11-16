@@ -1519,7 +1519,8 @@ async function leadStatusMap() {
 function formKind(ev) {
   const e = String(ev || '');
   if (/Hiring Experience (Audit|grader)/i.test(e)) { const m = /grader:\s*([^:]+):/i.exec(e); return { form: 'audit', label: 'Audit unlock', site: m ? m[1].trim() : '' }; }
-  if (/^Book a demo/i.test(e)) return { form: 'demo', label: 'Demo request', site: '' };
+  if (/^Book a demo/i.test(e) || /^Contact Us Form Website V2$/i.test(e)) return { form: 'demo', label: 'Demo request', site: '' };
+  if (/^[\w.-]+\/[\w.-]+$/.test(e)) return { form: 'other', label: 'Meeting booking link', site: '' };
   return { form: 'other', label: (e.split(/\s[|·]\s|:\s/)[0] || 'Other form').trim(), site: '' };
 }
 async function buildForms(q) {
@@ -1617,8 +1618,8 @@ async function buildFormsHistory(q) {
   const emails = [...new Set(subs.map(x => x.email).filter(Boolean))];
   const byEmail = {};
   for (let i = 0; i < emails.length; i += 100) {
-    try { const r = await hs('/crm/v3/objects/contacts/batch/read', { idProperty: 'email', inputs: emails.slice(i, i + 100).map(id => ({ id })), properties: ['email', 'hubspot_owner_id', 'associatedcompanyid'] });
-      (r.results || []).forEach(x => { const p = x.properties || {}; byEmail[String(p.email || '').toLowerCase()] = p; }); } catch (e) { /* leave unmatched */ }
+    try { const r = await hs('/crm/v3/objects/contacts/batch/read', { idProperty: 'email', inputs: emails.slice(i, i + 100).map(id => ({ id })), properties: ['email', 'hubspot_owner_id', 'associatedcompanyid', 'firstname', 'lastname', 'company'] });
+      (r.results || []).forEach(x => { const p = Object.assign({ _id: x.id }, x.properties || {}); byEmail[String(p.email || '').toLowerCase()] = p; }); } catch (e) { /* leave unmatched */ }
   }
   const coIds = [...new Set(Object.values(byEmail).map(p => p.associatedcompanyid).filter(Boolean))];
   const cos = coIds.length ? await batchReadPar('companies', coIds, ['lifecyclestage', 'hs_num_open_deals']) : {};
@@ -1627,7 +1628,7 @@ async function buildFormsHistory(q) {
   const rows = subs.map(x => {
     const internal = /@inploi\.com$/.test(x.email), test = /@(example\.com|hubspot\.com)$/.test(x.email) || /^Sample Form$|^TEST\b/i.test(x.formName);
     const k = formKind(x.formName), c = byEmail[x.email] || {}, co = cos[c.associatedcompanyid] || null, o = c.hubspot_owner_id || '';
-    return { t: x.t, form: k.form === 'other' ? (x.formName.split(/\s[|·]\s|:\s/).pop() || x.formName || 'Unknown form').trim() : k.label, kind: k.label === 'Audit unlock' ? 'Audit unlock' : k.form === 'demo' ? 'Demo request' : 'Other',
+    return { t: x.t, id: c._id || '', name: [c.firstname, c.lastname].filter(Boolean).join(' ') || (x.email && !/@inploi\.com$/.test(x.email) ? x.email : 'inploi team member'), company: c.company || '', form: k.label, kind: k.label === 'Audit unlock' ? 'Audit unlock' : k.form === 'demo' ? 'Demo request' : 'Other',
       src: test ? 'Test' : internal ? 'Internal' : 'External', owner: active.has(o) ? ownerName(o) : 'No SDR or AE',
       stage: !co ? 'No company' : co.lifecyclestage === 'customer' ? 'Existing customer' : Number(co.hs_num_open_deals) > 0 ? 'In pipeline' : 'New business',
       mail: !x.email ? 'Unknown' : FREE_MAIL.test(x.email) ? 'Personal email' : 'Work email' };
