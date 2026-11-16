@@ -1593,6 +1593,29 @@ async function buildForms(q) {
   Object.values(out).forEach(L => L.sort((a, b) => b.at - a.at));
   return { generatedAt: new Date().toISOString(), days, since: new Date(since).toISOString(), until: new Date(until).toISOString(), order: ['James', 'Matthew', 'Nikita', 'Evan', 'Jason (AE)', 'Felix (AE)'], ...out };
 }
+/* ---------- LinkedIn activity (HeyReach -> HubSpot) ----------
+   HeyReach logs LinkedIn messages in HubSpot as Communications (channel LINKEDIN_MESSAGE) and fills heyreach_* contact fields.
+   Counted per SDR by the activity owner; when HubSpot doesn't attribute an owner, by the HeyReach sender name. */
+async function buildLinkedIn(q) {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(q.from || '') ? Date.parse(q.from + 'T00:00:00Z') : Date.now() - 30 * 86400000;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(q.to || '') ? Date.parse(q.to + 'T00:00:00Z') + 86400000 : Date.now();
+  const out = { generatedAt: new Date().toISOString(), from: new Date(from).toISOString(), to: new Date(to).toISOString(), source: null, errors: [], bySdr: {}, sample: [] };
+  SDRS.forEach(s => { out.bySdr[s.k] = { sent: 0, inbound: 0, contacts: 0, replies: 0 }; });
+  const sdrOf = id => SDRS.find(x => x.id === String(id || '')) || null;
+  try {
+    const comms = await searchAll('communications', [{ filters: [{ propertyName: 'hs_communication_channel_type', operator: 'EQ', value: 'LINKEDIN_MESSAGE' }, { propertyName: 'hs_timestamp', operator: 'GTE', value: String(from) }, { propertyName: 'hs_timestamp', operator: 'LT', value: String(to) }] }],
+      ['hs_communication_channel_type', 'hs_communication_logged_from', 'hubspot_owner_id', 'hs_timestamp', 'hs_created_by_user_id'], 'hs_timestamp');
+    out.source = 'communications'; out.total = comms.length;
+    const ownerCount = {}; comms.forEach(c => { const o = c.properties.hubspot_owner_id || 'none'; ownerCount[o] = (ownerCount[o] || 0) + 1; const s = sdrOf(c.properties.hubspot_owner_id); if (s) out.bySdr[s.k].sent++; });
+    out.byOwnerId = ownerCount; out.sample = comms.slice(-3).map(c => ({ owner: c.properties.hubspot_owner_id, from: c.properties.hs_communication_logged_from, at: c.properties.hs_timestamp }));
+  } catch (e) { out.errors.push('communications: ' + String(e.message || e).slice(0, 200)); }
+  try {
+    const r = await hs('/crm/v3/objects/contacts/search', { filterGroups: [{ filters: [{ propertyName: 'heyreach_last_activity_date', operator: 'HAS_PROPERTY' }] }], properties: ['heyreach_last_sender'], limit: 1 });
+    out.heyreachContacts = r.total || 0;
+  } catch (e) { out.errors.push('contacts: ' + String(e.message || e).slice(0, 200)); }
+  return out;
+}
+
 /* ---------- Form submission history for the charts (week on week, month on month) ----------
    Every submission of every HubSpot form (Forms API), or, without the forms scope, each contact's first and latest conversion.
    Rows carry only what the charts break down by: time, form, form type, source, owner, company stage, email type. */
@@ -1864,7 +1887,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), days: (req.query && req.query.days) || sp.get('days'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'formshist' ? await buildFormsHistory({ months: sp.get('months') }) : part === 'forms' ? (sp.get('fmt') === 'slack' ? formsSlack(await buildForms(q)) : await buildForms(q)) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'linkedin' ? await buildLinkedIn(q) : part === 'formshist' ? await buildFormsHistory({ months: sp.get('months') }) : part === 'forms' ? (sp.get('fmt') === 'slack' ? formsSlack(await buildForms(q)) : await buildForms(q)) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
