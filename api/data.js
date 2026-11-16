@@ -1579,6 +1579,63 @@ async function buildForms(q) {
   Object.values(out).forEach(L => L.sort((a, b) => b.at - a.at));
   return { generatedAt: new Date().toISOString(), days, since: new Date(since).toISOString(), until: new Date(until).toISOString(), order: ['James', 'Matthew', 'Nikita', 'Evan', 'Jason (AE)', 'Felix (AE)'], ...out };
 }
+/* ---------- Form submission history for the charts (week on week, month on month) ----------
+   Every submission of every HubSpot form (Forms API), or, without the forms scope, each contact's first and latest conversion.
+   Rows carry only what the charts break down by: time, form, form type, source, owner, company stage, email type. */
+let formsHistCache = null;
+async function buildFormsHistory(q) {
+  const months = Math.min(Math.max(Number(q && q.months) || 12, 1), 24);
+  const cutoff = Date.now() - months * 31 * 86400000;
+  if (formsHistCache && formsHistCache.months >= months && Date.now() - formsHistCache.at < 600000) return Object.assign({}, formsHistCache.v, { rows: formsHistCache.v.rows.filter(r => r.t >= cutoff) });
+  let subs = [], source = 'forms';
+  try {
+    const forms = []; let after = '';
+    for (let i = 0; i < 10; i++) { const r = await hs('/marketing/v3/forms?limit=100' + (after ? '&after=' + after : '')); forms.push(...(r.results || [])); after = r.paging && r.paging.next && r.paging.next.after; if (!after) break; }
+    for (const f of forms) {
+      let next = '';
+      for (let i = 0; i < 60; i++) {
+        const r = await hs('/form-integrations/v1/submissions/forms/' + f.id + '?limit=50' + (next ? '&after=' + encodeURIComponent(next) : ''));
+        const res = r.results || []; let old = false;
+        res.forEach(x => { if (x.submittedAt < cutoff) { old = true; return; } const v = {}; (x.values || []).forEach(y => { v[y.name] = y.value; }); subs.push({ t: x.submittedAt, formName: f.name || '', email: String(v.email || '').toLowerCase() }); });
+        next = r.paging && r.paging.next && r.paging.next.after; if (!next || old || !res.length) break;
+      }
+    }
+  } catch (e) {
+    if (e.status !== 403 && e.status !== 401 && e.status !== 404) throw e;
+    source = 'contacts'; subs = [];
+    const rows = await searchAll('contacts', [
+      { filters: [{ propertyName: 'first_conversion_date', operator: 'GTE', value: String(cutoff) }] },
+      { filters: [{ propertyName: 'recent_conversion_date', operator: 'GTE', value: String(cutoff) }] }],
+      ['email', 'first_conversion_date', 'first_conversion_event_name', 'recent_conversion_date', 'recent_conversion_event_name']);
+    const seen = new Set();
+    rows.forEach(c => { if (seen.has(c.id)) return; seen.add(c.id); const p = c.properties || {}, email = String(p.email || '').toLowerCase();
+      const f = Date.parse(p.first_conversion_date) || 0, r = Date.parse(p.recent_conversion_date) || 0;
+      if (f >= cutoff) subs.push({ t: f, formName: p.first_conversion_event_name || '', email });
+      if (r >= cutoff && Math.abs(r - f) > 60000) subs.push({ t: r, formName: p.recent_conversion_event_name || '', email }); });
+  }
+  // contact owner and company stage, looked up by email
+  const emails = [...new Set(subs.map(x => x.email).filter(Boolean))];
+  const byEmail = {};
+  for (let i = 0; i < emails.length; i += 100) {
+    try { const r = await hs('/crm/v3/objects/contacts/batch/read', { idProperty: 'email', inputs: emails.slice(i, i + 100).map(id => ({ id })), properties: ['email', 'hubspot_owner_id', 'associatedcompanyid'] });
+      (r.results || []).forEach(x => { const p = x.properties || {}; byEmail[String(p.email || '').toLowerCase()] = p; }); } catch (e) { /* leave unmatched */ }
+  }
+  const coIds = [...new Set(Object.values(byEmail).map(p => p.associatedcompanyid).filter(Boolean))];
+  const cos = coIds.length ? await batchReadPar('companies', coIds, ['lifecyclestage', 'hs_num_open_deals']) : {};
+  const active = new Set([...SDR_IDS, ...FORM_AES]);
+  const ownerName = id => { const s = SDRS.find(x => x.id === id); if (s) return s.short; if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return ''; };
+  const rows = subs.map(x => {
+    const internal = /@inploi\.com$/.test(x.email), test = /@(example\.com|hubspot\.com)$/.test(x.email) || /^Sample Form$|^TEST\b/i.test(x.formName);
+    const k = formKind(x.formName), c = byEmail[x.email] || {}, co = cos[c.associatedcompanyid] || null, o = c.hubspot_owner_id || '';
+    return { t: x.t, form: k.form === 'other' ? (x.formName.split(/\s[|·]\s|:\s/).pop() || x.formName || 'Unknown form').trim() : k.label, kind: k.label === 'Audit unlock' ? 'Audit unlock' : k.form === 'demo' ? 'Demo request' : 'Other',
+      src: test ? 'Test' : internal ? 'Internal' : 'External', owner: active.has(o) ? ownerName(o) : 'No SDR or AE',
+      stage: !co ? 'No company' : co.lifecyclestage === 'customer' ? 'Existing customer' : Number(co.hs_num_open_deals) > 0 ? 'In pipeline' : 'New business',
+      mail: !x.email ? 'Unknown' : FREE_MAIL.test(x.email) ? 'Personal email' : 'Work email' };
+  }).sort((a, b) => a.t - b.t);
+  const v = { generatedAt: new Date().toISOString(), source, months, rows };
+  formsHistCache = { at: Date.now(), months, v }; return v;
+}
+
 // Slack markdown for #inbound-leads: form submissions in a period, one table per form, with company context.
 // part=forms&fmt=slack&from=YYYY-MM-DD&to=YYYY-MM-DD. Returns { messages: [...] } (each under Slack's 5,000-character limit).
 function formsSlack(D) {
@@ -1793,7 +1850,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), days: (req.query && req.query.days) || sp.get('days'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'forms' ? (sp.get('fmt') === 'slack' ? formsSlack(await buildForms(q)) : await buildForms(q)) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'formshist' ? await buildFormsHistory({ months: sp.get('months') }) : part === 'forms' ? (sp.get('fmt') === 'slack' ? formsSlack(await buildForms(q)) : await buildForms(q)) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
