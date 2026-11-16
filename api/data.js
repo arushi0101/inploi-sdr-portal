@@ -419,7 +419,7 @@ async function build(q) {
     if (o[1] === 'No outcome' && inP(start, 'mtd')) { x.review.noOutcome++; add('noOutcome', co.sdr.k, 'all', coId); }
     const relevant = bookedIn('mtd') || inP(start, 'mtd');
     if (!relevant) return;
-    MEETINGS.push({ c: co.name, id: Number(coId), mid: m.id, m: title, s: co.sdr.k, by: OWNER_NAMES[p.hubspot_owner_id] || 'Someone else', d: nice(startIso), ds: startIso, booked: nice(iso(created)), bs: iso(created), kind: 'First meeting held', o, x: gongHeld && !/COMPLETED/i.test(p.hs_meeting_outcome || '') ? ['warn', 'Held per Gong; outcome not updated'] : null, wk: bookedIn('wk') || (start >= P.wk.start && start < P.wk.start + 7 * 86400000), bookedWk: false, heldWk: heldIn('wk') });
+    MEETINGS.push({ c: co.name, id: Number(coId), mid: m.id, m: title, s: co.sdr.k, by: OWNER_NAMES[p.hubspot_owner_id] || 'Someone else', d: nice(startIso), ds: startIso, booked: nice(iso(created)), bs: iso(created), kind: 'First meeting held', o, x: CREDIT_NOTES[coId] ? ['info', CREDIT_NOTES[coId]] : gongHeld && !/COMPLETED/i.test(p.hs_meeting_outcome || '') ? ['warn', 'Held per Gong; outcome not updated'] : null, wk: bookedIn('wk') || (start >= P.wk.start && start < P.wk.start + 7 * 86400000), bookedWk: false, heldWk: heldIn('wk') });
   });
   // Booked meetings: every company moved to Meeting Booked in the period, with its meeting if one is logged
   const meetByCo = {};
