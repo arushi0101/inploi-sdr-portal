@@ -61,6 +61,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
  '.rail .live-status i{border-radius:50%;box-shadow:0 0 0 3px rgba(76,195,138,.15)}'+
  '.rail .refresh{border-radius:8px;border-color:rgba(255,255,255,.15)}.rail .refresh:hover{background:rgba(255,255,255,.06)}'+
  '.rail .rail-foot a{display:inline-flex;align-items:center;gap:6px;color:#FF9A6B;font-weight:500}.rail .rail-foot a .rl-ic{width:14px;height:14px;color:currentColor}'+
+ 'table:has(#statusBody) th{white-space:normal;vertical-align:bottom}'+
  '@media (max-width:820px){.rail{gap:10px}.rail .brand{border:0;padding-bottom:0}.rail .nav-sec,.rail .nav button.nav-sec-btn{display:none}.rail .nav-sub{margin:0;padding:0;border:0;display:contents}.rail .nav button{padding:7px 10px}.rail .pods{display:flex}.rail .opt>span:not(.rl-av){display:none}}'+
  '</style>');
 

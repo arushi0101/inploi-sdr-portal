@@ -129,12 +129,8 @@ function syncDateBar(){if(!PERIODS)return;var cur=state.cus?(state.cus.tag||'cus
   var f=state.cus?state.cus.from:PERIODS[state.per].start,t=state.cus?state.cus.to:PERIODS[state.per].end;
   if(!DB_DIRTY){if(document.activeElement!==$('dbFrom'))$('dbFrom').value=f;if(document.activeElement!==$('dbTo'))$('dbTo').value=t;}$('dbFrom').max=$('dbTo').max=ukToday();}
 
-/* Not interested gets its own column, legend entry and definition */
-(function(){var leg=document.querySelector('#statusBars')&&document.querySelector('#statusBars').previousElementSibling;
-  if(leg&&leg.classList.contains('legend')){var d=leg.querySelector('.c-disq');if(d)d.parentNode.insertAdjacentHTML('beforebegin','<span><i class="c-notint"></i>Not interested</span>');}
-  var th=document.querySelectorAll('#statusBody')[0];th=th&&th.parentNode.querySelector('thead tr');
-  if(th)Array.prototype.forEach.call(th.children,function(c){if(c.textContent==='Disqualified')c.insertAdjacentHTML('beforebegin','<th>Not interested</th>');});
-  Array.prototype.forEach.call(document.querySelectorAll('dd span'),function(sp){if(sp.textContent.indexOf('Disqualified = Disqualified or Not Interested')>=0)sp.textContent=sp.textContent.replace('Disqualified = Disqualified or Not Interested.','Not interested = Not Interested. Disqualified = Disqualified.');});
+/* Not interested has its own column and legend entry in index.html; only the definition text is updated here */
+(function(){  Array.prototype.forEach.call(document.querySelectorAll('dd span'),function(sp){if(sp.textContent.indexOf('Disqualified = Disqualified or Not Interested')>=0)sp.textContent=sp.textContent.replace('Disqualified = Disqualified or Not Interested.','Not interested = Not Interested. Disqualified = Disqualified.');});
 })();
 function seg(cls,w,title,m,per,sk){return '<span class="'+cls+'" style="width:'+w+'%" title="'+title+(LISTS&&m?' \u00b7 click to see the companies':'')+'"'+(LISTS&&m?' data-drill="'+m+'|'+per+'|'+sk+'"':'')+'></span>';}
 var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
