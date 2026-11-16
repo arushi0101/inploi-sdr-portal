@@ -13,9 +13,9 @@ const OWNER_NAMES = { '1709905072': 'Jason Baaphy', '511871441': 'Felix Dealtry'
 SDRS.forEach(s => { OWNER_NAMES[s.id] = s.name; });
 // Bookings HubSpot's Account Status history doesn't record as a new move to Meeting Booked, added by hand.
 // BBC: Nikita's account, intro booked 13 Nov (meeting created 12:10 UTC), credit agreed 15 Nov.
-// Care Dorset: Jason booked it himself (#grwth, 12 Nov, MD meeting on 9 Dec), so the pod rule credits James. Not a HubSpot company yet,
-// so it has a placeholder id and its name here (Arushi, 16 Nov).
-const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }, { co: 'manual-care-dorset', at: 1794498124000, sdr: 'james', name: 'Care Dorset' }];
+// Care Dorset: Jason booked it himself at the Care Strategy Forum (#grwth, 12 Nov, MD meeting on 9 Dec), so the pod rule credits James
+// (Arushi, 16 Nov). Company 467490511056 and deal 542185459936 were created on 16 Nov, so the booking date is set here.
+const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }, { co: '467490511056', at: 1794498124000, sdr: 'james', name: 'Care Dorset' }];
 const MANUAL_NAME = id => { const m = MANUAL_BOOKINGS.find(x => x.co === id); return m && m.name ? m.name : ''; };
 // Moves to Meeting Booked that aren't new SDR bookings, keyed by company, with the window they apply to.
 // FIFA: an old meeting Felix re-engaged (Felix x Mark, created 11 Nov); the status change on 13 Nov came from the HubSpot clean-up,
@@ -1206,7 +1206,7 @@ async function newBookings(mbT, pb, startMs, endMs, sdrOfCo) {
   for (let i = out.length - 1; i >= 0; i--) if (EXCLUDED_BOOKINGS.some(x => x.co === out[i][0] && out[i][1] >= x.from && out[i][1] < x.to)) out.splice(i, 1);
   MANUAL_BOOKINGS.forEach(m => {
     if (m.at < startMs || m.at >= endMs) return;
-    if (out.some(r => r[0] === m.co && Math.abs(r[1] - m.at) <= 21 * 86400000)) return;
+    for (let i = out.length - 1; i >= 0; i--) if (out[i][0] === m.co && Math.abs(out[i][1] - m.at) <= 21 * 86400000) out.splice(i, 1);
     const si = SDRS.findIndex(s => s.k === m.sdr); if (si >= 0) out.push([m.co, m.at, si, 'manual']);
   });
   return out.sort((a, b) => a[1] - b[1]);
