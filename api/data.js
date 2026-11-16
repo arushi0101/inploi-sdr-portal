@@ -1493,6 +1493,63 @@ async function buildVisits(q) {
   return { generatedAt: new Date().toISOString(), icpMin: ICP_MIN, channel: VISITS_CH, today, days: list, total: tot };
 }
 
+/* ---------- Inbound form submissions: demo requests, audit unlocks and other website forms ----------
+   From each contact's latest form (HubSpot keeps only the latest per contact: recent_conversion_*).
+   Split into external (assigned / needs an owner), internal (inploi team) and tests. Assigned = owned by an active SDR or AE. */
+const FORM_AES = ['1709905072', '511871441'];
+const FORM_OWNER_LABEL = { '861474011': 'Sandra Djokic (left)', '32978778': 'Annie Claassens (left)', '35222671': 'Arushi Mittal (not sales)', '511871465': 'Matt de la Hey (not an SDR)', '38079469': 'Customer Success' };
+// Agreed calls on individual submissions, keyed by HubSpot contact ID (spam = likely spam, kept visible but out of "real leads").
+const FORM_FLAGS = {
+  '918182865100': { spam: true, note: 'Personal email with a typo domain' },
+  '891926111481': { spam: true, note: 'SEO agency (vendor)' },
+  '913655542972': { spam: true, note: 'Odd email address' },
+  '912736187622': { spam: true, note: 'Personal email with a typo domain' },
+  '919003864254': { note: 'Software directory (vendor), not a buyer' },
+  '914459580623': { note: 'Real company (RPO): needs an SDR' },
+  '913785055433': { note: 'Work email, ran several audits' }
+};
+const FREE_MAIL = /@(gmail|googlemail|hotmail|outlook|live|yahoo|icloud|icoud|aol|proton(mail)?|me)\.[a-z.]+$/i;
+let leadStatusLabels = null;
+async function leadStatusMap() {
+  if (leadStatusLabels) return leadStatusLabels;
+  try { const r = await hs('/crm/v3/properties/contacts/hs_lead_status'); leadStatusLabels = {}; (r.options || []).forEach(o => { leadStatusLabels[o.value] = o.label; }); }
+  catch (e) { leadStatusLabels = {}; }
+  return leadStatusLabels;
+}
+function formKind(ev) {
+  const e = String(ev || '');
+  if (/Hiring Experience Audit/i.test(e)) { const m = /grader:\s*([^:]+):/i.exec(e); return { form: 'audit', label: 'Audit unlock', site: m ? m[1].trim() : '' }; }
+  if (/^Book a demo/i.test(e)) return { form: 'demo', label: 'Demo request', site: '' };
+  return { form: 'other', label: (e.split(/\s[|·]\s|:\s/)[0] || 'Other form').trim(), site: '' };
+}
+async function buildForms(q) {
+  const days = Math.min(Math.max(Number(q && q.days) || 30, 1), 180);
+  const since = Date.now() - days * 86400000;
+  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events'];
+  const [rows, ls] = await Promise.all([
+    searchAll('contacts', [{ filters: [{ propertyName: 'recent_conversion_date', operator: 'GTE', value: String(since) }] }], props, 'recent_conversion_date'),
+    leadStatusMap()
+  ]);
+  const active = new Set([...SDR_IDS, ...FORM_AES]);
+  const short = id => { const s = SDRS.find(x => x.id === id); if (s) return s.short; if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return ''; };
+  const out = { external: [], internal: [], tests: [] };
+  rows.forEach(c => {
+    const p = c.properties || {}, email = String(p.email || '').toLowerCase(), name = [p.firstname, p.lastname].filter(Boolean).join(' ') || email || 'Unnamed contact';
+    const k = formKind(p.recent_conversion_event_name), at = Date.parse(p.recent_conversion_date) || Number(p.recent_conversion_date) || 0;
+    const base = { id: c.id, name, title: p.jobtitle || '', company: p.company || (email.split('@')[1] || ''), at, form: k.form, formLabel: k.label, site: k.site, event: p.recent_conversion_event_name || '', runs: Number(p.num_conversion_events) || 1 };
+    if (/^test\b/i.test(name) || /@(example\.com|hubspot\.com)$/.test(email) || /^Sample Form$/i.test(p.recent_conversion_event_name || '') || /sample contact/i.test(name)) {
+      out.tests.push(Object.assign(base, { why: /hubspot|sample/i.test(email + name + base.event) ? 'HubSpot sample contact' : 'Test record' })); return; }
+    if (/@inploi\.com$/.test(email)) { out.internal.push(base); return; }
+    const o = p.hubspot_owner_id || '', f = FORM_FLAGS[c.id] || {};
+    const free = FREE_MAIL.test(email);
+    out.external.push(Object.assign(base, {
+      ownerId: o, assigned: active.has(o), owner: active.has(o) ? short(o) : o ? (FORM_OWNER_LABEL[o] || OWNER_NAMES[o] || 'Another owner') : 'No owner',
+      status: ls[p.hs_lead_status] || p.hs_lead_status || '', spam: !!f.spam, note: f.note || (free ? 'Personal email address' : '') }));
+  });
+  Object.values(out).forEach(L => L.sort((a, b) => b.at - a.at));
+  return { generatedAt: new Date().toISOString(), days, since: new Date(since).toISOString(), order: ['James', 'Matthew', 'Nikita', 'Evan', 'Jason (AE)', 'Felix (AE)'], ...out };
+}
+
 /* ---------- Arushi's report: what changed in HubSpot on a day ----------
    New contacts, companies and deals, and deal stage/pipeline moves, each with who did it and why (HubSpot's record source),
    split by user. Shown on the dashboard (Arushi's report) and sent to Arushi's Slack DM at the end of each day. */
@@ -1673,7 +1730,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), days: (req.query && req.query.days) || sp.get('days'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'forms' ? await buildForms(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
