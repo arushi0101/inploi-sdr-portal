@@ -128,7 +128,7 @@ tr.sdr-row:hover td{background:var(--accent-soft)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:0;margin-right:6px;vertical-align:-1px}
 .c-conv,.c-pos,.c-new{background:var(--s-conv)}.c-noans,.c-work,.c-fu{background:var(--s-noans)}.c-bot,.c-exh{background:var(--s-bot)}.c-other,.c-disq{background:var(--s-other)}.c-none{background:var(--s-none)}
 .bars h3{margin-bottom:2px}
-.c-call{background:var(--s-bot)}.c-seq{background:var(--s-conv)}.c-one{background:var(--s-noans)}.c-li{background:transparent;border:1px dashed var(--muted)}
+.c-call{background:var(--s-bot)}.c-seq{background:var(--s-conv)}.c-one{background:var(--s-noans)}.c-li{background:#0A66C2}
 ul.wins{list-style:none;margin:0;padding:0;display:grid}
 ul.wins li{display:grid;grid-template-columns:132px 1fr auto;gap:4px 14px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem}
 ul.wins li:last-child{border-bottom:none}
@@ -215,7 +215,7 @@ dl.defs .caveat{color:var(--muted);font-size:.84rem}
     <div class="card">
       <div class="sec-head"><h2>Scorecard</h2><span class="tag" id="scoreTag"></span></div>
       <div class="tbl"><table>
-        <thead><tr><th>SDR</th><th>Accounts<br>assigned</th><th>Accounts<br>contacted</th><th>Coverage</th><th>Contacts<br>reached</th><th>Contacts<br>per account</th><th>Calls</th><th>Real<br>conversations</th><th>Emails<br>sent</th><th>First meetings<br>booked</th></tr></thead>
+        <thead><tr><th>SDR</th><th>Accounts<br>assigned</th><th>Accounts<br>contacted</th><th>Coverage</th><th>Contacts<br>reached</th><th>Contacts<br>per account</th><th>Calls</th><th>Real<br>conversations</th><th>Emails<br>sent</th><th>LinkedIn<br>messages</th><th>First meetings<br>booked</th></tr></thead>
         <tbody id="scoreBody"></tbody>
       </table></div>
       <p class="muted small">Click an SDR row to filter the whole portal to that SDR. The Definitions view explains how each number is worked out.</p>
@@ -308,10 +308,10 @@ dl.defs .caveat{color:var(--muted);font-size:.84rem}
     <div class="kpis" id="outKpis"></div>
     <div class="card">
       <div class="sec-head"><h2>Channel mix</h2><span class="tag" id="mixTag"></span></div>
-      <div class="legend"><span><i class="c-call"></i>Calls</span><span><i class="c-seq"></i>Sequence emails</span><span><i class="c-one"></i>One-off emails</span><span><i class="c-li"></i>LinkedIn (not tracked yet)</span></div>
+      <div class="legend"><span><i class="c-call"></i>Calls</span><span><i class="c-seq"></i>Sequence emails</span><span><i class="c-one"></i>One-off emails</span><span><i class="c-li"></i>LinkedIn messages</span></div>
       <div class="bars" id="mixBars" role="img" aria-label="Outbound touches by channel for each SDR."></div>
       <div class="tbl"><table>
-        <thead><tr><th>SDR</th><th>Calls</th><th>Sequence<br>emails</th><th>One-off<br>emails</th><th>Total<br>touches</th><th>Calls share</th></tr></thead>
+        <thead><tr><th>SDR</th><th>Calls</th><th>Sequence<br>emails</th><th>One-off<br>emails</th><th>LinkedIn<br>messages</th><th>Total<br>touches</th><th>Calls share</th></tr></thead>
         <tbody id="mixBody"></tbody>
       </table></div>
     </div>

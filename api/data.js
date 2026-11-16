@@ -209,6 +209,13 @@ async function build(q) {
     f = to;
   }
 
+  // LinkedIn messages by the SDRs (HeyReach logs them in HubSpot as communications, channel LINKEDIN_MESSAGE)
+  let liMsgs = [];
+  try {
+    liMsgs = await searchAll('communications', [{ filters: [{ propertyName: 'hs_communication_channel_type', operator: 'EQ', value: 'LINKEDIN_MESSAGE' }, { propertyName: 'hs_timestamp', operator: 'GTE', value: String(minStart) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: SDR_IDS }] }],
+      ['hs_timestamp', 'hubspot_owner_id'], 'hs_timestamp');
+  } catch (e) { liMsgs = []; }
+
   // Sequence enrolments (contact owner, latest enrolment date)
   const enrolled = await searchAll('contacts', [{ filters: [{ propertyName: 'hs_latest_sequence_enrolled_date', operator: 'GTE', value: String(minStart) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: SDR_IDS }] }],
     ['hs_latest_sequence_enrolled_date', 'hubspot_owner_id']);
@@ -249,7 +256,7 @@ async function build(q) {
   const S = {};
   SDRS.forEach(s => {
     S[s.k] = Object.assign({}, s, {
-      assigned: 0, contacted: { wk: 0, mtd: 0 }, contacts: { wk: 0, mtd: 0 }, emails: { wk: 0, mtd: 0 }, first: { wk: 0, mtd: 0 }, booked30: 0, held: 0,
+      assigned: 0, contacted: { wk: 0, mtd: 0 }, contacts: { wk: 0, mtd: 0 }, emails: { wk: 0, mtd: 0 }, li: { wk: 0, mtd: 0 }, first: { wk: 0, mtd: 0 }, booked30: 0, held: 0,
       calls: { wk: { conv: 0, noans: 0, bot: 0, other: 0, none: 0 }, mtd: { conv: 0, noans: 0, bot: 0, other: 0, none: 0 } },
       status: { pos: 0, notint: 0, disq: 0, exh: 0, work: 0 }, patch: 0, eng: 0, bot: 0, tw: { wk: 0, mtd: 0 },
       review: { stuck: 0, newAcc: 0, noOutcome: 0, noNext: 0 }
@@ -322,6 +329,9 @@ async function build(q) {
     });
   });
   enrolled.forEach(c => { const s = sdrOf(c.properties.hubspot_owner_id); if (!s) return; const ts = toMs(c.properties.hs_latest_sequence_enrolled_date); K.forEach(k => { if (inP(ts, k)) OUT[s.k].seq[k].enr++; }); });
+  const liCo = liMsgs.length ? await assoc('communications', 'companies', liMsgs.map(m => m.id)).catch(() => ({})) : {};
+  liMsgs.forEach(m => { const s = sdrOf(m.properties.hubspot_owner_id); if (!s) return; const ts = toMs(m.properties.hs_timestamp), co = (liCo[m.id] || [])[0];
+    K.forEach(k => { if (inP(ts, k)) { S[s.k].li[k]++; add('linkedin', s.k, k, co); } }); });
 
   /* ----- calls, new vs follow-up ----- */
   const callRows = calls.map(c => {

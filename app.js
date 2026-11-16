@@ -9,7 +9,7 @@ var VIEWS=[
  {k:'weekly',label:'Weekly report',title:'Weekly report',group:'ov'},
  {k:'monthly',label:'Monthly report',title:'Monthly report',group:'ov'},
  {k:'calls',label:'Calls',title:'Calls',sec:'Activity'},
- {k:'outreach',label:'Emails & sequences',title:'Emails, sequences and channel mix',sec:'Activity'},
+ {k:'outreach',label:'Emails & LinkedIn',title:'Emails, LinkedIn, sequences and channel mix',sec:'Activity'},
  {k:'meetings',label:'Meetings',title:'Meetings booked',sec:'Activity'},
  {k:'accounts',label:'Accounts & engagement',title:'Accounts and engagement',sec:'Accounts'},
  {k:'pipeline',label:'Pipeline & revenue',title:'Pipeline and revenue',sec:'Accounts'},
@@ -210,6 +210,7 @@ function render(){
   $('ovKpis').innerHTML=kpi(dn(tCtd,'contacted',P),'Accounts contacted',pct(tCtd,tAsg)+' of the '+tAsg.toLocaleString()+' assigned')+
     kpi(dn(tCalls,'calls',P),'Calls made',dn(tConv,'conv',P)+' were real conversations ('+pct(tConv,tCalls)+')')+
     kpi(dn(sum(S,function(s){return s.emails[P];}),'emails',P),'Emails sent','Includes logged calendar invites')+
+    kpi(dn(sum(S,function(s){return (s.li||{})[P]||0;}),'linkedin',P),'LinkedIn messages','Sent through HeyReach, logged in HubSpot')+
     kpi(dn(sum(S,function(s){return s.first[P];}),'booked',P),'Meetings booked','Companies moved to Meeting Booked, even if they have since moved on')+
     kpi(dn(sum(S,function(s){return s.held;}),'held','all')+' <small style="font-size:.55em;color:var(--muted);font-weight:500">of '+(8*S.length)+'</small>','First meetings held \u00b7 month',(S.length>1?'Target is 8 per SDR ('+S.length+' SDRs)':'Target is 8 a month, floor 6'))+
     kpi(dn(oD.length,'deals','all'),'Open SDR deals',fmtK(sum(oD,function(d){return d.a;}))+' in total \u00b7 '+(PIPE.createdMtd||0)+' new this month');
@@ -218,12 +219,12 @@ function render(){
   function row(s,team){
     var g=function(f){return team?sum(S,f):f(s);};
     var asg=g(function(x){return x.assigned;}),ctd=g(function(x){return x.contacted[P];}),cts=g(function(x){return x.contacts[P];});
-    var calls=g(function(x){return ct(x.calls[P]);}),conv=g(function(x){return x.calls[P].conv;}),em=g(function(x){return x.emails[P];}),fm=g(function(x){return x.first[P];});
+    var calls=g(function(x){return ct(x.calls[P]);}),conv=g(function(x){return x.calls[P].conv;}),em=g(function(x){return x.emails[P];}),fm=g(function(x){return x.first[P];}),li=g(function(x){return (x.li||{})[P]||0;});
     var sk=team?'':s.k;
     var first=team?'<td>Team</td>':'<td>'+esc(s.name)+'<span class="pod">'+esc(s.pod)+(s.lead?' \u00b7 '+esc(s.lead):'')+'</span></td>';
     return '<tr class="'+(team?'team':'sdr-row')+'"'+(team?'':' data-k="'+s.k+'" tabindex="0" title="Filter to '+esc(s.short)+'"')+'>'+first+
       '<td class="n">'+dn(asg.toLocaleString(),'assigned','all',sk)+'</td><td class="n">'+dn(ctd,'contacted',P,sk)+'</td><td class="n">'+pct(ctd,asg)+'</td><td class="n">'+cts+'</td><td class="n">'+ratio(cts,ctd)+
-      '</td><td class="n">'+dn(calls,'calls',P,sk)+'</td><td class="n">'+dn(conv,'conv',P,sk)+'</td><td class="n">'+dn(em,'emails',P,sk)+'</td><td class="n">'+dn(fm,'booked',P,sk)+'</td></tr>';
+      '</td><td class="n">'+dn(calls,'calls',P,sk)+'</td><td class="n">'+dn(conv,'conv',P,sk)+'</td><td class="n">'+dn(em,'emails',P,sk)+'</td><td class="n">'+dn(li,'linkedin',P,sk)+'</td><td class="n">'+dn(fm,'booked',P,sk)+'</td></tr>';
   }
   $('scoreBody').innerHTML=S.map(function(s){return row(s,false);}).join('')+(all?row(null,true):'');
   Array.prototype.forEach.call(document.querySelectorAll('#scoreBody tr.sdr-row'),function(tr){
@@ -329,13 +330,13 @@ function render(){
   $('outKpis').innerHTML=kpi(dn(tSeq,'seq',P),'Sequence emails sent',pct(tSeq,tEm)+' of the '+tEm+' emails sent')+
     kpi(sum(S,function(s){return OUT[s.k].seq[P].enr;}),'Contacts enrolled','Put into a sequence in the period')+
     kpi(dn(tRep,'replies',P),'Email replies','Incoming emails, includes auto-replies');
-  function mix(s){var c=ct(s.calls[P]),q=OUT[s.k].seq[P].em,o=s.emails[P]-q;return {c:c,q:q,o:o,t:c+q+o};}
+  function mix(s){var c=ct(s.calls[P]),q=OUT[s.k].seq[P].em,o=s.emails[P]-q,l=(s.li||{})[P]||0;return {c:c,q:q,o:o,l:l,t:c+q+o+l};}
   var maxM=Math.max.apply(null,S.map(function(s){return mix(s).t;}).concat([1]));
   $('mixBars').innerHTML=S.map(function(s){var m=mix(s);
-    var sg=m.t?[['call',m.c,'Calls'],['seq',m.q,'Sequence emails'],['one',m.o,'One-off emails']].map(function(x){return x[1]?seg('c-'+x[0],x[1]/m.t*100,x[2]+': '+x[1],{call:'calls',seq:'seq',one:'emails'}[x[0]],P,s.k):'';}).join(''):'';
+    var sg=m.t?[['call',m.c,'Calls'],['seq',m.q,'Sequence emails'],['one',m.o,'One-off emails'],['li',m.l,'LinkedIn messages']].map(function(x){return x[1]?seg('c-'+x[0],x[1]/m.t*100,x[2]+': '+x[1],{call:'calls',seq:'seq',one:'emails',li:'linkedin'}[x[0]],P,s.k):'';}).join(''):'';
     return '<div class="bar-row"><span class="lbl">'+esc(s.short)+'</span><div>'+(m.t?'<div class="bar" style="width:'+(m.t/maxM*100)+'%">'+sg+'</div>':'<span class="empty">No outreach logged</span>')+'</div><span class="tot">'+m.t+'</span></div>';}).join('');
-  function mixRow(lbl,m,team){return '<tr'+(team?' class="team"':'')+'><td>'+lbl+'</td><td class="n">'+m.c+'</td><td class="n">'+m.q+'</td><td class="n">'+m.o+'</td><td class="n">'+m.t+'</td><td class="n">'+pct(m.c,m.t)+'</td></tr>';}
-  var mT={c:0,q:0,o:0,t:0};S.forEach(function(s){var m=mix(s);mT.c+=m.c;mT.q+=m.q;mT.o+=m.o;mT.t+=m.t;});
+  function mixRow(lbl,m,team){return '<tr'+(team?' class="team"':'')+'><td>'+lbl+'</td><td class="n">'+m.c+'</td><td class="n">'+m.q+'</td><td class="n">'+m.o+'</td><td class="n">'+m.l+'</td><td class="n">'+m.t+'</td><td class="n">'+pct(m.c,m.t)+'</td></tr>';}
+  var mT={c:0,q:0,o:0,l:0,t:0};S.forEach(function(s){var m=mix(s);mT.c+=m.c;mT.q+=m.q;mT.o+=m.o;mT.l+=m.l;mT.t+=m.t;});
   $('mixBody').innerHTML=S.map(function(s){return mixRow(esc(s.short),mix(s),false);}).join('')+(all?mixRow('Team',mT,true):'');
   $('seqBody').innerHTML=S.map(function(s){var q=OUT[s.k].seq[P];return '<tr><td>'+esc(s.short)+'</td><td class="n">'+q.enr+'</td><td class="n">'+q.em+'</td></tr>';}).join('')+
     (all?'<tr class="team"><td>Team</td><td class="n">'+sum(S,function(s){return OUT[s.k].seq[P].enr;})+'</td><td class="n">'+tSeq+'</td></tr>':'');
@@ -386,7 +387,7 @@ function render(){
   if(window.SDRReports)try{window.SDRReports({view:state.view,P:P,S:S,all:all,pod:state.pod,byK:byK,dn:dn,fmtK:fmtK,ct:ct,DEALS:DEALS,LISTS:LISTS,TRENDS:TRENDS,PERIODS:PERIODS});}catch(err){console.error(err);}
 }
 /* drill-down panel: companies behind a number, then one company's journey */
-var DRILL_NAMES={assigned:'Assigned accounts',contacted:'Accounts contacted',calls:'Accounts called',conv:'Accounts with a real conversation',emails:'Accounts emailed',seq:'Accounts sent sequence emails',replies:'Accounts that replied',booked:'Meetings booked (moved to Meeting Booked in the period)',booked30:'Meetings booked in the last 30 days',held:'First meetings held this month',deals:'Open SDR deals',pos:'Positive accounts',disq:'Disqualified',notint:'Not interested',work:'Still being worked',call_conv:'Calls: real conversation',call_noans:'Calls: no answer',call_bot:'Calls: AI screening bot',call_other:'Calls: gatekeeper, wrong number, bad timing, not interested',call_none:'Calls: no outcome logged',exh:'Exhausted accounts',eng:'Engaged accounts',stuck:'In Progress, not contacted in 14+ days',newAcc:'Accounts still at New',noOutcome:'Meetings with no outcome',noNext:'Open deals with no next step',newAccwk:'New accounts called',newAccmtd:'New accounts called',fuAccwk:'Follow-up accounts called',fuAccmtd:'Follow-up accounts called'};
+var DRILL_NAMES={linkedin:'Accounts messaged on LinkedIn',assigned:'Assigned accounts',contacted:'Accounts contacted',calls:'Accounts called',conv:'Accounts with a real conversation',emails:'Accounts emailed',seq:'Accounts sent sequence emails',replies:'Accounts that replied',booked:'Meetings booked (moved to Meeting Booked in the period)',booked30:'Meetings booked in the last 30 days',held:'First meetings held this month',deals:'Open SDR deals',pos:'Positive accounts',disq:'Disqualified',notint:'Not interested',work:'Still being worked',call_conv:'Calls: real conversation',call_noans:'Calls: no answer',call_bot:'Calls: AI screening bot',call_other:'Calls: gatekeeper, wrong number, bad timing, not interested',call_none:'Calls: no outcome logged',exh:'Exhausted accounts',eng:'Engaged accounts',stuck:'In Progress, not contacted in 14+ days',newAcc:'Accounts still at New',noOutcome:'Meetings with no outcome',noNext:'Open deals with no next step',newAccwk:'New accounts called',newAccmtd:'New accounts called',fuAccwk:'Follow-up accounts called',fuAccmtd:'Follow-up accounts called'};
 var DRILL_NOTES={calls:'Calls not linked to a company in HubSpot are not in this list, so it can be shorter than the number.',conv:'Calls not linked to a company in HubSpot are not in this list.',emails:'Each company is listed once, however many emails it got. Emails not linked to a company are left out.',seq:'Each company is listed once. Emails not linked to a company are left out.',replies:'Includes auto-replies. Emails not linked to a company are left out.',contacted:'Each company is listed once.'};
 var dr=null,drStack=[],jCache={};
 var LDAY=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short'}),LTIME=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}),LISO=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
