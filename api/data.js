@@ -13,11 +13,16 @@ const OWNER_NAMES = { '1709905072': 'Jason Baaphy', '511871441': 'Felix Dealtry'
 SDRS.forEach(s => { OWNER_NAMES[s.id] = s.name; });
 // Bookings HubSpot's Account Status history doesn't record as a new move to Meeting Booked, added by hand.
 // BBC: Nikita's account, intro booked 13 Nov (meeting created 12:10 UTC), credit agreed 15 Nov.
-const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }];
+// Care Dorset: Jason booked it himself (#grwth, 12 Nov, MD meeting on 9 Dec), so the pod rule credits James. Not a HubSpot company yet,
+// so it has a placeholder id and its name here (Arushi, 16 Nov).
+const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }, { co: 'manual-care-dorset', at: 1794498124000, sdr: 'james', name: 'Care Dorset' }];
+const MANUAL_NAME = id => { const m = MANUAL_BOOKINGS.find(x => x.co === id); return m && m.name ? m.name : ''; };
 // Moves to Meeting Booked that aren't new SDR bookings, keyed by company, with the window they apply to.
 // FIFA: an old meeting Felix re-engaged (Felix x Mark, created 11 Nov); the status change on 13 Nov came from the HubSpot clean-up,
 // not a new booking. Last week is 4 meetings, not 5 (Evan, confirmed with Emerson, 16 Nov).
-const EXCLUDED_BOOKINGS = [{ co: '448944047302', from: Date.parse('2026-11-01T00:00:00Z'), to: Date.parse('2026-12-01T00:00:00Z') }];
+// Gleeds: booked by Alex (marketing) at an event and posted by Felix; marketing bookings get no SDR credit (Arushi, 16 Nov).
+const EXCLUDED_BOOKINGS = [{ co: '448944047302', from: Date.parse('2026-11-01T00:00:00Z'), to: Date.parse('2026-12-01T00:00:00Z') },
+  { co: '8776084937', from: Date.parse('2026-10-01T00:00:00Z'), to: Date.parse('2026-12-01T00:00:00Z') }];
 // Agreed exceptions to the usual SDR credit rules, keyed by HubSpot company ID. Shown as a note on the dashboard.
 const CREDIT_NOTES = {
   '387891749106': 'BBC: Nikita booked it, so the credit is hers. Nikita and Evan have no pod AE, and the pod rule only covers James and Matthew (Nikita, 16 Nov).'
@@ -82,7 +87,7 @@ async function assoc(from, to, ids) {
 }
 async function batchRead(type, ids, properties) {
   const out = {};
-  const list = [...new Set(ids)];
+  const list = [...new Set(ids)].filter(id => /^\d+$/.test(String(id)));
   for (let i = 0; i < list.length; i += 100) {
     const r = await hs('/crm/v3/objects/' + type + '/batch/read', { inputs: list.slice(i, i + 100).map(id => ({ id: String(id) })), properties });
     (r.results || []).forEach(x => { out[String(x.id)] = x.properties || {}; });
@@ -259,7 +264,7 @@ async function build(q) {
   const nbM = await newBookings(mbT0, pbM, mbFrom, mbEnd, id => coById[id] && coById[id].sdr ? SDRS.findIndex(s => s.k === coById[id].sdr.k) : -1);
   const mbT = {}, mbSdr = {}; nbM.forEach(r => { (mbT[r[0]] = mbT[r[0]] || []).push(r[1]); mbSdr[r[0]] = SDRS[r[2]]; });
   const podCo = {}, podIds = Object.keys(mbT).filter(id => !coById[id]);
-  if (podIds.length) { const mp = await batchReadPar('companies', podIds, ['name', 'account_status']); podIds.forEach(id => { const q = mp[id] || {}; podCo[id] = { name: (q.name || 'Company ' + id).trim(), sdr: mbSdr[id], status: statusOpts[q.account_status] || q.account_status || '' }; }); }
+  if (podIds.length) { const mp = await batchReadPar('companies', podIds, ['name', 'account_status']); podIds.forEach(id => { const q = mp[id] || {}; podCo[id] = { name: (q.name || MANUAL_NAME(id) || 'Company ' + id).trim(), sdr: mbSdr[id], status: statusOpts[q.account_status] || q.account_status || '' }; }); }
   const mbIds = Object.keys(mbT);
   const mbIn = (id, k) => { let r = null; (mbT[id] || []).forEach(t => { if (inP(t, k)) r = t; }); return r; };
   const OUT = {}; SDRS.forEach(s => { OUT[s.k] = { seq: { wk: { enr: 0, em: 0 }, mtd: { enr: 0, em: 0 } }, rep: { wk: 0, mtd: 0 } }; });
@@ -546,7 +551,7 @@ async function buildBookedMonths() {
   const list = [], seen = {};
   nb.forEach(r => { const mi = months.indexOf(ym.format(new Date(r[1])).slice(0, 7)); if (mi < 0 || seen[r[0] + '|' + mi]) return; seen[r[0] + '|' + mi] = 1; const k = SDRS[r[2]].k; by[k][mi]++; list.push([r[0], r[1], k, r[3], coSdr[r[0]] ? 'sdr owner' : 'pod']); });
   const nameIds = [...new Set(list.map(r => r[0]))]; const nm = nameIds.length ? await batchReadPar('companies', nameIds, ['name']) : {};
-  list.forEach(r => { r.push(((nm[r[0]] || {}).name || '').trim()); });
+  list.forEach(r => { r.push(((nm[r[0]] || {}).name || MANUAL_NAME(r[0]) || '').trim()); });
   return { generatedAt: now.toISOString(), months, SDRS: SDRS.map(sd => ({ k: sd.k, short: sd.short })), by, total: months.map((m, i) => SDRS.reduce((a, sd) => a + by[sd.k][i], 0)), list, slackError: pb.error };
 }
 
@@ -857,7 +862,7 @@ async function buildCalls(q) {
 
 /* ---------- daily / weekly / monthly report: ?span=day|week|month&day=YYYY-MM-DD (any date in the period; default today) ---------- */
 async function batchReadPar(type, ids, properties) {
-  const out = {}; const list = [...new Set(ids)]; const chunks = [];
+  const out = {}; const list = [...new Set(ids)].filter(id => /^\d+$/.test(String(id))); const chunks = [];
   for (let i = 0; i < list.length; i += 100) chunks.push(list.slice(i, i + 100));
   const one = async ch => { const r = await hs('/crm/v3/objects/' + type + '/batch/read', { inputs: ch.map(id => ({ id: String(id) })), properties }); (r.results || []).forEach(x => { out[String(x.id)] = x.properties || {}; }); };
   for (let i = 0; i < chunks.length; i += 6) await Promise.all(chunks.slice(i, i + 6).map(one));
@@ -950,6 +955,7 @@ async function buildReport(q) {
   const MB = [], mbSeen = {}; nb.forEach(r => { if (mbSeen[r[0]]) return; mbSeen[r[0]] = 1; MB.push([r[0], r[1], r[2], r[3]]); });
   const miss2 = MB.map(r => r[0]).filter(id => !CO[id]);
   if (miss2.length) { const mp = await batchReadPar('companies', miss2, ['name', 'sdr_owner', 'account_status', 'industry_', 'industry']); Object.keys(mp).forEach(id => { CO[id] = coRow(mp[id]); }); }
+  miss2.forEach(id => { if (!CO[id] && MANUAL_NAME(id)) CO[id] = coRow({ name: MANUAL_NAME(id), account_status: 'Meeting Booked' }); });
 
   const COx = {}; [...new Set(acts.flatMap(a => a[4]).concat(MB.map(r => r[0])).concat(MEET.map(r => r[2]).filter(Boolean)))].forEach(id => { if (CO[id]) COx[id] = CO[id]; });
   let SLK = [], SLKERR = null, SLKN = 0;
