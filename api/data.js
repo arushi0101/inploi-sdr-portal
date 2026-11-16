@@ -14,6 +14,10 @@ SDRS.forEach(s => { OWNER_NAMES[s.id] = s.name; });
 // Bookings HubSpot's Account Status history doesn't record as a new move to Meeting Booked, added by hand.
 // BBC: Nikita's account, intro booked 13 Nov (meeting created 12:10 UTC), credit agreed 15 Nov.
 const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }];
+// Moves to Meeting Booked that aren't new SDR bookings, keyed by company, with the window they apply to.
+// FIFA: an old meeting Felix re-engaged (Felix x Mark, created 11 Nov); the status change on 13 Nov came from the HubSpot clean-up,
+// not a new booking. Last week is 4 meetings, not 5 (Evan, confirmed with Emerson, 16 Nov).
+const EXCLUDED_BOOKINGS = [{ co: '448944047302', from: Date.parse('2026-11-01T00:00:00Z'), to: Date.parse('2026-12-01T00:00:00Z') }];
 // Agreed exceptions to the usual SDR credit rules, keyed by HubSpot company ID. Shown as a note on the dashboard.
 const CREDIT_NOTES = {
   '387891749106': 'BBC: Nikita booked it, so the credit is hers. Nikita and Evan have no pod AE, and the pod rule only covers James and Matthew (Nikita, 16 Nov).'
@@ -1193,6 +1197,7 @@ async function newBookings(mbT, pb, startMs, endMs, sdrOfCo) {
   const isOpen = await openPipeline(inWin.map(c => c[0]));
   const out = [];
   inWin.forEach(c => { if (isOpen(c[0], c[1])) return; let si = sdrOfCo(c[0]); if (si < 0) si = pb.att[c[0]] != null ? pb.att[c[0]] : c[3]; if (si >= 0) out.push([c[0], c[1], si, c[2]]); });
+  for (let i = out.length - 1; i >= 0; i--) if (EXCLUDED_BOOKINGS.some(x => x.co === out[i][0] && out[i][1] >= x.from && out[i][1] < x.to)) out.splice(i, 1);
   MANUAL_BOOKINGS.forEach(m => {
     if (m.at < startMs || m.at >= endMs) return;
     if (out.some(r => r[0] === m.co && Math.abs(r[1] - m.at) <= 21 * 86400000)) return;
