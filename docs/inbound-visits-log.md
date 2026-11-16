@@ -52,3 +52,4 @@
 - 2026-11-16 12:10 UTC: Hourly run: no new visit alerts, forms, deals or replies. New meeting: [Granola] LCC x inploi (owner isn't an SDR or AE, already held), so no nudge.
 - 2026-11-16 14:10 UTC: Hourly run: no new visits, forms, deals or meetings.
 - 2026-11-16 15:10 UTC: Hourly run: no new visits, forms, deals or meetings.
+- 2026-11-16 16:10 UTC: Hourly run: no new visits or forms. New deal 'National Care Group - Candidate Agent POC' (542092128443, owner Jason, SDR Owner empty): a POC from the Care Strategy Forum (Jason and Alex), with no #grwth booking post or discovery meeting, so step C doesn't apply. Left as is; the POC is on Monday's GTM leadership agenda. New meeting 'Felix x Dean proposal questions' (17 Nov) is with Warner Leisure, a customer with an open deal, so no nudge.
