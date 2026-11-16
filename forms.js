@@ -27,6 +27,12 @@ function load(){if(LOADING)return;LOADING=true;ERR=null;
   .catch(function(x){ERR=String(x&&x.message||x);}).then(function(){LOADING=false;draw();});}
 function pill(r){return '<span class="fm-pill'+(r.form==='demo'?' fm-demo':'')+'">'+e(r.formLabel)+'</span>'+(r.site?'<span class="fm-sub">'+e(r.site)+'</span>':'');}
 function who(r){return '<a href="'+HS+e(r.id)+'" target="_blank" rel="noopener"><b>'+e(r.name)+'</b></a>'+(r.title?'<span class="fm-sub">'+e(r.title)+'</span>':'');}
+function ctx(r){var c=r.co||{};var t=r.bucket==='customer'?'<span class="fm-pill fm-warn">Existing customer</span>':r.bucket==='pipeline'?'<span class="fm-pill fm-demo">In the pipeline</span>':'<span class="fm-pill">New business</span>';
+  return t+'<span class="fm-sub">Account Status: '+e(c.accountStatus||'empty')+'</span>';}
+function deal(r){var D=(r.co&&r.co.openDeals)||[];return D.length?D.map(function(d){return e(d.stage)+'<span class="fm-sub">'+e(d.owner)+'</span>';}).join('<br>'):'<span class="muted">None</span>';}
+function own(r){var c=r.co||{};return 'SDR: <b>'+e(c.sdr||r.owner||'none')+'</b><span class="fm-sub">Company owner: '+e(c.owner||'none')+'</span><span class="fm-sub">Working on it: '+e(r.working||'nobody yet')+'</span>';}
+function touch(r){if(!r.touch)return '<span class="muted">None logged</span>';var n=Math.floor((Date.now()-r.touch)/86400000);return e(nice(r.touch))+'<span class="fm-sub">'+(n<=0?'today':n===1?'yesterday':n+' days ago')+'</span>';}
+function cname(r){var c=r.co;return c?'<a href="https://app-eu1.hubspot.com/contacts/25735731/record/0-2/'+e(c.id)+'" target="_blank" rel="noopener">'+e(c.name)+'</a>':e(r.company);}
 function cnt(L,f){return L.filter(function(r){return r.form===f;}).length;}
 function tbl(head,body){return '<div class="tbl" style="overflow-x:auto"><table><thead><tr>'+head.map(function(h){return '<th class="'+(h[1]||'l')+'">'+h[0]+'</th>';}).join('')+'</tr></thead><tbody>'+body+'</tbody></table></div>';}
 function html(){
@@ -44,13 +50,13 @@ function html(){
     '<tr><td class="l muted">Internal</td><td class="n muted">'+cnt(D.internal,'demo')+'</td><td class="n muted">'+cnt(D.internal,'audit')+'</td><td class="n muted">'+cnt(D.internal,'other')+'</td><td class="n muted">'+D.internal.length+'</td></tr>');
   var L=un.filter(function(r){return FILTER==='all'?true:FILTER==='spam'?r.spam:!r.spam;});
   o+='<div class="fm-sec"><h3>1 · Needs an owner ('+un.length+')</h3><div class="fm-tog" role="group" aria-label="Filter">'+[['all','All'],['real','Real leads only'],['spam','Likely spam']].map(function(f){return '<button type="button" data-ffil="'+f[0]+'" aria-pressed="'+(FILTER===f[0])+'">'+f[1]+'</button>';}).join('')+'</div></div>';
-  o+=tbl([['Date'],['Form'],['Contact'],['Company'],['Current owner'],['Assessment'],['Note']],
-    L.length?L.map(function(r){return '<tr><td class="l">'+e(nice(r.at))+'</td><td class="l">'+pill(r)+'</td><td class="l">'+who(r)+'</td><td class="l">'+e(r.company)+'</td><td class="l">'+e(r.owner)+'</td><td class="l">'+(r.spam?'<span class="fm-pill fm-spam">Likely spam</span>':'<span class="fm-pill fm-warn">Assign an SDR</span>')+'</td><td class="l muted">'+e(r.note)+'</td></tr>';}).join(''):'<tr><td class="l muted" colspan="7">Nothing here.</td></tr>');
+  o+=tbl([['Date'],['Form'],['Company'],['Contact'],['Customer or pipeline?'],['Open deal'],['Current owner'],['Last touch'],['Assessment']],
+    L.length?L.map(function(r){return '<tr><td class="l">'+e(nice(r.at))+'</td><td class="l">'+pill(r)+'</td><td class="l">'+cname(r)+'</td><td class="l">'+who(r)+'</td><td class="l">'+ctx(r)+'</td><td class="l">'+deal(r)+'</td><td class="l">'+e(r.owner)+'</td><td class="l">'+touch(r)+'</td><td class="l">'+(r.spam?'<span class="fm-pill fm-spam">Likely spam</span>':r.bucket==='new'?'<span class="fm-pill fm-warn">Assign an SDR</span>':'<span class="fm-pill">Check with the account owner</span>')+(r.note?'<span class="fm-sub">'+e(r.note)+'</span>':'')+'</td></tr>';}).join(''):'<tr><td class="l muted" colspan="9">Nothing here.</td></tr>');
   o+='<div class="fm-sec"><h3>2 · Assigned ('+as.length+')</h3><p>Grouped by owner</p></div>';
   var order=D.order.slice();as.forEach(function(r){if(order.indexOf(r.owner)<0)order.push(r.owner);});
-  o+=tbl([['Date'],['Form'],['Contact'],['Company'],['Lead status'],['Note']],
+  o+=tbl([['Date'],['Form'],['Company'],['Contact'],['Customer or pipeline?'],['Open deal'],['Who\u2019s on it'],['Last touch']],
     as.length?order.map(function(w){var G=as.filter(function(r){return r.owner===w;});if(!G.length)return '';
-      return '<tr class="fm-grp team"><td colspan="6">'+e(w)+' · '+G.length+'</td></tr>'+G.map(function(r){return '<tr><td class="l">'+e(nice(r.at))+'</td><td class="l">'+pill(r)+'</td><td class="l">'+who(r)+'</td><td class="l">'+e(r.company)+'</td><td class="l">'+e(r.status||'–')+'</td><td class="l muted">'+e(r.note)+'</td></tr>';}).join('');}).join(''):'<tr><td class="l muted" colspan="6">Nothing here.</td></tr>');
+      return '<tr class="fm-grp team"><td colspan="8">'+e(w)+' · '+G.length+'</td></tr>'+G.map(function(r){return '<tr><td class="l">'+e(nice(r.at))+'</td><td class="l">'+pill(r)+'</td><td class="l">'+who(r)+'</td><td class="l">'+e(r.company)+'</td><td class="l">'+e(r.status||'–')+'</td><td class="l muted">'+e(r.note)+'</td></tr>';}).join('');}).join(''):'<tr><td class="l muted" colspan="6">Nothing here.</td></tr>');
   o+='<div class="fm-sec"><h3>3 · Internal submissions ('+D.internal.length+')</h3><p>inploi team running the audit or testing. Not leads, no action.</p></div>';
   o+=tbl([['Latest'],['Form'],['Person'],['Forms in total','n'],['Latest site checked']],
     D.internal.length?D.internal.map(function(r){return '<tr><td class="l">'+e(nice(r.at))+'</td><td class="l"><span class="fm-pill">'+e(r.formLabel)+'</span></td><td class="l">'+e(r.name)+'</td><td class="n">'+r.runs+'</td><td class="l muted">'+e(r.site||'–')+'</td></tr>';}).join(''):'<tr><td class="l muted" colspan="5">Nothing here.</td></tr>');

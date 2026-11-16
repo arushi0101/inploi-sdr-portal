@@ -1523,19 +1523,25 @@ function formKind(ev) {
   return { form: 'other', label: (e.split(/\s[|·]\s|:\s/)[0] || 'Other form').trim(), site: '' };
 }
 async function buildForms(q) {
-  const days = Math.min(Math.max(Number(q && q.days) || 30, 1), 180);
-  const since = Date.now() - days * 86400000;
-  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events'];
-  const [rows, ls] = await Promise.all([
-    searchAll('contacts', [{ filters: [{ propertyName: 'recent_conversion_date', operator: 'GTE', value: String(since) }] }], props, 'recent_conversion_date'),
-    leadStatusMap()
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const ukStart = d => { const t = Date.parse(d + 'T00:00:00Z'); const off = Date.parse(new Date(t).toLocaleString('en-US', { timeZone: 'Europe/London' })) - Date.parse(new Date(t).toLocaleString('en-US', { timeZone: 'UTC' })); return t - off; };
+  let since, until = Date.now(), days;
+  if (q && /^\d{4}-\d{2}-\d{2}$/.test(q.from || '')) { since = ukStart(q.from); if (/^\d{4}-\d{2}-\d{2}$/.test(q.to || '')) until = ukStart(q.to) + 86400000; days = Math.round((until - since) / 86400000); }
+  else { days = Math.min(Math.max(Number(q && q.days) || 30, 1), 180); since = Date.now() - days * 86400000; }
+  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events', 'associatedcompanyid', 'notes_last_updated'];
+  const [rows, ls, owners, pipes] = await Promise.all([
+    searchAll('contacts', [{ filters: [{ propertyName: 'recent_conversion_date', operator: 'GTE', value: String(since) }, { propertyName: 'recent_conversion_date', operator: 'LT', value: String(until) }] }], props, 'recent_conversion_date'),
+    leadStatusMap(), ownerNames(), hs('/crm/v3/pipelines/deals').catch(() => ({ results: [] }))
   ]);
+  const stageLabel = {}; (pipes.results || []).forEach(p => (p.stages || []).forEach(s => { stageLabel[s.id] = s.label; }));
   const active = new Set([...SDR_IDS, ...FORM_AES]);
   const short = id => { const s = SDRS.find(x => x.id === id); if (s) return s.short; if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return ''; };
+  const person = id => !id ? '' : short(id) || FORM_OWNER_LABEL[id] || owners[id] || 'Another owner';
+  const ms = v => { if (!v) return 0; const n = Number(v); return isNaN(n) ? Date.parse(v) || 0 : n; };
   const out = { external: [], internal: [], tests: [] };
   rows.forEach(c => {
     const p = c.properties || {}, email = String(p.email || '').toLowerCase(), name = [p.firstname, p.lastname].filter(Boolean).join(' ') || email || 'Unnamed contact';
-    const k = formKind(p.recent_conversion_event_name), at = Date.parse(p.recent_conversion_date) || Number(p.recent_conversion_date) || 0;
+    const k = formKind(p.recent_conversion_event_name), at = ms(p.recent_conversion_date);
     const base = { id: c.id, name, title: p.jobtitle || '', company: p.company || (email.split('@')[1] || ''), at, form: k.form, formLabel: k.label, site: k.site, event: p.recent_conversion_event_name || '', runs: Number(p.num_conversion_events) || 1 };
     if (/^test\b/i.test(name) || /@(example\.com|hubspot\.com)$/.test(email) || /^Sample Form$/i.test(p.recent_conversion_event_name || '') || /sample contact/i.test(name)) {
       out.tests.push(Object.assign(base, { why: /hubspot|sample/i.test(email + name + base.event) ? 'HubSpot sample contact' : 'Test record' })); return; }
@@ -1543,11 +1549,62 @@ async function buildForms(q) {
     const o = p.hubspot_owner_id || '', f = FORM_FLAGS[c.id] || {};
     const free = FREE_MAIL.test(email);
     out.external.push(Object.assign(base, {
-      ownerId: o, assigned: active.has(o), owner: active.has(o) ? short(o) : o ? (FORM_OWNER_LABEL[o] || OWNER_NAMES[o] || 'Another owner') : 'No owner',
-      status: ls[p.hs_lead_status] || p.hs_lead_status || '', spam: !!f.spam, note: f.note || (free ? 'Personal email address' : '') }));
+      ownerId: o, assigned: active.has(o), owner: active.has(o) ? short(o) : o ? (FORM_OWNER_LABEL[o] || OWNER_NAMES[o] || owners[o] || 'Another owner') : 'No owner',
+      status: ls[p.hs_lead_status] || p.hs_lead_status || '', spam: !!f.spam, note: f.note || (free ? 'Personal email address' : ''),
+      coId: p.associatedcompanyid || '', contactTouch: ms(p.notes_last_updated) }));
   });
+  // company context: customer?, open deals in the pipeline, Account Status, last touch, SDR Owner, company owner, who's working it
+  const coIds = [...new Set(out.external.map(r => r.coId).filter(Boolean))];
+  if (coIds.length) {
+    const [cos, coDeals] = await Promise.all([
+      batchRead('companies', coIds, ['name', 'lifecyclestage', 'account_status', 'hubspot_owner_id', 'sdr_owner', 'notes_last_updated']),
+      assoc('companies', 'deals', coIds)
+    ]);
+    const dIds = [...new Set([].concat(...Object.values(coDeals)))];
+    const deals = dIds.length ? await batchRead('deals', dIds, ['dealname', 'dealstage', 'hubspot_owner_id', 'hs_is_closed', 'hs_is_closed_won', 'closedate']) : {};
+    out.external.forEach(r => {
+      const c = cos[r.coId]; if (!c) return;
+      const ds = (coDeals[r.coId] || []).map(id => Object.assign({ id }, deals[id] || {}));
+      const open = ds.filter(d => d.hs_is_closed === 'false' || (d.hs_is_closed == null && d.dealstage && !/closed/i.test(stageLabel[d.dealstage] || '')));
+      const won = ds.some(d => d.hs_is_closed_won === 'true');
+      const customer = c.lifecyclestage === 'customer' || won;
+      r.co = { id: r.coId, name: c.name || r.company, customer, lifecycle: c.lifecyclestage || '', accountStatus: c.account_status || '',
+        owner: person(c.hubspot_owner_id), sdr: c.sdr_owner || '', touch: Math.max(ms(c.notes_last_updated), r.contactTouch || 0),
+        openDeals: open.map(d => ({ id: d.id, name: (d.dealname || '').replace(/&amp;/g, '&'), stage: stageLabel[d.dealstage] || d.dealstage || '', owner: person(d.hubspot_owner_id) })) };
+      r.working = r.co.openDeals.length ? r.co.openDeals[0].owner : r.co.sdr || person(r.ownerId) || r.co.owner || '';
+      r.bucket = customer ? 'customer' : r.co.openDeals.length ? 'pipeline' : 'new';
+    });
+  }
+  out.external.forEach(r => { if (!r.co) { r.bucket = 'new'; r.working = person(r.ownerId); } if (!r.co || !r.co.touch) r.touch = r.contactTouch || 0; else r.touch = r.co.touch; });
   Object.values(out).forEach(L => L.sort((a, b) => b.at - a.at));
-  return { generatedAt: new Date().toISOString(), days, since: new Date(since).toISOString(), order: ['James', 'Matthew', 'Nikita', 'Evan', 'Jason (AE)', 'Felix (AE)'], ...out };
+  return { generatedAt: new Date().toISOString(), days, since: new Date(since).toISOString(), until: new Date(until).toISOString(), order: ['James', 'Matthew', 'Nikita', 'Evan', 'Jason (AE)', 'Felix (AE)'], ...out };
+}
+// Slack text for #inbound-leads: the week's form submissions, split by form, with company context. part=forms&fmt=slack&from=&to=
+function formsSlack(D) {
+  const HSB = 'https://app-eu1.hubspot.com/contacts/25735731/record/';
+  const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : 'none';
+  const ago = ms => { if (!ms) return 'no touch logged'; const n = Math.floor((Date.now() - ms) / 86400000); return d(ms) + (n <= 0 ? ' (today)' : n === 1 ? ' (yesterday)' : ' (' + n + ' days ago)'); };
+  const real = D.external.filter(r => !r.spam), spam = D.external.filter(r => r.spam);
+  const tag = r => r.bucket === 'customer' ? 'Existing customer' : r.bucket === 'pipeline' ? 'In the pipeline' : 'New business';
+  const range = d(Date.parse(D.since)) + ' to ' + d(Date.parse(D.until) - 1);
+  const line = r => {
+    const c = r.co || {};
+    const deal = (c.openDeals || []).map(x => x.stage + ' (' + x.owner + ')').join(', ');
+    return '• *<' + HSB + '0-2/' + (c.id || '') + '|' + (c.name || r.company) + '>* · ' + tag(r) + '\n' +
+      '   Contact: <' + HSB + '0-1/' + r.id + '|' + r.name + '>' + (r.title ? ', ' + r.title : '') + ' · submitted ' + d(r.at) + (r.site ? ' · ' + r.site : '') + '\n' +
+      '   SDR: *' + (c.sdr || r.owner) + '* · Company owner: ' + (c.owner || 'none') + ' · Working on it: ' + (r.working || 'nobody yet') + '\n' +
+      '   Account Status: ' + (c.accountStatus || 'empty') + (deal ? ' · Open deal: ' + deal : '') + ' · Last touch: ' + ago(r.touch);
+  };
+  const groups = [['demo', 'Demo requests'], ['audit', 'Audit unlocks'], ['other', 'Other forms']];
+  const cnt = b => real.filter(r => r.bucket === b).length;
+  let t = '*Inbound form submissions · ' + range + '*\n' +
+    'These are the leads that came in through our website forms. ' + real.length + ' real submission' + (real.length === 1 ? '' : 's') + ': ' +
+    cnt('new') + ' new business, ' + cnt('pipeline') + ' already in the pipeline, ' + cnt('customer') + ' existing customer' + (cnt('customer') === 1 ? '' : 's') + '.\n';
+  groups.forEach(([k, label]) => { const L = real.filter(r => r.form === k); if (!L.length) return; t += '\n*' + label + ' (' + L.length + ')*\n' + L.map(line).join('\n') + '\n'; });
+  if (!real.length) t += '\nNo form submissions from prospects this week.\n';
+  if (spam.length) t += '\n_Likely spam, not assigned: ' + spam.map(r => r.company).join(', ') + '._';
+  t += '\n_Internal and test submissions are left out (' + D.internal.length + ' internal, ' + D.tests.length + ' tests). Full list: <https://inploi-sdr-portal.vercel.app/#forms|dashboard, Inbound › Form submissions>._\n_SDR routing_';
+  return { text: t, counts: { real: real.length, spam: spam.length, new: cnt('new'), pipeline: cnt('pipeline'), customer: cnt('customer') } };
 }
 
 /* ---------- Arushi's report: what changed in HubSpot on a day ----------
@@ -1730,7 +1787,7 @@ module.exports = async (req, res) => {
   try {
     const part = String((req.query && req.query.part) || new URL(req.url, 'http://x').searchParams.get('part') || '');
     const sp = new URL(req.url, 'http://x').searchParams; const q = { from: (req.query && req.query.from) || sp.get('from'), to: (req.query && req.query.to) || sp.get('to'), day: (req.query && req.query.day) || sp.get('day'), days: (req.query && req.query.days) || sp.get('days'), span: (req.query && req.query.span) || sp.get('span') };
-    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'forms' ? await buildForms(q) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
+    const data = part === 'admin' ? await buildAdmin(q) : part === 'visits' ? await buildVisits(q) : part === 'forms' ? (sp.get('fmt') === 'slack' ? formsSlack(await buildForms(q)) : await buildForms(q)) : part === 'families' ? { links: await familyLinks(new Set()) } : part === 'trends' ? await buildTrends() : part === 'matt' ? await buildMatt(q) : part === 'calls' ? await buildCalls(q) : part === 'report' ? await buildReport(q) : part === 'booked' ? await buildBookedMonths() : part === 'slackcheck' ? await (async () => { const d = Date.now(); return slackMeetingChecks(d - 30 * 86400000, d); })() : part === 'fixes' ? await fixesPayload() : part === 'slack' ? await slackPayload(q.day, sp.get('fmt') === 'blocks', (req.query && req.query.kind) || sp.get('kind')) : await build(q);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
