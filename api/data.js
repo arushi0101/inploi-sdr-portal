@@ -16,7 +16,7 @@ SDRS.forEach(s => { OWNER_NAMES[s.id] = s.name; });
 const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }];
 // Agreed exceptions to the usual SDR credit rules, keyed by HubSpot company ID. Shown as a note on the dashboard.
 const CREDIT_NOTES = {
-  '387891749106': 'BBC: credited to Nikita (account owner) although Jason booked it. Agreed with Matt, Joseph and Emerson, confirmed by Arushi 15 Nov 2026.'
+  '387891749106': 'BBC: Nikita booked it, so the credit is hers. Nikita and Evan have no pod AE, and the pod rule only covers James and Matthew (Nikita, 16 Nov).'
 };
 
 // Call outcome ids

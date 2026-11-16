@@ -301,7 +301,8 @@ Fixed in the first audit (11 Nov):
 
 Resolved by Arushi (12 Nov):
 - Pets At Home: Felix stays deal owner (AE) and Matthew keeps the SDR credit. When an AE posts the booking but an SDR is already set, keep the SDR.
-- BBC (deal 541154735313, company 387891749106): Jason stays deal owner (AE). He booked the meeting, but the SDR credit stays with Nikita, who owns the account and did the work on it. This was agreed with Matt, Joseph and Emerson and confirmed by Arushi on 15 Nov. Don't move it to James. The note is on the deal card, and the dashboard shows it via `CREDIT_NOTES` in `api/data.js`.
+- **Nikita and Evan have no pod AE (Nikita, 16 Nov).** Any meeting they book is credited to them, whichever AE takes it. The pod rule (an AE's own booking credits their pod SDR) only applies to James (Jason's pod) and Matthew (Felix's pod).
+- BBC (deal 541154735313, company 387891749106): Nikita booked it and Jason is the AE, so the credit stays with Nikita, per the rule above. Don't move it to James. The note is on the deal card, and the dashboard shows it via `CREDIT_NOTES`, plus `MANUAL_BOOKINGS` in `api/data.js`, because HubSpot didn't record a fresh move to Meeting Booked.
 
 ### Roles (Arushi, 12 Nov 2026)
 - **AEs (always the deal owner):** Felix Dealtry (511871441), Jason Baaphy (1709905072).
