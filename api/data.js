@@ -209,7 +209,7 @@ async function build(q) {
     f = to;
   }
 
-  // LinkedIn messages by the SDRs (HeyReach logs them in HubSpot as communications, channel LINKEDIN_MESSAGE)
+  // LinkedIn messages by the SDRs, logged in HubSpot as communications (channel LINKEDIN_MESSAGE). Not HeyReach: its SDR accounts sent nothing in Nov 2026.
   let liMsgs = [];
   try {
     liMsgs = await searchAll('communications', [{ filters: [{ propertyName: 'hs_communication_channel_type', operator: 'EQ', value: 'LINKEDIN_MESSAGE' }, { propertyName: 'hs_timestamp', operator: 'GTE', value: String(minStart) }, { propertyName: 'hubspot_owner_id', operator: 'IN', values: SDR_IDS }] }],

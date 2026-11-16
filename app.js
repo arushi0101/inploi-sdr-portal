@@ -210,7 +210,7 @@ function render(){
   $('ovKpis').innerHTML=kpi(dn(tCtd,'contacted',P),'Accounts contacted',pct(tCtd,tAsg)+' of the '+tAsg.toLocaleString()+' assigned')+
     kpi(dn(tCalls,'calls',P),'Calls made',dn(tConv,'conv',P)+' were real conversations ('+pct(tConv,tCalls)+')')+
     kpi(dn(sum(S,function(s){return s.emails[P];}),'emails',P),'Emails sent','Includes logged calendar invites')+
-    kpi(dn(sum(S,function(s){return (s.li||{})[P]||0;}),'linkedin',P),'LinkedIn messages','Sent through HeyReach, logged in HubSpot')+
+    kpi(dn(sum(S,function(s){return (s.li||{})[P]||0;}),'linkedin',P),'LinkedIn messages','Logged in HubSpot (LinkedIn activity)')+
     kpi(dn(sum(S,function(s){return s.first[P];}),'booked',P),'Meetings booked','Companies moved to Meeting Booked, even if they have since moved on')+
     kpi(dn(sum(S,function(s){return s.held;}),'held','all')+' <small style="font-size:.55em;color:var(--muted);font-weight:500">of '+(8*S.length)+'</small>','First meetings held \u00b7 month',(S.length>1?'Target is 8 per SDR ('+S.length+' SDRs)':'Target is 8 a month, floor 6'))+
     kpi(dn(oD.length,'deals','all'),'Open SDR deals',fmtK(sum(oD,function(d){return d.a;}))+' in total \u00b7 '+(PIPE.createdMtd||0)+' new this month');
