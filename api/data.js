@@ -11,6 +11,9 @@ const SDRS = [
 const SDR_IDS = SDRS.map(s => s.id);
 const OWNER_NAMES = { '1709905072': 'Jason Baaphy', '511871441': 'Felix Dealtry', '32978778': 'Annie Claassens', '511871465': 'Matt de la Hey', '36304602': 'Joseph Williams' };
 SDRS.forEach(s => { OWNER_NAMES[s.id] = s.name; });
+// Bookings HubSpot's Account Status history doesn't record as a new move to Meeting Booked, added by hand.
+// BBC: Nikita's account, intro booked 13 Nov (meeting created 12:10 UTC), credit agreed 15 Nov.
+const MANUAL_BOOKINGS = [{ co: '387891749106', at: 1794571833000, sdr: 'nikita' }];
 // Agreed exceptions to the usual SDR credit rules, keyed by HubSpot company ID. Shown as a note on the dashboard.
 const CREDIT_NOTES = {
   '387891749106': 'BBC: credited to Nikita (account owner) although Jason booked it. Agreed with Matt, Joseph and Emerson, confirmed by Arushi 15 Nov 2026.'
@@ -1190,6 +1193,11 @@ async function newBookings(mbT, pb, startMs, endMs, sdrOfCo) {
   const isOpen = await openPipeline(inWin.map(c => c[0]));
   const out = [];
   inWin.forEach(c => { if (isOpen(c[0], c[1])) return; let si = sdrOfCo(c[0]); if (si < 0) si = pb.att[c[0]] != null ? pb.att[c[0]] : c[3]; if (si >= 0) out.push([c[0], c[1], si, c[2]]); });
+  MANUAL_BOOKINGS.forEach(m => {
+    if (m.at < startMs || m.at >= endMs) return;
+    if (out.some(r => r[0] === m.co && Math.abs(r[1] - m.at) <= 21 * 86400000)) return;
+    const si = SDRS.findIndex(s => s.k === m.sdr); if (si >= 0) out.push([m.co, m.at, si, 'manual']);
+  });
   return out.sort((a, b) => a[1] - b[1]);
 }
 // returns rows [ts, who, target, coId|null, issue, slackLink]
