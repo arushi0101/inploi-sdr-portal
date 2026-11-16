@@ -1579,32 +1579,38 @@ async function buildForms(q) {
   Object.values(out).forEach(L => L.sort((a, b) => b.at - a.at));
   return { generatedAt: new Date().toISOString(), days, since: new Date(since).toISOString(), until: new Date(until).toISOString(), order: ['James', 'Matthew', 'Nikita', 'Evan', 'Jason (AE)', 'Felix (AE)'], ...out };
 }
-// Slack text for #inbound-leads: the week's form submissions, split by form, with company context. part=forms&fmt=slack&from=&to=
+// Slack markdown for #inbound-leads: form submissions in a period, one table per form, with company context.
+// part=forms&fmt=slack&from=YYYY-MM-DD&to=YYYY-MM-DD. Returns { messages: [...] } (each under Slack's 5,000-character limit).
 function formsSlack(D) {
   const HSB = 'https://app-eu1.hubspot.com/contacts/25735731/record/';
-  const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : 'none';
-  const ago = ms => { if (!ms) return 'no touch logged'; const n = Math.floor((Date.now() - ms) / 86400000); return d(ms) + (n <= 0 ? ' (today)' : n === 1 ? ' (yesterday)' : ' (' + n + ' days ago)'); };
+  const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : '';
+  const ago = ms => { if (!ms) return 'None logged'; const n = Math.floor((Date.now() - ms) / 86400000); return d(ms) + (n <= 0 ? ' (today)' : ' (' + n + 'd ago)'); };
+  const nm = x => { if (!x) return ''; const s = SDRS.find(y => y.name === x || y.short === x); return s ? s.short : String(x).replace(' (AE)', ''); };
+  const cell = x => String(x || '').replace(/\|/g, '\\|');
   const real = D.external.filter(r => !r.spam), spam = D.external.filter(r => r.spam);
-  const tag = r => r.bucket === 'customer' ? 'Existing customer' : r.bucket === 'pipeline' ? 'In the pipeline' : 'New business';
-  const range = d(Date.parse(D.since)) + ' to ' + d(Date.parse(D.until) - 1);
-  const line = r => {
-    const c = r.co || {};
-    const deal = (c.openDeals || []).map(x => x.stage + ' (' + x.owner + ')').join(', ');
-    return '• *<' + HSB + '0-2/' + (c.id || '') + '|' + (c.name || r.company) + '>* · ' + tag(r) + '\n' +
-      '   Contact: <' + HSB + '0-1/' + r.id + '|' + r.name + '>' + (r.title ? ', ' + r.title : '') + ' · submitted ' + d(r.at) + (r.site ? ' · ' + r.site : '') + '\n' +
-      '   SDR: *' + (c.sdr || r.owner) + '* · Company owner: ' + (c.owner || 'none') + ' · Working on it: ' + (r.working || 'nobody yet') + '\n' +
-      '   Account Status: ' + (c.accountStatus || 'empty') + (deal ? ' · Open deal: ' + deal : '') + ' · Last touch: ' + ago(r.touch);
-  };
-  const groups = [['demo', 'Demo requests'], ['audit', 'Audit unlocks'], ['other', 'Other forms']];
+  const where = r => { const c = r.co || {}; const deal = (c.openDeals || [])[0];
+    return r.bucket === 'customer' ? 'Existing customer' + (deal ? ', open deal: ' + deal.stage : '') : r.bucket === 'pipeline' ? 'In pipeline: ' + deal.stage : 'New business'; };
+  const row = r => { const c = r.co || {};
+    return '| [' + cell(c.name || r.company) + '](' + HSB + '0-2/' + (c.id || '') + ') | [' + cell(r.name) + '](' + HSB + '0-1/' + r.id + ')' + (r.title ? ', ' + cell(r.title) : '') + ' | ' + d(r.at) +
+      ' | ' + where(r) + ' | ' + cell(c.accountStatus || '–') + ' | ' + (nm(c.sdr) || '**None**') + ' | ' + (nm(c.owner) || '–') + ' | ' + (nm(r.working) || '–') + ' | ' + ago(r.touch) + ' |'; };
+  const head = '| Company | Contact | Submitted | Customer or pipeline | Account Status | SDR | Company owner | Working on it | Last touch |\n|---|---|---|---|---|---|---|---|---|\n';
   const cnt = b => real.filter(r => r.bucket === b).length;
-  let t = '*Inbound form submissions · ' + range + '*\n' +
-    'These are the leads that came in through our website forms. ' + real.length + ' real submission' + (real.length === 1 ? '' : 's') + ': ' +
-    cnt('new') + ' new business, ' + cnt('pipeline') + ' already in the pipeline, ' + cnt('customer') + ' existing customer' + (cnt('customer') === 1 ? '' : 's') + '.\n';
-  groups.forEach(([k, label]) => { const L = real.filter(r => r.form === k); if (!L.length) return; t += '\n*' + label + ' (' + L.length + ')*\n' + L.map(line).join('\n') + '\n'; });
-  if (!real.length) t += '\nNo form submissions from prospects this week.\n';
-  if (spam.length) t += '\n_Likely spam, not assigned: ' + spam.map(r => r.company).join(', ') + '._';
-  t += '\n_Internal and test submissions are left out (' + D.internal.length + ' internal, ' + D.tests.length + ' tests). Full list: <https://inploi-sdr-portal.vercel.app/#forms|dashboard, Inbound › Form submissions>._\n_SDR routing_';
-  return { text: t, counts: { real: real.length, spam: spam.length, new: cnt('new'), pipeline: cnt('pipeline'), customer: cnt('customer') } };
+  const cos = new Set(real.map(r => (r.co && r.co.id) || r.company)).size;
+  const range = d(Date.parse(D.since)) + ' to ' + d(Date.parse(D.until) - 1);
+  const intro = '**Inbound form submissions · ' + range + '**\nHere are the leads we received through our website forms: ' + real.length + ' submission' + (real.length === 1 ? '' : 's') + ' from ' + cos + ' compan' + (cos === 1 ? 'y' : 'ies') + ' (' +
+    cnt('new') + ' new business, ' + cnt('pipeline') + ' already in the pipeline, ' + cnt('customer') + ' from existing customers).';
+  const blocks = [];
+  [['demo', 'Demo requests'], ['audit', 'Audit unlocks'], ['other', 'Other forms']].forEach(([k, label]) => { const L = real.filter(r => r.form === k); if (!L.length) return;
+    let cur = '**' + label + ' (' + L.length + ')**\n' + head;
+    L.forEach(r => { const x = row(r) + '\n'; if (cur.length + x.length > 4200) { blocks.push(cur); cur = '**' + label + ' (continued)**\n' + head; } cur += x; });
+    blocks.push(cur); });
+  if (!real.length) blocks.push('No form submissions from prospects in this period.');
+  const foot = (spam.length ? '_Likely spam, not assigned: ' + spam.map(r => r.company).join(', ') + '._\n' : '') +
+    '_Internal and test submissions are left out. Full list on the dashboard: Inbound › Form submissions._\n_SDR routing_';
+  const messages = []; let cur = intro;
+  blocks.concat([foot]).forEach(b => { if (cur.length + b.length + 2 > 4800) { messages.push(cur); cur = b; } else cur += '\n\n' + b; });
+  messages.push(cur);
+  return { messages, counts: { real: real.length, companies: cos, spam: spam.length, new: cnt('new'), pipeline: cnt('pipeline'), customer: cnt('customer') } };
 }
 
 /* ---------- Arushi's report: what changed in HubSpot on a day ----------
