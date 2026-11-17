@@ -400,9 +400,9 @@ function drOpen(){if(dr)return;dr=document.createElement('div');dr.className='dr
 function drClose(){if(!dr)return;dr.remove();dr=null;drStack=[];document.body.style.overflow='';}
 function drHead(title,sub,extra){$('drHead').innerHTML=(drStack.length>1?'<button class="dr-back" id="drBack">\u2190 Back to the list</button>':'')+'<div class="dr-top"><h2>'+title+'</h2><button class="dr-x" id="drX">Close</button></div>'+(sub?'<div class="dr-sub">'+sub+'</div>':'')+(extra||'');
   $('drX').addEventListener('click',drClose);if($('drBack'))$('drBack').addEventListener('click',function(){drStack.pop();var f=drStack.pop();f();});}
-// credit: optional {companyId: SDR short name} from the list being opened, used when the company has no SDR Owner (e.g. pod bookings)
+// credit: {companyId: SDR short name} from the list being opened = the SDR whose activity put it there; falls back to the SDR Owner
 function showList(title,sub,ids,note,credit){
-  var rows=ids.map(function(id){var c=CO&&CO[id]||['Company '+id,'','',''];var k=c[2]&&byK(c[2]);var cr=credit&&credit[id];return [[id,c[0]],c[1]||'',k?k.short:(cr?cr+' (pod)':''),c[3]?Date.parse(c[3]+'T00:00:00Z'):null];});
+  var rows=ids.map(function(id){var c=CO&&CO[id]||['Company '+id,'','',''];var k=c[2]&&byK(c[2]);var cr=credit&&credit[id];return [[id,c[0]],c[1]||'',cr||(k?k.short:''),c[3]?Date.parse(c[3]+'T00:00:00Z'):null];});
   showTable(title,sub,[{h:'Company',t:'co'},{h:'Account Status',t:'text'},{h:'SDR',t:'text'},{h:'Last contacted',t:'date'}],rows,note);
 }
 /* generic drill table: any records, sortable, filterable, CSV export; company cells open the journey */
