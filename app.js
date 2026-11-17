@@ -13,6 +13,7 @@ var VIEWS=[
  {k:'meetings',label:'Meetings',title:'Meetings booked',sec:'Activity'},
  {k:'accounts',label:'Accounts & engagement',title:'Accounts and engagement',sec:'Accounts'},
  {k:'pipeline',label:'Pipeline & revenue',title:'Pipeline and revenue',sec:'Accounts'},
+ {k:'inweekly',label:'Weekly inbound report',title:'Inbound: weekly report',sec:'Inbound'},
  {k:'visits',label:'Visits',title:'Inbound: visits',sec:'Inbound'},
  {k:'forms',label:'Form submissions',title:'Inbound: form submissions',sec:'Inbound'},
  {k:'review',label:'Weekly review',title:'Weekly review',sec:'Team'},
@@ -381,6 +382,7 @@ function render(){
   if(window.SDRMatt)try{window.SDRMatt({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
   if(window.SDRReport)try{window.SDRReport({view:state.view,pod:state.pod,byK:byK});}catch(err){console.error(err);}
   if(window.SDRVisits)try{window.SDRVisits({view:state.view});}catch(err){console.error(err);}
+  if(window.SDRInWeek)try{window.SDRInWeek({view:state.view});}catch(err){console.error(err);}
   if(window.SDRForms)try{window.SDRForms({view:state.view,per:P,cus:state.cus});}catch(err){console.error(err);}
   if(window.SDRAdmin)try{window.SDRAdmin({view:state.view});}catch(err){console.error(err);}
   if(window.SDRCalls)try{window.SDRCalls({view:state.view,pod:state.pod,per:P,cus:state.cus,byK:byK});}catch(err){console.error(err);}
@@ -512,7 +514,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')drClose();})
 MEETINGS=MEETINGS.filter(function(m){return !m.kind||m.kind==='First meeting';});
 WINS=WINS.filter(function(w){return w.t!=='held'||!/proposal/i.test(w.x);});
 render();load(false);
-['matt.js','calls.js','daily.js','booked.js','visits.js','forms.js','admin.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
+['matt.js','calls.js','daily.js','booked.js','visits.js','forms.js','inbound.js','admin.js'].forEach(function(f){var ms=document.createElement('script');ms.src=f;ms.onload=function(){render();};document.body.appendChild(ms);});
 var rs=document.createElement('script');rs.src='reports.js';rs.onload=function(){render();};document.body.appendChild(rs);
 window.addEventListener('hashchange',function(){var h=(location.hash||'').slice(1);if(VIEWS.some(function(v){return v.k===h;})&&h!==state.view){state.view=h;render();}});
 })();

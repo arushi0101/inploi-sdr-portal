@@ -116,7 +116,7 @@ module.exports = function (X) {
     const [eco, ltE] = await Promise.all([coIds.length ? batchReadPar('companies', coIds, ['name', 'createdate', 'sdr_icp_fit', 'sdr_icp_tier', 'sdr_icp_status', 'hubspot_owner_id', 'sdr_owner', 'account_status', 'lifecyclestage', 'notes_last_updated', 'notes_last_contacted']) : {}, lastTouchBy('contacts', events.map(e => e.id))]);
     const ev = events.map(e => { const c = eco[e.coId] || {};
       const coCreated = toMs(c.createdate) || 0, icpRaw = String(c.sdr_icp_fit || '').toUpperCase();
-      const coBucket = !e.coId ? 'No company linked' : coCreated && coCreated < Math.min(e.created, since) - 3600000 ? 'Company already in CRM' : 'Net new company';
+      const coBucket = !e.coId ? 'No company linked' : coCreated && coCreated < (e.existing ? since : e.created - 3600000) ? 'Company already in CRM' : 'Net new company';
       const bucket = e.existing ? 'Existing contact' : coBucket === 'Company already in CRM' ? 'New contact, company already in CRM' : coBucket === 'Net new company' ? 'Net new contact and company' : 'New contact, no company';
       return Object.assign({ id: e.id, name: e.name, title: e.title, company: c.name || e.company, coId: e.coId, event: evOpts[e.event] || e.event || '', at: e.at, existing: e.existing,
         bucket, coBucket, icp: icpRaw === 'YES' ? 'ICP fit' : icpRaw === 'NO' ? 'Not ICP' : 'Not checked', icpTier: c.sdr_icp_tier || '', icpReview: /^REVIEW/i.test(c.sdr_icp_status || ''),
