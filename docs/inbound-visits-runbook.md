@@ -325,3 +325,18 @@ Resolved by Arushi (12 Nov):
 - The script also writes `<folder>/icp_updates.json`: companies whose ICP Fit **and** ICP Status are empty in HubSpot get the sheet's verdict
   (`sdr_icp_fit` YES/NO, `sdr_icp_status` "ICP: … (events sheet: <event>)"). Fill empty only. A company marked ICP at **any** event is ICP everywhere
   (Arushi, 17 Nov): ICP Fit YES and ICP Status "ICP: marked ICP at <event(s)> (not ICP at <event>)"; the dashboard and email tag it "ICP at <event>".
+
+## Website visits come from Leadfeeder (Arushi, 17 Nov 2026)
+- Leadfeeder account **Inploi (314105)** is connected. It sees every identified company, not just the "All ICP companies" feed that posts to #inbound-visits.
+- The dashboard (Inbound › Visits, Inbound › Weekly inbound report) and the Friday email read `api/_visits.json`, built by
+  `scripts/leadfeeder_sync.py` from Leadfeeder `search_web_visits` pages (include=company). Company-level data only: no visitor names,
+  emails or Leadfeeder client ids.
+- **Hourly top-up**: fetch search_web_visits for the last 2 days (page_size 100, include=company, every page), save each page as
+  `<scratch>/visits_<n>.json`, run `python3 -I scripts/leadfeeder_sync.py <scratch>`, commit `api/_visits.json` if it changed.
+  Full refresh (last 90 days, ~19 pages) once a week in the Friday end-of-day run.
+- Not prospect visits (kept out of every count, shown separately): candidates arriving from customers' careers sites
+  (jobs.* / careers.* / *.inploi.app referrals), ISPs/networks/our own traffic, and single-page privacy/terms hits.
+- UTMs: Leadfeeder records source / medium / campaign (utm_source / utm_medium / utm_campaign). Forms keep HubSpot's Original Traffic Source
+  and the raw utm_* fields. As of 17 Nov no real visit or form carried a utm_campaign.
+- ICP for a visiting company: the ICP score in its #inbound-visits thread if there is one, else the company's HubSpot ICP Fit.
+- The #inbound-visits Slack routing (sections A/1 above) is unchanged.
