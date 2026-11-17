@@ -9,7 +9,7 @@
      ICP fit = the company's ICP Fit (Clay). Company already in the CRM vs net new company, net new ICP companies.
    Every row carries last touch (last activity), last contacted, and who made that last touch (calls, emails, meetings, LinkedIn). */
 module.exports = function (X) {
-  const { hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL, FORM_OWNER_LABEL } = X;
+  const { hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, visitSource, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL, FORM_OWNER_LABEL } = X;
   const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
   const ukStart = d => { const t = Date.parse(d + 'T00:00:00Z'); const off = Date.parse(new Date(t).toLocaleString('en-US', { timeZone: 'Europe/London' })) - Date.parse(new Date(t).toLocaleString('en-US', { timeZone: 'UTC' })); return t - off; };
   const addDays = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
@@ -49,7 +49,7 @@ module.exports = function (X) {
     const [F, R, alerts, events, lsOpts] = await Promise.all([
       buildForms({ from, to }),
       buildReport({ span: 'week', day: from }).catch(e => ({ error: String(e.message || e) })),
-      visitAlerts().catch(() => []),
+      visitSource().then(L => L.filter(a => a.kind === 'prospect')).catch(() => []),
       sheetEvents(from, to),
       options('contacts', 'hs_lead_status')
     ]);
@@ -101,13 +101,13 @@ module.exports = function (X) {
       if (score == null) { // a repeat company without a scored alert this week: its latest known score
         const prev = alerts.filter(a => (normCo(a.name) || a.name.toLowerCase()) === v.k && a.at < since && a.replies).slice(-3);
         for (const a of prev) { const s = await alertScore(a); if (s != null) score = s; } }
-      v.score = score; v.link = 'https://inploi.slack.com/archives/C0BLTRVSEKA/p' + v.alerts[0].ts.replace('.', '');
+      v.score = score; v.link = v.alerts[0].link || (v.alerts[0].ts ? 'https://inploi.slack.com/archives/C0BLTRVSEKA/p' + v.alerts[0].ts.replace('.', '') : '');
       try { const c = await matchCo(v.name); v.coId = c ? String(c.id) : ''; } catch (e) { v.coId = ''; } }));
     const vIds = V.map(v => v.coId).filter(Boolean);
     const [vco, ltV] = await Promise.all([vIds.length ? batchReadPar('companies', vIds, ['name', 'hubspot_owner_id', 'sdr_owner', 'account_status', 'lifecyclestage', 'notes_last_updated', 'notes_last_contacted', 'sdr_icp_fit', 'createdate']) : {}, lastTouchBy('companies', vIds)]);
     const visits = V.map(v => { const c = vco[v.coId] || {};
-      const netNew = firstSeen[v.k] >= since, icp = v.score != null && v.score >= ICP_MIN;
-      return Object.assign({ name: v.name, at: v.first, visits: v.visits, score: v.score, verdict: v.score == null ? 'Not scored' : icp ? 'Qualified' : 'Disqualified', netNew, netNewIcp: netNew && icp,
+      const hsFit = String(c.sdr_icp_fit || '').toUpperCase(), netNew = firstSeen[v.k] >= since, icp = v.score != null ? v.score >= ICP_MIN : hsFit === 'YES';
+      return Object.assign({ name: v.name, at: v.first, visits: v.visits, score: v.score, verdict: v.score == null && !hsFit ? 'Not scored' : icp ? 'Qualified' : 'Disqualified', icpBasis: v.score != null ? 'Slack ICP score' : hsFit ? 'HubSpot ICP Fit' : '', netNew, netNewIcp: netNew && icp, src: v.alerts[0].src || '', med: v.alerts[0].med || '', cmp: v.alerts[0].cmp || '', pages: [...new Set([].concat(...v.alerts.map(x => x.pages || [])))].slice(0, 6), intent: v.alerts[0].intent || '', emp: v.alerts[0].emp || '',
         coId: v.coId, inCrm: !!v.coId, hubspotName: c.name || '', owner: person(c.hubspot_owner_id), sdr: c.sdr_owner || '', accountStatus: c.account_status || '', customer: c.lifecyclestage === 'customer', link: v.link },
         touchOf(ltV[v.coId], c.notes_last_updated, c.notes_last_contacted)); }).sort((a, b) => b.at - a.at);
 

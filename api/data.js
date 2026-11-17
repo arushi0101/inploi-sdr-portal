@@ -1482,6 +1482,7 @@ async function visitAlerts() {
   visitsHist = { at: Date.now(), v }; return v;
 }
 async function alertScore(a) {
+  if (a.lf) return a.score != null ? a.score : null; // Leadfeeder rows carry the score matched from Slack
   if (!a.replies) return null;
   const hit = replyCache.get(a.ts); if (hit && (hit.score != null || Date.now() - hit.at < 600000)) return hit.score;
   let score = null;
@@ -1490,9 +1491,33 @@ async function alertScore(a) {
   } catch (e) { /* keep unscored */ }
   replyCache.set(a.ts, { at: Date.now(), score }); return score;
 }
+/* ---------- Website visits from Leadfeeder (api/_visits.json, synced by scripts/leadfeeder_sync.py) ----------
+   Arushi, 17 Nov: Leadfeeder is the source for inbound website visits; the #inbound-visits Slack alerts only cover the ICP feed.
+   Not counted as prospect visits: networks/ISPs/our own traffic, candidates arriving from customers' careers sites
+   (jobs.* / careers.* / *.inploi.app referrals) and single-page privacy/terms hits from the apply flow. ICP score comes from the
+   Slack alert thread for the same company when there is one. UTM source/medium/campaign are kept as Leadfeeder reports them. */
+let LF = null;
+function lfSnap() { if (!LF) { try { LF = require('./_visits.json'); } catch (e) { LF = { companies: {}, visits: [] }; } } return LF; }
+const CANDIDATE_SRC = /^(jobs|careers)\.|\.jobs$|\.inploi\.app$|careers?\b|^jobs\b/i;
+const lfKind = (v, c) => { if (!c || c.skip) return 'network';
+  if (v.med === 'referral' && CANDIDATE_SRC.test(v.src || '')) return 'candidate';
+  const pg = v.pages && v.pages.length ? v.pages : [v.land || ''];
+  if (pg.every(p => /^\/(privacy|terms|cookie)/i.test(p || ''))) return 'candidate';
+  return 'prospect'; };
+async function visitSource() {
+  const S = lfSnap(); let slack = [];
+  try { slack = await visitAlerts(); } catch (e) { slack = []; }
+  // ICP scores from the Slack alert threads, by company name
+  const sc = {}; const recent = slack.filter(a => a.replies);
+  for (let i = 0; i < recent.length; i += 4) await Promise.all(recent.slice(i, i + 4).map(async a => { const s = await alertScore(a); if (s != null) sc[normCo(a.name) || a.name.toLowerCase()] = s; }));
+  return S.visits.map(v => { const c = S.companies[v.c]; const kind = lfKind(v, c); const name = (c && c.n) || 'Unknown company'; const k = normCo(name) || name.toLowerCase();
+    return { lf: true, kind, cid: v.c, name, at: Date.parse(v.t), ts: '', link: (c && c.lf) || '', loc: [c && c.city, c && c.cc].filter(Boolean).join(', '),
+      inHubspot: false, replies: 0, score: sc[k] != null ? sc[k] : null, src: v.src || '', med: v.med || '', cmp: v.cmp || '', land: v.land || '', pages: v.pages || [], pv: v.pv || 1,
+      emp: (c && c.emp) || '', ind: (c && c.ind) || '', intent: c && c.tier || '', url: (c && c.url) || '' }; }).filter(a => a.at);
+}
 async function buildVisits(q) {
   const days = Math.min(Math.max(Number(q && q.days) || 30, 1), 90);
-  const all = await visitAlerts();
+  const raw = await visitSource(); const all = raw.filter(a => a.kind === 'prospect');
   const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
   const firstSeen = {}; all.forEach(a => { const k = normCo(a.name) || a.name.toLowerCase(); if (firstSeen[k] == null) firstSeen[k] = a.at; });
   const today = ymd.format(new Date()); const from = ymd.format(new Date(Date.now() - (days - 1) * 86400000));
@@ -1508,10 +1533,15 @@ async function buildVisits(q) {
     if (seenDay[d + '|' + k]) return; seenDay[d + '|' + k] = 1;
     const isNew = firstSeen[k] === a.at || ymd.format(new Date(firstSeen[k])) === d, icp = a.score != null && a.score >= ICP_MIN;
     x.visits++; if (isNew) x.netNew++; if (isNew && icp) x.netNewIcp++; if (icp) x.icp++; if (a.score == null) x.unscored++;
-    x.companies.push({ name: a.name, at: a.at, loc: a.loc, score: a.score, icp, netNew: isNew, inHubspot: a.inHubspot, link: 'https://inploi.slack.com/archives/' + VISITS_CH + '/p' + a.ts.replace('.', '') }); });
+    const same = win.filter(b => b.cid === a.cid && ymd.format(new Date(b.at)) === d);
+    x.companies.push({ name: a.name, at: a.at, loc: a.loc, score: a.score, icp, netNew: isNew, inHubspot: a.inHubspot, link: a.link || (a.ts ? 'https://inploi.slack.com/archives/' + VISITS_CH + '/p' + a.ts.replace('.', '') : ''),
+      visits: same.length, pages: [...new Set([].concat(...same.map(b => b.pages)))].slice(0, 8), src: a.src, med: a.med, cmp: a.cmp, emp: a.emp, ind: a.ind, intent: a.intent, url: a.url }); });
   const list = Object.values(byDay).sort((a, b) => a.date < b.date ? 1 : -1);
   const tot = list.reduce((t, d) => ({ visits: t.visits + d.visits, netNew: t.netNew + d.netNew, netNewIcp: t.netNewIcp + d.netNewIcp }), { visits: 0, netNew: 0, netNewIcp: 0 });
-  return { generatedAt: new Date().toISOString(), icpMin: ICP_MIN, channel: VISITS_CH, today, days: list, total: tot };
+  const excl = raw.filter(a => a.kind !== 'prospect' && ymd.format(new Date(a.at)) >= from);
+  const S = lfSnap();
+  return { generatedAt: new Date().toISOString(), source: 'Leadfeeder', syncedAt: S.syncedAt || null, icpMin: ICP_MIN, channel: VISITS_CH, today, days: list, total: tot,
+    excluded: { candidate: excl.filter(a => a.kind === 'candidate').length, network: excl.filter(a => a.kind === 'network').length } };
 }
 
 /* ---------- Inbound form submissions: demo requests, audit unlocks and other website forms ----------
@@ -1887,7 +1917,7 @@ function emailHtml(M) {
     '<p style="color:#666;font-size:13px">' + (others.length ? 'Other = ' + esc(others.join(', ')) + '. ' : '') + 'Each person\u2019s list, with where and why: <a href="' + PORTAL + '/#fixes">Data fixes</a></p></div>';
 }
 let WEEKLY = null;
-function weekly() { if (!WEEKLY) WEEKLY = require('./_weekly')({ hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL, FORM_OWNER_LABEL }); return WEEKLY; }
+function weekly() { if (!WEEKLY) WEEKLY = require('./_weekly')({ hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, visitSource, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL, FORM_OWNER_LABEL }); return WEEKLY; }
 async function slackPayload(day, mrkdwn, kind) {
   const M = await (kind === 'week' ? weeklyModel(day) : dailyModel(day));
   return mrkdwn ? { text: slackFallback(M), blocks: slackBlocks(M) } : { text: slackMarkdown(M) };
