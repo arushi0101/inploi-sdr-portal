@@ -188,7 +188,9 @@ function reportHTML(){
 function sel(k,label,opts,v){return '<label class="fm-f">'+label+'<select data-r="'+k+'">'+opts.map(function(x){return '<option value="'+e(x[0])+'"'+(String(x[0])===String(v)?' selected':'')+'>'+e(x[1])+'</option>';}).join('')+'</select></label>';}
 
 /* ---------- leads ---------- */
-function pill(r){return '<span class="fm-pill'+(r.form==='demo'?' fm-p-demo':'')+'">'+e(r.formLabel)+'</span>'+(r.site?'<span class="fm-sub">'+e(r.site)+'</span>':'');}
+var SRCN={ORGANIC_SEARCH:'Organic search',PAID_SEARCH:'Paid search',EMAIL_MARKETING:'Email marketing',SOCIAL_MEDIA:'Organic social',REFERRALS:'Referrals',OTHER_CAMPAIGNS:'Other campaigns',DIRECT_TRAFFIC:'Direct traffic',OFFLINE:'Offline sources',PAID_SOCIAL:'Paid social',AI_REFERRALS:'AI referrals'};
+function trafficTxt(t){if(!t)return '';var u=[t.utm_source,t.utm_medium,t.utm_campaign].filter(Boolean).join(' / ');return (SRCN[t.source]||t.source||'')+(u?' · UTM '+u:t.d1&&t.d1!=='Unknown keywords (SSL)'?' · '+t.d1:'');}
+function pill(r){var tt=trafficTxt(r.traffic);return '<span class="fm-pill'+(r.form==='demo'?' fm-p-demo':'')+'">'+e(r.formLabel)+'</span>'+(r.site?'<span class="fm-sub">'+e(r.site)+'</span>':'')+(tt?'<span class="fm-sub">'+e(tt)+'</span>':'');}
 function who(r){return '<a href="'+HSB+'0-1/'+e(r.id)+'" target="_blank" rel="noopener"><b>'+e(r.name)+'</b></a>'+(r.title?'<span class="fm-sub">'+e(r.title)+'</span>':'');}
 var SDRLIST=[['29569627','James'],['32364701','Matthew'],['29569628','Nikita'],['29569626','Evan']],SAVING={},TOAST='';
 function why(r){var o=r.owner||'',t;

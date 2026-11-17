@@ -70,7 +70,7 @@ module.exports = function (X) {
       else stage = 'Not started';
       const t = touchOf(ltC[r.id], Math.max(toMs(p.notes_last_updated) || 0, co.touch || 0), p.notes_last_contacted);
       return Object.assign({ id: r.id, at: r.at, name: r.name, title: r.title, company: co.name || r.company, coId: r.coId, form: r.formLabel + (r.site ? ': ' + r.site : ''), formType: r.formLabel,
-        source: SRC[p.hs_analytics_source] || p.hs_analytics_source || 'Unknown', sourceDetail: p.hs_analytics_source_data_1 || '',
+        source: SRC[p.hs_analytics_source] || p.hs_analytics_source || 'Unknown', sourceDetail: p.hs_analytics_source_data_1 || '', utm: r.traffic ? ['utm_source', 'utm_medium', 'utm_campaign'].map(k => r.traffic[k]).filter(Boolean).join(' / ') : '',
         assigned: r.assigned, owner: r.owner, sdr: co.sdr || '', status: r.status || 'No lead status', accountStatus: co.accountStatus || '', stage, spam: r.spam, note: r.note || '' }, t);
     });
     const real = forms.filter(r => !r.spam);

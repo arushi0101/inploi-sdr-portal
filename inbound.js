@@ -164,7 +164,7 @@ function formsTab(D){
   return '<div class="iw-split"><div class="iw-panel">'+bars(items,F.length+internal.length,'data-fs',FF.stage)+'</div><div>'+
     toolbar('<select class="iw-sel" data-fsel aria-label="Form">'+opts(forms.map(function(f){return [f,f==='all'?'All forms':f];}),FF.form)+'</select>',FSTAGE[s]&&s!=='ext'?FSTAGE[s]:'',rows.length,'lead')+
     table('<th>Submitted</th><th>Contact</th><th>Company</th><th>Form</th><th>Source</th><th>Owner</th><th>Stage</th>'+TH_T,
-      rows.map(function(r){return '<tr><td class="nw">'+d(r.at)+'</td><td>'+link(r.name,r.id,'0-1')+(r.title?'<small>'+e(r.title)+'</small>':'')+'</td><td>'+link(r.company,r.coId,'0-2')+(r.accountStatus?'<small>'+e(r.accountStatus)+'</small>':'')+'</td><td>'+e(r.form)+'</td><td>'+e(r.source)+'</td><td>'+av(r.owner)+'</td><td>'+pill(r.stage)+'<small>'+e(r.note||r.status)+'</small></td>'+touch(r)+'</tr>';}),10)+'</div></div>';
+      rows.map(function(r){return '<tr><td class="nw">'+d(r.at)+'</td><td>'+link(r.name,r.id,'0-1')+(r.title?'<small>'+e(r.title)+'</small>':'')+'</td><td>'+link(r.company,r.coId,'0-2')+(r.accountStatus?'<small>'+e(r.accountStatus)+'</small>':'')+'</td><td>'+e(r.form)+'</td><td>'+e(r.source)+(r.utm?'<small>UTM '+e(r.utm)+'</small>':r.sourceDetail?'<small>'+e(r.sourceDetail)+'</small>':'')+'</td><td>'+av(r.owner)+'</td><td>'+pill(r.stage)+'<small>'+e(r.note||r.status)+'</small></td>'+touch(r)+'</tr>';}),10)+'</div></div>';
 }
 var VLAB={all:'',new:'Net new',Qualified:'Qualified',Disqualified:'Disqualified','Not scored':'Not scored',newicp:'Net new ICP'};
 function visitsTab(D,S){
