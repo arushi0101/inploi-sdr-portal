@@ -168,20 +168,20 @@ module.exports = function (X) {
     const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : '–';
     const nice = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
     const HS = 'https://app-eu1.hubspot.com/contacts/25735731/record/';
-    const th = 'style="text-align:left;padding:6px 8px;border-bottom:2px solid #222;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap"';
-    const table = (head, rows, numCols) => rows.length ? '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;margin:6px 0 16px;width:100%">' +
-      '<tr>' + head.map((h, i) => '<th ' + (numCols && i >= 1 && i <= numCols ? th.replace('text-align:left', 'text-align:right') : th) + '>' + esc(h) + '</th>').join('') + '</tr>' +
-      rows.map(r => '<tr>' + r.map((v, i) => '<td style="padding:5px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top;' + (numCols && i >= 1 && i <= numCols ? 'text-align:right;' : '') + '">' + (v && v.html != null ? v.html : esc(v)) + '</td>').join('') + '</tr>').join('') + '</table>'
+    const CSS = '<style>.w{font-family:Helvetica,Arial,sans-serif;color:#222;max-width:980px;background:#f6f5f2;padding:20px 22px;border-radius:12px}.w table.t{border-collapse:collapse;font-size:13px;margin:6px 0 16px;width:100%;background:#fff}.w .t th{text-align:left;padding:6px 8px;border-bottom:2px solid #222;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.w .t td{padding:5px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}.w .t .r{text-align:right}.w h2{font-size:16px;margin:26px 0 4px;color:#111;border-top:1px solid #ddd;padding-top:14px}.w h3{font-size:13px;margin:14px 0 2px;color:#333}.w .p{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;color:#555;background:#f1efeb}.w .pq{color:#0e7a46;background:#e6f5ec}.w .pd{color:#b4321b;background:#fcebe6}.w .pw{color:#1f5fbf;background:#e8f0fc}.w .pn{color:#8a5a00;background:#fbf1dc}.w .m{font-size:11px;color:#6f6b66}.w .k{width:20%;padding:12px 14px;border:1px solid #e5e3de;border-radius:10px;background:#fff;vertical-align:top}.w .k b{display:block;font-size:26px;margin:4px 0 2px;color:#111}.w a{color:#1a5fb4}</style>';
+    const table = (head, rows, numCols) => rows.length ? '<table class="t" cellpadding="0" cellspacing="0">' +
+      '<tr>' + head.map((h, i) => '<th' + (numCols && i >= 1 && i <= numCols ? ' class="r"' : '') + '>' + esc(h) + '</th>').join('') + '</tr>' +
+      rows.map(r => '<tr>' + r.map((v, i) => '<td' + (numCols && i >= 1 && i <= numCols ? ' class="r"' : '') + '>' + (v && v.html != null ? v.html : esc(v)) + '</td>').join('') + '</tr>').join('') + '</table>'
       : '<p style="color:#666;font-size:13px;margin:4px 0 16px">None this week.</p>';
-    const h2 = t => '<h2 style="font-size:16px;margin:26px 0 4px;color:#111;border-top:1px solid #ddd;padding-top:14px">' + esc(t) + '</h2>';
-    const h3 = t => '<h3 style="font-size:13px;margin:14px 0 2px;color:#333">' + esc(t) + '</h3>';
-    const link = (txt, id, kind) => id ? { html: '<a href="' + HS + kind + '/' + id + '" style="color:#1a5fb4">' + esc(txt) + '</a>' } : txt;
+    const h2 = t => '<h2>' + esc(t) + '</h2>';
+    const h3 = t => '<h3>' + esc(t) + '</h3>';
+    const link = (txt, id, kind) => id ? { html: '<a href="' + HS + kind + '/' + id + '">' + esc(txt) + '</a>' } : txt;
     const kv = pairs => table(['Measure', 'Count'], pairs, 1);
-    const PC = { Qualified: ['#0e7a46', '#e6f5ec'], 'ICP fit': ['#0e7a46', '#e6f5ec'], Disqualified: ['#b4321b', '#fcebe6'], 'Not ICP': ['#b4321b', '#fcebe6'], 'In progress': ['#1f5fbf', '#e8f0fc'], 'Not started': ['#8a5a00', '#fbf1dc'], 'Not assigned': ['#8a5a00', '#fbf1dc'], 'Not scored': ['#8a5a00', '#fbf1dc'], 'Not checked': ['#8a5a00', '#fbf1dc'] };
-    const pill = t => { const c = PC[t] || ['#555', '#f1efeb']; return { html: '<span style="display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;color:' + c[0] + ';background:' + c[1] + '">' + esc(t) + '</span>' }; };
-    const tile = (label, v, sub) => '<td style="width:20%;padding:12px 14px;border:1px solid #e5e3de;border-radius:10px;background:#fff;vertical-align:top"><div style="font-size:11px;color:#6f6b66;text-transform:uppercase;letter-spacing:.05em;font-weight:600">' + esc(label) + '</div><div style="font-size:26px;font-weight:700;margin:4px 0 2px;color:#111">' + esc(v) + '</div><div style="font-size:12px;color:#6f6b66">' + esc(sub) + '</div></td>';
+    const PK = { Qualified: 'pq', 'ICP fit': 'pq', Disqualified: 'pd', 'Not ICP': 'pd', 'In progress': 'pw', 'Not started': 'pn', 'Not assigned': 'pn', 'Not scored': 'pn', 'Not checked': 'pn' };
+    const pill = t => ({ html: '<span class="p ' + (PK[t] || '') + '">' + esc(t) + '</span>' });
+    const tile = (label, v, sub) => '<td class="k"><span class="m" style="text-transform:uppercase;letter-spacing:.05em;font-weight:600">' + esc(label) + '</span><b>' + esc(v) + '</b><span class="m">' + esc(sub) + '</span></td>';
     const S = D.S, touch = r => [d(r.lastTouch), d(r.lastContacted), r.by ? r.by + (r.byKind ? ' · ' + r.byKind : '') : 'No one yet'];
-    let o = '<div style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:980px;background:#f6f5f2;padding:20px 22px;border-radius:12px">' +
+    let o = CSS + '<div class="w">' +
       '<h1 style="font-size:20px;margin:0 0 4px">Weekly inbound report · ' + esc(nice(D.from)) + ' to ' + esc(nice(D.to)) + '</h1>' +
       '<p style="margin:0 0 10px;color:#666;font-size:13px">UK time · From HubSpot and #inbound-visits · <a href="' + PORTAL + '/#inweekly">Open on the dashboard</a> (filters, drill-down, form dropdown)</p>';
     o += '<table cellpadding="0" cellspacing="6" style="width:100%;border-collapse:separate;margin:8px -6px 4px"><tr>' +
@@ -214,7 +214,7 @@ module.exports = function (X) {
       ['Not ICP', S.events.notIcp], ['ICP not checked yet', S.events.unchecked], ['Existing contacts (already in CRM)', S.events.existingContacts], ['New contact, company already in CRM', S.events.newContactExistingCo], ['Net new contact and company', S.events.netNew], ['No company linked', S.events.noCompany]]) +
       (D.byEvent.length > 1 ? h3('By event') + table(['Event', 'Leads'], D.byEvent.map(x => [x.name || 'Event not set', x.n]), 1) : '') +
       table(['Added', 'Contact', 'Company', 'Event', 'ICP', 'In CRM?', 'Owner', 'Lead status', 'Last touch', 'Last contacted', 'Last touched by'],
-        D.events.map(e => [d(e.at), link(e.name, e.id, '0-1'), link(e.company, e.coId, '0-2'), e.event, { html: pill(e.icp).html + (e.icpTier ? '<br><span style="font-size:11px;color:#6f6b66">' + esc(e.icpTier) + '</span>' : '') }, e.bucket, e.owner, e.status].concat(touch(e))));
+        D.events.map(e => [d(e.at), link(e.name, e.id, '0-1'), link(e.company, e.coId, '0-2'), e.event, { html: pill(e.icp).html + (e.icpTier ? '<br><span class="m">' + esc(e.icpTier) + '</span>' : '') }, e.bucket, e.owner, e.status].concat(touch(e))));
     o += '<p style="color:#666;font-size:12px;margin-top:20px">Stages for assigned form leads: Qualified = open deal, meeting booked or Visible Opportunity; Disqualified = Not Qualified, Lost, Do Not Contact, Bounced, or flagged as spam; In progress = being worked (No Two-Way / Two-Way / Engaged, or touched since the form); Not started = no touch since the form. Last touched by = the latest call, email, meeting or LinkedIn message on the record.</p></div>';
     return { subject: 'Weekly inbound report · ' + nice(D.from) + ' to ' + nice(D.to), html: o, counts: S };
   }
