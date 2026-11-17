@@ -1508,7 +1508,7 @@ async function visitSource() {
   const S = lfSnap(); let slack = [];
   try { slack = await visitAlerts(); } catch (e) { slack = []; }
   // ICP scores from the Slack alert threads, by company name
-  const sc = {}; const recent = slack.filter(a => a.replies);
+  const sc = {}; const recent = slack.filter(a => a.replies && a.at > Date.now() - 45 * 86400000);
   for (let i = 0; i < recent.length; i += 4) await Promise.all(recent.slice(i, i + 4).map(async a => { const s = await alertScore(a); if (s != null) sc[normCo(a.name) || a.name.toLowerCase()] = s; }));
   return S.visits.map(v => { const c = S.companies[v.c]; const kind = lfKind(v, c); const name = (c && c.n) || 'Unknown company'; const k = normCo(name) || name.toLowerCase();
     return { lf: true, kind, cid: v.c, name, at: Date.parse(v.t), ts: '', link: (c && c.lf) || '', loc: [c && c.city, c && c.cc].filter(Boolean).join(', '),
