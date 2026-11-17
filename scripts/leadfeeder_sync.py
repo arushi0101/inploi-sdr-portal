@@ -64,6 +64,10 @@ def main(folder):
     used = {v['c'] for v in visits}
     snap = {'source': 'Leadfeeder (account 314105)', 'syncedAt': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             'from': visits[0]['t'][:10] if visits else None, 'companies': {k: v for k, v in cos.items() if k in used}, 'visits': visits}
+    if not added:
+        # nothing new: leave the file alone so a quiet hour doesn't commit (and redeploy) just a new syncedAt
+        print(json.dumps({'visitsAdded': 0, 'visits': len(visits), 'unchanged': True}))
+        return
     json.dump(snap, open(DEST, 'w'), separators=(',', ':'))
     print(json.dumps({'visitsAdded': added, 'visits': len(visits), 'companies': len(snap['companies']), 'from': snap['from'], 'bytes': os.path.getsize(DEST)}))
 
