@@ -41,7 +41,7 @@ window.SDRPipeBoard=function(D,api){
   var card=function(d){var k=api.byK(d.s)||{};return '<div class="pb-card">'+(isAcc(d)?'<span class="pb-acc">Sales accepted</span>':'<span class="pb-acc no">Awaiting acceptance</span>')+'<a href="'+api.dl(d.id)+'"'+(d.co?' data-co="'+d.co+'"':'')+' target="_blank" rel="noopener">'+esc(d.n)+'</a>'+
     '<div class="pb-meta"><span class="pb-av"><i>'+esc(ini(k.short))+'</i>'+esc(k.short||'')+'</span><span class="pb-amt">'+(d.a?fmtK(d.a):'<span style="color:var(--muted);font-weight:400">No amount</span>')+'</span></div>'+
     '<div class="pb-meta"><span>Created '+esc(d.cr)+'</span>'+(d.arr?'<span>ARR '+esc(d.arr)+'</span>':'')+'</div>'+
-    '<div class="pb-next'+(d.next?'':' bad')+'">'+(d.next?'Next: '+esc(d.next):'No next step set')+'</div></div>';};
+    '</div>';};
   var nAcc=D.filter(isAcc).length,aAcc=D.filter(isAcc).reduce(function(t,d){return t+d.a;},0);
   var o='<div class="pb-top"><span class="muted small">'+D.length+' open deals · '+fmtK(tot)+' · <b style="color:#0e7a46">'+nAcc+' sales accepted ('+fmtK(aAcc)+')</b> = everything past Discovery</span><div class="pb-seg" role="group" aria-label="View">'+
     [['board','Board'],['chart','Bar chart'],['table','Table']].map(function(m){return '<button type="button" data-pbm="'+m[0]+'" aria-pressed="'+(MODE===m[0])+'">'+m[1]+'</button>';}).join('')+'</div></div>';
