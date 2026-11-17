@@ -20,6 +20,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'+
  '.pb-amt{font-weight:700;color:var(--fg);font-size:.86rem}'+
  '.pb-av{display:inline-flex;align-items:center;gap:6px}.pb-av i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:.6rem;font-weight:700;background:var(--accent-soft);color:var(--accent)}'+
  '.pb-next{font-size:.76rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}.pb-next.bad{color:#b4321b}'+
+ '.pb-acc{display:inline-block;font-size:.68rem;font-weight:600;padding:1px 8px;border-radius:99px;background:#e3f4ea;color:#0e7a46;justify-self:start}.pb-acc.no{background:#fbf0d9;color:#8a5a00}'+
  '.pb-empty{font-size:.8rem;color:var(--muted);padding:8px 2px}'+
  '.pb-chart{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:14px;align-items:end;height:280px;padding:10px 4px 0;border-bottom:1px solid var(--line)}'+
  '.pb-bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;cursor:pointer;border:0;background:none;font:inherit;color:inherit;padding:0}'+
@@ -36,11 +37,13 @@ window.SDRPipeBoard=function(D,api){
   var stages={};D.forEach(function(d){var k=d.st||'No stage';var s=stages[k]||(stages[k]={k:k,so:d.so!=null?d.so:99,n:0,a:0,deals:[]});s.n++;s.a+=d.a;s.deals.push(d);});
   var S=Object.keys(stages).map(function(k){return stages[k];}).sort(function(a,b){return a.so-b.so||(a.k>b.k?1:-1);});
   var tot=D.reduce(function(t,d){return t+d.a;},0),amax=Math.max.apply(null,S.map(function(s){return s.a;}).concat([1]));
-  var card=function(d){var k=api.byK(d.s)||{};return '<div class="pb-card"><a href="'+api.dl(d.id)+'"'+(d.co?' data-co="'+d.co+'"':'')+' target="_blank" rel="noopener">'+esc(d.n)+'</a>'+
+  var isAcc=function(d){return !!d.st&&!/^discovery/i.test(d.st);};
+  var card=function(d){var k=api.byK(d.s)||{};return '<div class="pb-card">'+(isAcc(d)?'<span class="pb-acc">Sales accepted</span>':'<span class="pb-acc no">Awaiting acceptance</span>')+'<a href="'+api.dl(d.id)+'"'+(d.co?' data-co="'+d.co+'"':'')+' target="_blank" rel="noopener">'+esc(d.n)+'</a>'+
     '<div class="pb-meta"><span class="pb-av"><i>'+esc(ini(k.short))+'</i>'+esc(k.short||'')+'</span><span class="pb-amt">'+(d.a?fmtK(d.a):'<span style="color:var(--muted);font-weight:400">No amount</span>')+'</span></div>'+
     '<div class="pb-meta"><span>Created '+esc(d.cr)+'</span>'+(d.arr?'<span>ARR '+esc(d.arr)+'</span>':'')+'</div>'+
     '<div class="pb-next'+(d.next?'':' bad')+'">'+(d.next?'Next: '+esc(d.next):'No next step set')+'</div></div>';};
-  var o='<div class="pb-top"><span class="muted small">'+D.length+' open deals · '+fmtK(tot)+' · stages in HubSpot pipeline order</span><div class="pb-seg" role="group" aria-label="View">'+
+  var nAcc=D.filter(isAcc).length,aAcc=D.filter(isAcc).reduce(function(t,d){return t+d.a;},0);
+  var o='<div class="pb-top"><span class="muted small">'+D.length+' open deals · '+fmtK(tot)+' · <b style="color:#0e7a46">'+nAcc+' sales accepted ('+fmtK(aAcc)+')</b> = everything past Discovery</span><div class="pb-seg" role="group" aria-label="View">'+
     [['board','Board'],['chart','Bar chart'],['table','Table']].map(function(m){return '<button type="button" data-pbm="'+m[0]+'" aria-pressed="'+(MODE===m[0])+'">'+m[1]+'</button>';}).join('')+'</div></div>';
   if(MODE==='board'){
     o+=S.length?'<div class="pb-board">'+S.map(function(s){return '<div class="pb-col"><div class="pb-ch"><b>'+esc(s.k)+'<em>'+s.n+'</em></b><span>'+fmtK(s.a)+' · '+Math.round(s.a/(tot||1)*100)+'% of pipeline</span><i><s style="width:'+Math.max(2,s.a/amax*100)+'%"></s></i></div>'+
