@@ -1525,6 +1525,7 @@ const FORM_FLAGS = {
   '891926111481': { spam: true, note: 'SEO agency (vendor)' },
   '913655542972': { spam: true, note: 'Odd email address' },
   '912736187622': { spam: true, note: 'Personal email with a typo domain' },
+  '898512666832': { spam: true, note: 'Blacklisted spam address (checked by SDR); disqualified' },
   '919003864254': { note: 'Software directory (vendor), not a buyer' },
   '914459580623': { note: 'Real company (RPO): needs an SDR' },
   '913785055433': { note: 'Work email, ran several audits' }
