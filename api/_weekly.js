@@ -177,10 +177,17 @@ module.exports = function (X) {
     const h3 = t => '<h3 style="font-size:13px;margin:14px 0 2px;color:#333">' + esc(t) + '</h3>';
     const link = (txt, id, kind) => id ? { html: '<a href="' + HS + kind + '/' + id + '" style="color:#1a5fb4">' + esc(txt) + '</a>' } : txt;
     const kv = pairs => table(['Measure', 'Count'], pairs, 1);
+    const PC = { Qualified: ['#0e7a46', '#e6f5ec'], 'ICP fit': ['#0e7a46', '#e6f5ec'], Disqualified: ['#b4321b', '#fcebe6'], 'Not ICP': ['#b4321b', '#fcebe6'], 'In progress': ['#1f5fbf', '#e8f0fc'], 'Not started': ['#8a5a00', '#fbf1dc'], 'Not assigned': ['#8a5a00', '#fbf1dc'], 'Not scored': ['#8a5a00', '#fbf1dc'], 'Not checked': ['#8a5a00', '#fbf1dc'] };
+    const pill = t => { const c = PC[t] || ['#555', '#f1efeb']; return { html: '<span style="display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;color:' + c[0] + ';background:' + c[1] + '">' + esc(t) + '</span>' }; };
+    const tile = (label, v, sub) => '<td style="width:20%;padding:12px 14px;border:1px solid #e5e3de;border-radius:10px;background:#fff;vertical-align:top"><div style="font-size:11px;color:#6f6b66;text-transform:uppercase;letter-spacing:.05em;font-weight:600">' + esc(label) + '</div><div style="font-size:26px;font-weight:700;margin:4px 0 2px;color:#111">' + esc(v) + '</div><div style="font-size:12px;color:#6f6b66">' + esc(sub) + '</div></td>';
     const S = D.S, touch = r => [d(r.lastTouch), d(r.lastContacted), r.by ? r.by + (r.byKind ? ' · ' + r.byKind : '') : 'No one yet'];
-    let o = '<div style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:960px">' +
+    let o = '<div style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:980px;background:#f6f5f2;padding:20px 22px;border-radius:12px">' +
       '<h1 style="font-size:20px;margin:0 0 4px">Weekly inbound report · ' + esc(nice(D.from)) + ' to ' + esc(nice(D.to)) + '</h1>' +
       '<p style="margin:0 0 10px;color:#666;font-size:13px">UK time · From HubSpot and #inbound-visits · <a href="' + PORTAL + '/#inweekly">Open on the dashboard</a> (filters, drill-down, form dropdown)</p>';
+    o += '<table cellpadding="0" cellspacing="6" style="width:100%;border-collapse:separate;margin:8px -6px 4px"><tr>' +
+      tile('Inbound leads', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' not') + tile('Website companies', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.netNewIcp + ' new ICP') +
+      tile('Event leads', S.events.leads, S.events.icp + ' ICP · ' + S.events.netNewIcpCos + ' new ICP cos') + tile('Accounts reached', D.outreach ? D.outreach.total.cos : '–', D.outreach ? D.outreach.total.newCos + ' net new' : '') +
+      tile('Contacts reached', D.outreach ? D.outreach.total.cons : '–', D.outreach ? D.outreach.total.newCons + ' net new' : '') + '</tr></table>';
     o += h2('Summary') + table(['Area', 'Count', 'Detail'], [
       ['Inbound leads (website forms, real)', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' not assigned'],
       ['Companies on the website', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.qualified + ' qualified · ' + S.visits.netNewIcp + ' net new ICP'],
@@ -195,19 +202,19 @@ module.exports = function (X) {
     o += h2('Form submissions') + kv([['All submissions', S.forms.total], ['Internal (inploi team)', S.forms.internal], ['External', S.forms.external], ['External: likely spam / disqualified on review', S.forms.spam],
       ['External: assigned to an SDR or AE', S.forms.assigned], ['External: not assigned', S.forms.unassigned], ['Assigned: not started', S.forms.notStarted], ['Assigned: in progress (being worked)', S.forms.inProgress],
       ['Assigned: qualified', S.forms.qualified], ['Disqualified', S.forms.disqualified], ['Existing customers', S.forms.customer]]);
-    const fRow = r => [d(r.at), link(r.name, r.id, '0-1'), link(r.company, r.coId, '0-2'), r.form, r.source, r.owner, r.stage, r.status].concat(touch(r));
+    const fRow = r => [d(r.at), link(r.name, r.id, '0-1'), link(r.company, r.coId, '0-2'), r.form, r.source, r.owner, pill(r.stage), r.status].concat(touch(r));
     const fHead = ['Submitted', 'Contact', 'Company', 'Form', 'Source', 'Owner', 'Stage', 'Lead status', 'Last touch', 'Last contacted', 'Last touched by'];
     o += h3('Not assigned') + table(fHead, D.forms.filter(r => !r.assigned && !r.spam).map(fRow));
     o += h3('Assigned') + table(fHead, D.forms.filter(r => r.assigned && !r.spam).map(fRow));
     if (S.forms.spam) o += h3('Spam / disqualified on review') + table(fHead, D.forms.filter(r => r.spam).map(fRow));
     o += h2('Website visits') + kv([['Companies on the website', S.visits.companies], ['Net new companies', S.visits.netNew], ['Qualified visits (ICP ' + ICP_MIN + '/10+)', S.visits.qualified], ['Disqualified visits (scored under ' + ICP_MIN + ')', S.visits.disqualified], ['Not scored yet', S.visits.unscored], ['Net new ICP companies', S.visits.netNewIcp], ['Matched to a HubSpot company', S.visits.inCrm]]) +
       table(['First visit', 'Company', 'Visits', 'ICP score', 'Verdict', 'Net new', 'Account status', 'SDR Owner', 'Company owner', 'Last touch', 'Last contacted', 'Last touched by'],
-        D.visits.map(v => [d(v.at), v.coId ? link(v.name, v.coId, '0-2') : v.name + ' (not in HubSpot)', v.visits, v.score == null ? '–' : v.score + '/10', v.verdict, v.netNew ? (v.netNewIcp ? 'Yes · ICP' : 'Yes') : 'No', v.customer ? 'Customer' : v.accountStatus, v.sdr, v.owner].concat(touch(v))));
+        D.visits.map(v => [d(v.at), v.coId ? link(v.name, v.coId, '0-2') : v.name + ' (not in HubSpot)', v.visits, v.score == null ? '–' : v.score + '/10', pill(v.verdict), v.netNew ? (v.netNewIcp ? 'Yes · ICP' : 'Yes') : 'No', v.customer ? 'Customer' : v.accountStatus, v.sdr, v.owner].concat(touch(v))));
     o += h2('Events') + kv([['Event leads', S.events.leads], ['ICP fit', S.events.icp], ['ICP fit: company already in CRM', S.events.icpExisting], ['ICP fit: net new company', S.events.icpNew], ['Net new ICP companies created', S.events.netNewIcpCos],
       ['Not ICP', S.events.notIcp], ['ICP not checked yet', S.events.unchecked], ['Existing contacts (already in CRM)', S.events.existingContacts], ['New contact, company already in CRM', S.events.newContactExistingCo], ['Net new contact and company', S.events.netNew], ['No company linked', S.events.noCompany]]) +
       (D.byEvent.length > 1 ? h3('By event') + table(['Event', 'Leads'], D.byEvent.map(x => [x.name || 'Event not set', x.n]), 1) : '') +
       table(['Added', 'Contact', 'Company', 'Event', 'ICP', 'In CRM?', 'Owner', 'Lead status', 'Last touch', 'Last contacted', 'Last touched by'],
-        D.events.map(e => [d(e.at), link(e.name, e.id, '0-1'), link(e.company, e.coId, '0-2'), e.event, e.icp + (e.icpTier ? ' · ' + e.icpTier : ''), e.bucket, e.owner, e.status].concat(touch(e))));
+        D.events.map(e => [d(e.at), link(e.name, e.id, '0-1'), link(e.company, e.coId, '0-2'), e.event, { html: pill(e.icp).html + (e.icpTier ? '<br><span style="font-size:11px;color:#6f6b66">' + esc(e.icpTier) + '</span>' : '') }, e.bucket, e.owner, e.status].concat(touch(e))));
     o += '<p style="color:#666;font-size:12px;margin-top:20px">Stages for assigned form leads: Qualified = open deal, meeting booked or Visible Opportunity; Disqualified = Not Qualified, Lost, Do Not Contact, Bounced, or flagged as spam; In progress = being worked (No Two-Way / Two-Way / Engaged, or touched since the form); Not started = no touch since the form. Last touched by = the latest call, email, meeting or LinkedIn message on the record.</p></div>';
     return { subject: 'Weekly inbound report · ' + nice(D.from) + ' to ' + nice(D.to), html: o, counts: S };
   }
