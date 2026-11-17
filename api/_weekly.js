@@ -170,18 +170,18 @@ module.exports = function (X) {
     const PILL = { Qualified: ['#0e7a46', '#e3f4ea'], 'ICP fit': ['#0e7a46', '#e3f4ea'], Disqualified: ['#b4321b', '#fbe9e4'], 'Not ICP': ['#b4321b', '#fbe9e4'], 'In progress': ['#1f5fbf', '#e7effb'], 'Not started': ['#8a5a00', '#fbf0d9'], 'Not assigned': ['#8a5a00', '#fbf0d9'], 'Not scored': ['#8a5a00', '#fbf0d9'], 'Not checked': ['#8a5a00', '#fbf0d9'], 'Net new': ['#5b4bc4', '#efecfb'], 'Existing customer': ['#555', '#efede9'] };
     const pill = t => { const c = PILL[t] || ['#555', '#efede9']; return '<span style="' + F + 'display:inline-block;white-space:nowrap;font-size:11px;font-weight:600;line-height:16px;padding:2px 9px;border-radius:99px;color:' + c[0] + ';background:' + c[1] + '">' + esc(t) + '</span>'; };
     const a = (txt, id, kind) => id ? '<a href="' + HS + kind + '/' + id + '" style="color:' + INK + ';font-weight:600;text-decoration:none">' + esc(txt) + '</a>' : '<span style="font-weight:600">' + esc(txt) + '</span>';
-    const sub = t => t ? '<div style="font-size:12px;color:' + MUTED + ';margin-top:2px">' + t + '</div>' : '';
-    const TD = 'padding:10px 12px;border-bottom:1px solid ' + LINE + ';vertical-align:top;font-size:13px;color:' + INK + ';' + F;
-    const TH = 'padding:8px 12px;background:#faf9f7;border-bottom:1px solid ' + LINE + ';text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';font-weight:700;white-space:nowrap;' + F;
+    const sub = t => t ? '<div style="font-size:12px;color:' + MUTED + '">' + t + '</div>' : '';
+    const TD = 'padding:9px 10px;border-bottom:1px solid ' + LINE + ';vertical-align:top;font-size:13px;';
+    const TH = 'padding:7px 10px;background:#faf9f7;text-align:left;font-size:10px;text-transform:uppercase;color:' + MUTED + ';white-space:nowrap;';
     const grid = (head, rows, right) => rows.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ' + LINE + ';border-radius:10px">' +
       '<tr>' + head.map((h, i) => '<th style="' + TH + ((right || []).includes(i) ? 'text-align:right;' : '') + '">' + esc(h) + '</th>').join('') + '</tr>' +
       rows.map(r => '<tr>' + r.map((v, i) => '<td style="' + TD + ((right || []).includes(i) ? 'text-align:right;white-space:nowrap;' : '') + '">' + v + '</td>').join('') + '</tr>').join('') + '</table>'
       : '<div style="' + F + 'font-size:13px;color:' + MUTED + ';padding:14px 0">None this week.</div>';
     // a metric list with bars: [[label, n, colour, indent]]
-    const bars = (items, max) => '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + items.map(([l, n, col, ind]) => {
-      const w = Math.max(2, Math.round((n || 0) / Math.max(1, max) * 100));
-      return '<tr><td style="' + F + 'font-size:13px;color:' + (ind ? MUTED : INK) + ';padding:7px 0 3px ' + (ind ? '14px' : '0') + '">' + esc(l) + '</td><td style="' + F + 'font-size:13px;font-weight:700;text-align:right;padding:7px 0 3px;color:' + INK + '">' + n + '</td></tr>' +
-        '<tr><td colspan="2" style="padding:0 0 4px ' + (ind ? '14px' : '0') + '"><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:' + LINE + ';height:5px;border-radius:3px;font-size:0;line-height:0"><table width="' + w + '%" cellpadding="0" cellspacing="0"><tr><td style="background:' + (col || ACC) + ';height:5px;border-radius:3px;font-size:0;line-height:0">&nbsp;</td></tr></table></td></tr></table></td></tr>';
+    const bars = (items, max) => '<table width="100%" cellpadding="0" cellspacing="0">' + items.map(([l, n, col, ind]) => {
+      const w = Math.max(1, Math.round((n || 0) / Math.max(1, max) * 100));
+      return '<tr><td style="font-size:13px;padding:6px 0 2px ' + (ind ? '14px;color:' + MUTED : '0') + '">' + esc(l) + '</td><td align="right" style="font-size:13px;font-weight:700;padding:6px 0 2px">' + n + '</td></tr>' +
+        '<tr><td colspan="2" style="padding:0 0 3px ' + (ind ? '14px' : '0') + '"><table width="100%" cellpadding="0" cellspacing="0" style="background:' + LINE + '"><tr><td width="' + w + '%" height="5" style="background:' + (col || ACC) + ';font-size:0">&nbsp;</td><td style="font-size:0"></td></tr></table></td></tr>';
     }).join('') + '</table>';
     const card = (title, desc, body) => '<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid ' + LINE + ';border-radius:12px"><tr><td style="padding:20px 22px">' +
       '<div style="' + F + 'font-size:16px;font-weight:700;color:' + INK + '">' + esc(title) + '</div>' + (desc ? '<div style="' + F + 'font-size:12px;color:' + MUTED + ';margin:3px 0 0">' + esc(desc) + '</div>' : '') +
@@ -193,7 +193,7 @@ module.exports = function (X) {
       sub((r.by ? esc(r.by) + (r.byKind ? ' · ' + esc(r.byKind) : '') : 'No one yet') + (r.lastContacted ? '<br>Contacted ' + d(r.lastContacted) : ''));
     const S = D.S, O = D.outreach, G = { q: '#1f9d5c', d: '#d2553a', w: '#3a7be0', n: '#d9a227' };
 
-    let o = '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee"><tr><td align="center" style="padding:24px 12px">' +
+    let o = '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee;' + F + 'color:' + INK + '"><tr><td align="center" style="padding:24px 12px;' + F + 'color:' + INK + '">' +
       '<table width="760" cellpadding="0" cellspacing="0" style="max-width:760px;width:100%">';
     // header band
     o += '<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="background:#171513;border-radius:14px"><tr><td style="padding:24px 26px">' +
@@ -238,7 +238,7 @@ module.exports = function (X) {
         (v.score == null ? '' : '<b>' + v.score + '/10</b><br>') + pill(v.verdict), esc(v.customer ? 'Customer' : v.accountStatus || '–'), esc(v.sdr || '–'), touch(v)])));
 
     // events
-    const evRows = D.events.filter(e => e.icp === 'ICP fit').slice(0, 60), E = S.events;
+    const evRows = D.events.filter(e => e.icp === 'ICP fit').slice(0, 25), E = S.events;
     o += card('Events', 'From the events sheet (EVENTS LEADS LISTS 26), by event date. ICP fit = the sheet’s “Company Fits ICP Matrix?”. CRM status is checked in HubSpot.',
       two(bars([['Event leads', E.leads], ['Met / attended', E.met, null, 1], ['Wanted to meet / signed up', E.want, null, 1], ['ICP fit', E.icp, G.q, 1], ['Not ICP', E.notIcp, G.d, 1]].concat(E.unchecked ? [['ICP not marked', E.unchecked, G.n, 1]] : []), Math.max(1, E.leads)),
           bars([['ICP: company already in CRM', E.icpExisting, G.q], ['ICP: net new company created', E.icpNew, G.w], ['ICP: company not in HubSpot yet', E.icpMissing, G.n], ['Contact already in CRM', E.existingContacts], ['New contact, company in CRM', E.newContactExistingCo], ['Net new contact and company', E.netNew], ['Contact not in HubSpot', E.noContact, G.n]], Math.max(1, E.leads))) +
