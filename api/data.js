@@ -186,7 +186,7 @@ async function build(q) {
     options('contacts', 'hs_lead_status'), options('companies', 'sdr_owner'),
     hs('/crm/v3/pipelines/deals').catch(() => ({ results: [] }))
   ]);
-  const stageLabel = {}; (pipes.results || []).forEach(p => (p.stages || []).forEach(s => { stageLabel[s.id] = s.label; }));
+  const stageLabel = {}, stageOrd = {}; (pipes.results || []).forEach(p => (p.stages || []).forEach(s => { stageLabel[s.id] = s.label; stageOrd[s.id] = s.displayOrder; }));
   const sdrFromCompany = v => sdrOf(v) || sdrOf(sdrOpts[v]);
 
   // Companies with an SDR Owner
@@ -477,7 +477,7 @@ async function build(q) {
     const a = Number(p.amount || 0) / 1000;
     const dco = (dealCo[d.id] || [])[0] || null;
     add('deals', s.k, 'all', dco); if (!p.hs_next_step) add('noNext', s.k, 'all', dco);
-    DEALS.push({ n: (p.dealname || '').replace(/&amp;/g, '&'), id: Number(d.id), co: dco ? Number(dco) : null, s: s.k, st: stageLabel[p.dealstage] || p.dealstage || '', a, arr: p.hs_arr ? '\u00a3' + Math.round(Number(p.hs_arr) / 100) / 10 + 'k' : '', cr: nice(iso(toMs(p.createdate))), next: p.hs_next_step || '' });
+    DEALS.push({ n: (p.dealname || '').replace(/&amp;/g, '&'), id: Number(d.id), co: dco ? Number(dco) : null, s: s.k, st: stageLabel[p.dealstage] || p.dealstage || '', so: stageOrd[p.dealstage] != null ? stageOrd[p.dealstage] : 99, a, arr: p.hs_arr ? '\u00a3' + Math.round(Number(p.hs_arr) / 100) / 10 + 'k' : '', cr: nice(iso(toMs(p.createdate))), next: p.hs_next_step || '' });
     if (!p.hs_next_step) S[s.k].review.noNext++;
   });
   DEALS.sort((a, b) => b.a - a.a);

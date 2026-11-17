@@ -233,8 +233,8 @@ function render(api){
   if(view==='pipeline'){
     var ps=slot('pipeline',0,'pipe');
     if(ps){
-      var byStage={};oD.forEach(function(x){var k=x.st||'No stage';(byStage[k]=byStage[k]||{n:0,a:0,co:[]}).n++;byStage[k].a+=x.a;if(x.co)byStage[k].co.push(x.co);});
-      var stg=Object.keys(byStage).sort(function(a,b){return byStage[b].a-byStage[a].a;});
+      var byStage={};oD.forEach(function(x){var k=x.st||'No stage';(byStage[k]=byStage[k]||{n:0,a:0,co:[],so:x.so!=null?x.so:99}).n++;byStage[k].a+=x.a;if(x.co)byStage[k].co.push(x.co);});
+      var stg=Object.keys(byStage).sort(function(a,b){return byStage[a].so-byStage[b].so||byStage[b].a-byStage[a].a;});
       var smax=Math.max.apply(null,stg.map(function(k){return byStage[k].a;}).concat([1])),stot=oD.reduce(function(a,x){return a+x.a;},0);
       var prow=stg.map(function(k){var b=byStage[k],sh=Math.round(b.a/(stot||1)*100);var bar='<span class="fill acc" style="width:'+Math.max(b.a/smax*100,1)+'%"></span>';
         var attrs=b.co.length?' data-ids="'+b.co.join(',')+'" data-ttl="'+e(k)+' \u00b7 '+e(who)+'" data-sub="'+e(who)+' \u00b7 open SDR deals at this stage"':'';
