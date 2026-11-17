@@ -9,7 +9,7 @@
      ICP fit = the company's ICP Fit (Clay). Company already in the CRM vs net new company, net new ICP companies.
    Every row carries last touch (last activity), last contacted, and who made that last touch (calls, emails, meetings, LinkedIn). */
 module.exports = function (X) {
-  const { hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL } = X;
+  const { hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL, FORM_OWNER_LABEL } = X;
   const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
   const ukStart = d => { const t = Date.parse(d + 'T00:00:00Z'); const off = Date.parse(new Date(t).toLocaleString('en-US', { timeZone: 'Europe/London' })) - Date.parse(new Date(t).toLocaleString('en-US', { timeZone: 'UTC' })); return t - off; };
   const addDays = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
@@ -43,7 +43,7 @@ module.exports = function (X) {
     const since = ukStart(from), until = ukStart(to) + 86400000;
     const owners = await ownerNames();
     const person = id => { id = String(id || ''); if (!id) return ''; const s = SDRS.find(x => x.id === id); if (s) return s.short + ' (SDR)';
-      if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return OWNER_NAMES[id] || owners[id] || 'Another user'; };
+      if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return (FORM_OWNER_LABEL || {})[id] || OWNER_NAMES[id] || owners[id] || 'Another user'; };
     const touchOf = (lt, last, contacted) => ({ lastTouch: toMs(last) || 0, lastContacted: toMs(contacted) || 0, by: lt ? person(lt.ownerId) : '', byKind: lt ? lt.kind : '', byAt: lt ? lt.at : 0 });
 
     const [F, R, alerts, events, evOpts] = await Promise.all([

@@ -1887,7 +1887,7 @@ function emailHtml(M) {
     '<p style="color:#666;font-size:13px">' + (others.length ? 'Other = ' + esc(others.join(', ')) + '. ' : '') + 'Each person\u2019s list, with where and why: <a href="' + PORTAL + '/#fixes">Data fixes</a></p></div>';
 }
 let WEEKLY = null;
-function weekly() { if (!WEEKLY) WEEKLY = require('./_weekly')({ hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL }); return WEEKLY; }
+function weekly() { if (!WEEKLY) WEEKLY = require('./_weekly')({ hs, searchAll, assoc, batchReadPar, toMs, options, ownerNames, buildForms, buildReport, visitAlerts, alertScore, matchCo, normCo, SDRS, OWNER_NAMES, ICP_MIN, FORM_FLAGS, PORTAL, FORM_OWNER_LABEL }); return WEEKLY; }
 async function slackPayload(day, mrkdwn, kind) {
   const M = await (kind === 'week' ? weeklyModel(day) : dailyModel(day));
   return mrkdwn ? { text: slackFallback(M), blocks: slackBlocks(M) } : { text: slackMarkdown(M) };
