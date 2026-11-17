@@ -46,12 +46,12 @@ module.exports = function (X) {
       if (id === '1709905072') return 'Jason (AE)'; if (id === '511871441') return 'Felix (AE)'; return (FORM_OWNER_LABEL || {})[id] || OWNER_NAMES[id] || owners[id] || 'Another user'; };
     const touchOf = (lt, last, contacted) => ({ lastTouch: toMs(last) || 0, lastContacted: toMs(contacted) || 0, by: lt ? person(lt.ownerId) : '', byKind: lt ? lt.kind : '', byAt: lt ? lt.at : 0 });
 
-    const [F, R, alerts, events, evOpts] = await Promise.all([
+    const [F, R, alerts, events, lsOpts] = await Promise.all([
       buildForms({ from, to }),
       buildReport({ span: 'week', day: from }).catch(e => ({ error: String(e.message || e) })),
       visitAlerts().catch(() => []),
-      eventLeads(since, until),
-      options('contacts', 'event')
+      sheetEvents(from, to),
+      options('contacts', 'hs_lead_status')
     ]);
 
     /* ---- forms ---- */
@@ -111,17 +111,26 @@ module.exports = function (X) {
         coId: v.coId, inCrm: !!v.coId, hubspotName: c.name || '', owner: person(c.hubspot_owner_id), sdr: c.sdr_owner || '', accountStatus: c.account_status || '', customer: c.lifecyclestage === 'customer', link: v.link },
         touchOf(ltV[v.coId], c.notes_last_updated, c.notes_last_contacted)); }).sort((a, b) => b.at - a.at);
 
-    /* ---- events ---- */
+    /* ---- events: from the events sheet (api/_events.json, synced by scripts/events_sync.py) ---- */
+    const ctIds = [...new Set(events.map(e => e.ct).filter(Boolean))];
+    const ctP = ctIds.length ? await batchReadPar('contacts', ctIds, ['firstname', 'lastname', 'email', 'jobtitle', 'createdate', 'hubspot_owner_id', 'hs_lead_status', 'associatedcompanyid', 'notes_last_updated', 'notes_last_contacted']) : {};
+    events.forEach(e => { if (!e.coId && ctP[e.ct] && ctP[e.ct].associatedcompanyid) e.coId = String(ctP[e.ct].associatedcompanyid); });
     const coIds = [...new Set(events.map(e => e.coId).filter(Boolean))];
-    const [eco, ltE] = await Promise.all([coIds.length ? batchReadPar('companies', coIds, ['name', 'createdate', 'sdr_icp_fit', 'sdr_icp_tier', 'sdr_icp_status', 'hubspot_owner_id', 'sdr_owner', 'account_status', 'lifecyclestage', 'notes_last_updated', 'notes_last_contacted']) : {}, lastTouchBy('contacts', events.map(e => e.id))]);
-    const ev = events.map(e => { const c = eco[e.coId] || {};
-      const coCreated = toMs(c.createdate) || 0, icpRaw = String(c.sdr_icp_fit || '').toUpperCase();
-      const coBucket = !e.coId ? 'No company linked' : coCreated && coCreated < (e.existing ? since : e.created - 3600000) ? 'Company already in CRM' : 'Net new company';
-      const bucket = e.existing ? 'Existing contact' : coBucket === 'Company already in CRM' ? 'New contact, company already in CRM' : coBucket === 'Net new company' ? 'Net new contact and company' : 'New contact, no company';
-      return Object.assign({ id: e.id, name: e.name, title: e.title, company: c.name || e.company, coId: e.coId, event: evOpts[e.event] || e.event || '', at: e.at, existing: e.existing,
-        bucket, coBucket, icp: icpRaw === 'YES' ? 'ICP fit' : icpRaw === 'NO' ? 'Not ICP' : 'Not checked', icpTier: c.sdr_icp_tier || '', icpReview: /^REVIEW/i.test(c.sdr_icp_status || ''),
-        customer: c.lifecyclestage === 'customer', accountStatus: c.account_status || '', status: e.status, owner: person(e.ownerId) || 'No owner', sdr: c.sdr_owner || '' },
-        touchOf(ltE[e.id], Math.max(toMs(e.lastUpdated) || 0, toMs(c.notes_last_updated) || 0), e.lastContacted || c.notes_last_contacted)); }).sort((a, b) => b.at - a.at);
+    const [eco, ltE, ltEc] = await Promise.all([coIds.length ? batchReadPar('companies', coIds, ['name', 'createdate', 'sdr_icp_tier', 'hubspot_owner_id', 'sdr_owner', 'account_status', 'lifecyclestage', 'notes_last_updated', 'notes_last_contacted']) : {},
+      lastTouchBy('contacts', ctIds), lastTouchBy('companies', events.filter(e => !e.ct && e.coId).map(e => e.coId))]);
+    const ev = events.map(e => { const c = eco[e.coId] || {}, p = ctP[e.ct] || null;
+      const coCreated = toMs(c.createdate) || 0, ctCreated = p ? toMs(p.createdate) || 0 : 0;
+      const coBucket = !e.coId || !eco[e.coId] ? 'Not in HubSpot' : coCreated < e.at ? 'Company already in CRM' : 'Net new company';
+      const existing = !!(p && ctCreated && ctCreated < e.at);
+      const bucket = existing ? 'Existing contact' : p ? (coBucket === 'Company already in CRM' ? 'New contact, company already in CRM' : coBucket === 'Net new company' ? 'Net new contact and company' : 'New contact, no company')
+        : coBucket === 'Company already in CRM' ? 'Company in CRM, contact not added' : coBucket === 'Net new company' ? 'Company added, contact not added' : 'Not in HubSpot yet';
+      const lt = p ? ltE[e.ct] : ltEc[e.coId];
+      return Object.assign({ id: e.ct || '', name: p ? [p.firstname, p.lastname].filter(Boolean).join(' ') || p.email || 'Contact' : 'Contact not in HubSpot', title: p ? p.jobtitle || '' : '',
+        company: c.name || e.co, coId: eco[e.coId] ? e.coId : '', event: e.event, at: e.at, existing, inCrm: !!p, met: !!e.met, want: !!e.want, why: e.why || '', industry: e.ind || '',
+        bucket, coBucket, icp: e.icp === true ? 'ICP fit' : e.icp === false ? 'Not ICP' : 'Not checked', icpTier: c.sdr_icp_tier || '', icpReview: false,
+        customer: c.lifecyclestage === 'customer', accountStatus: c.account_status || '', status: p ? lsOpts[p.hs_lead_status] || p.hs_lead_status || 'No lead status' : '',
+        owner: p ? person(p.hubspot_owner_id) || 'No owner' : person(c.hubspot_owner_id) || 'No owner', sdr: c.sdr_owner || '' },
+        touchOf(lt, Math.max(p ? toMs(p.notes_last_updated) || 0 : 0, toMs(c.notes_last_updated) || 0), (p && p.notes_last_contacted) || c.notes_last_contacted)); }).sort((a, b) => b.at - a.at || (a.company > b.company ? 1 : -1));
 
     const count = (L, f) => L.filter(f).length;
     const S = {
@@ -129,37 +138,24 @@ module.exports = function (X) {
       forms: { total: forms.length + intl.length, internal: intl.length, external: forms.length, spam: count(forms, r => r.spam), assigned: count(real, r => r.assigned), unassigned: count(real, r => !r.assigned),
         notStarted: count(real, r => r.stage === 'Not started'), inProgress: count(real, r => r.stage === 'In progress'), qualified: count(real, r => r.stage === 'Qualified'), disqualified: count(forms, r => r.stage === 'Disqualified'), customer: count(real, r => r.stage === 'Existing customer') },
       visits: { companies: visits.length, netNew: count(visits, v => v.netNew), qualified: count(visits, v => v.verdict === 'Qualified'), disqualified: count(visits, v => v.verdict === 'Disqualified'), unscored: count(visits, v => v.verdict === 'Not scored'), netNewIcp: count(visits, v => v.netNewIcp), inCrm: count(visits, v => v.inCrm) },
-      events: { leads: ev.length, icp: count(ev, e => e.icp === 'ICP fit'), icpExisting: count(ev, e => e.icp === 'ICP fit' && e.coBucket === 'Company already in CRM'), icpNew: count(ev, e => e.icp === 'ICP fit' && e.coBucket === 'Net new company'),
+      events: { leads: ev.length, met: count(ev, e => e.met), want: count(ev, e => e.want), icp: count(ev, e => e.icp === 'ICP fit'), icpExisting: count(ev, e => e.icp === 'ICP fit' && e.coBucket === 'Company already in CRM'),
+        icpNew: count(ev, e => e.icp === 'ICP fit' && e.coBucket === 'Net new company'), icpMissing: count(ev, e => e.icp === 'ICP fit' && e.coBucket === 'Not in HubSpot'),
         notIcp: count(ev, e => e.icp === 'Not ICP'), unchecked: count(ev, e => e.icp === 'Not checked'), existingContacts: count(ev, e => e.existing), newContactExistingCo: count(ev, e => e.bucket === 'New contact, company already in CRM'),
-        netNew: count(ev, e => e.bucket === 'Net new contact and company'), noCompany: count(ev, e => e.coBucket === 'No company linked'),
-        netNewIcpCos: new Set(ev.filter(e => e.icp === 'ICP fit' && e.coBucket === 'Net new company').map(e => e.coId)).size }
+        netNew: count(ev, e => e.bucket === 'Net new contact and company'), noContact: count(ev, e => !e.inCrm), noCompany: count(ev, e => e.coBucket === 'Not in HubSpot'),
+        netNewIcpCos: new Set(ev.filter(e => e.icp === 'ICP fit' && e.coBucket === 'Net new company').map(e => e.coId)).size,
+        icpCos: new Set(ev.filter(e => e.icp === 'ICP fit').map(e => (e.coId || e.company).toLowerCase())).size, syncedAt: SHEET_EVENTS().syncedAt }
     };
     const tally = (L, k) => { const m = {}; L.forEach(r => { m[r[k]] = (m[r[k]] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([name, n]) => ({ name, n })); };
     return { generatedAt: new Date().toISOString(), from, to, sunday: sun, today, S, bySource: tally(real, 'source'), byForm: tally(real, 'form'), byFormType: tally(real, 'formType'), byEvent: tally(ev, 'event'),
       outreach, outreachError: R && R.error || null, forms, internal: intl.map(r => ({ id: r.id, name: r.name, at: r.at, form: r.formLabel + (r.site ? ': ' + r.site : '') })), visits, events: ev };
   }
 
-  // contacts with Lead Source = Event created this week, and older contacts whose Event or Lead Source was set this week
-  async function eventLeads(since, until) {
-    const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'createdate', 'event', 'hubspot_owner_id', 'hs_lead_status', 'associatedcompanyid', 'notes_last_updated', 'notes_last_contacted'];
-    const [fresh, touched, ls] = await Promise.all([
-      searchAll('contacts', [{ filters: [{ propertyName: 'lead_source', operator: 'EQ', value: 'Event' }, { propertyName: 'createdate', operator: 'GTE', value: String(since) }, { propertyName: 'createdate', operator: 'LT', value: String(until) }] }], props, 'createdate'),
-      searchAll('contacts', [{ filters: [{ propertyName: 'lead_source', operator: 'EQ', value: 'Event' }, { propertyName: 'createdate', operator: 'LT', value: String(since) }, { propertyName: 'lastmodifieddate', operator: 'GTE', value: String(since) }] }], ['createdate'], 'createdate').catch(() => []),
-      options('contacts', 'hs_lead_status')
-    ]);
-    const row = (c, existing, at) => { const p = c.properties || {}; return { id: String(c.id), name: [p.firstname, p.lastname].filter(Boolean).join(' ') || p.email || 'Unnamed contact', title: p.jobtitle || '', company: p.company || '',
-      coId: p.associatedcompanyid || '', event: p.event || '', created: toMs(p.createdate) || 0, at: at || toMs(p.createdate) || 0, existing, ownerId: p.hubspot_owner_id || '', status: ls[p.hs_lead_status] || p.hs_lead_status || 'No lead status',
-      lastUpdated: p.notes_last_updated, lastContacted: p.notes_last_contacted }; };
-    const out = fresh.map(c => row(c, false));
-    // existing contacts: only those whose Event / Lead Source actually changed this week
-    const cand = touched.slice(0, 300).map(c => String(c.id));
-    for (let i = 0; i < cand.length; i += 50) {
-      const r = await hs('/crm/v3/objects/contacts/batch/read', { inputs: cand.slice(i, i + 50).map(id => ({ id })), properties: props, propertiesWithHistory: ['event', 'lead_source'] }).catch(() => ({ results: [] }));
-      (r.results || []).forEach(c => { const h = c.propertiesWithHistory || {};
-        const t = [].concat(h.event || [], h.lead_source || []).map(x => Date.parse(x.timestamp)).filter(x => x >= since && x < until);
-        if (t.length) out.push(row(c, true, Math.min(...t))); });
-    }
-    return out;
+  // the events sheet snapshot: rows whose event date falls in the week (UK)
+  let SNAP = null;
+  function SHEET_EVENTS() { if (!SNAP) { try { SNAP = require('./_events.json'); } catch (e) { SNAP = { events: [], rows: [], syncedAt: null }; } } return SNAP; }
+  async function sheetEvents(from, to) {
+    const E = SHEET_EVENTS();
+    return E.rows.filter(r => r.d >= from && r.d <= to).map(r => Object.assign({}, r, { at: ukStart(r.d), event: (E.events[r.e] || {}).name || '' }));
   }
 
   /* ---- the email ---- */
@@ -242,14 +238,15 @@ module.exports = function (X) {
         (v.score == null ? '' : '<b>' + v.score + '/10</b><br>') + pill(v.verdict), esc(v.customer ? 'Customer' : v.accountStatus || '–'), esc(v.sdr || '–'), touch(v)])));
 
     // events
-    const evRows = D.events.slice(0, 60);
-    o += card('Events', 'Leads from the events sheet, by event date. ICP fit is the sheet’s “Company Fits ICP Matrix?”.',
-      two(bars([['Event leads', S.events.leads], ['ICP fit', S.events.icp, G.q, 1], ['Not ICP', S.events.notIcp, G.d, 1], ['Not checked', S.events.unchecked, G.n, 1]], Math.max(1, S.events.leads)),
-          bars([['ICP: company already in CRM', S.events.icpExisting], ['ICP: net new company', S.events.icpNew], ['Existing contacts', S.events.existingContacts], ['Net new contact and company', S.events.netNew]], Math.max(1, S.events.leads))) +
-      (D.byEvent.length ? gap + h4('By event') + bars(D.byEvent.map(x => [x.name || 'Event not set', x.n]), Math.max(1, ...D.byEvent.map(x => x.n))) : '') + gap +
-      grid(['Lead', 'Event', 'ICP', 'In the CRM', 'Last touch'], evRows.map(e => [a(e.name, e.id, '0-1') + sub(esc(e.title)) + sub(a(e.company, e.coId, '0-2').replace('font-weight:600', 'font-weight:500;color:' + MUTED)),
-        esc(e.event || '–'), pill(e.icp) + sub(esc(e.icpTier)), esc(e.bucket), touch(e)])) +
-      (D.events.length > evRows.length ? sub('Showing ' + evRows.length + ' of ' + D.events.length + '. The full list is on the dashboard.') : ''));
+    const evRows = D.events.filter(e => e.icp === 'ICP fit').slice(0, 60), E = S.events;
+    o += card('Events', 'From the events sheet (EVENTS LEADS LISTS 26), by event date. ICP fit = the sheet’s “Company Fits ICP Matrix?”. CRM status is checked in HubSpot.',
+      two(bars([['Event leads', E.leads], ['Met / attended', E.met, null, 1], ['Wanted to meet / signed up', E.want, null, 1], ['ICP fit', E.icp, G.q, 1], ['Not ICP', E.notIcp, G.d, 1]].concat(E.unchecked ? [['ICP not marked', E.unchecked, G.n, 1]] : []), Math.max(1, E.leads)),
+          bars([['ICP: company already in CRM', E.icpExisting, G.q], ['ICP: net new company created', E.icpNew, G.w], ['ICP: company not in HubSpot yet', E.icpMissing, G.n], ['Contact already in CRM', E.existingContacts], ['New contact, company in CRM', E.newContactExistingCo], ['Net new contact and company', E.netNew], ['Contact not in HubSpot', E.noContact, G.n]], Math.max(1, E.leads))) +
+      (D.byEvent.length ? gap + h4('By event') + bars(D.byEvent.map(x => [x.name || 'Event', x.n]), Math.max(1, ...D.byEvent.map(x => x.n))) : '') + gap +
+      h4('ICP-fit leads') + grid(['Lead', 'Event', 'In the CRM', 'Owner', 'Last touch'], evRows.map(e => [(e.id ? a(e.name, e.id, '0-1') + sub(esc(e.title)) : '<span style="color:' + MUTED + '">Contact not in HubSpot</span>') + sub(a(e.company, e.coId, '0-2').replace('font-weight:600', 'font-weight:500;color:' + MUTED)),
+        esc(e.event) + sub(e.met ? 'Met' : e.want ? 'Wanted to meet' : ''), esc(e.bucket), esc(e.owner) + sub(esc(e.sdr ? 'SDR: ' + e.sdr : '')), touch(e)])) +
+      (E.icp > evRows.length ? sub('Showing ' + evRows.length + ' of ' + E.icp + ' ICP-fit leads. Every lead is on the dashboard.') : '') +
+      sub('Events sheet synced ' + (E.syncedAt ? new Date(E.syncedAt).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'not yet') + '.'));
 
     // outreach
     if (O) o += card('SDR outreach', 'Accounts and contacts each SDR called or emailed. Net new = no SDR call or email earlier this year.',
