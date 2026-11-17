@@ -1581,7 +1581,7 @@ async function buildForms(q) {
   let since, until = Date.now(), days;
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q.from || '')) { since = ukStart(q.from); if (/^\d{4}-\d{2}-\d{2}$/.test(q.to || '')) until = ukStart(q.to) + 86400000; days = Math.round((until - since) / 86400000); }
   else { days = Math.min(Math.max(Number(q && q.days) || 30, 1), 180); since = Date.now() - days * 86400000; }
-  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events', 'associatedcompanyid', 'notes_last_updated', 'hs_analytics_source', 'hs_analytics_source_data_1', 'hs_analytics_source_data_2', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events', 'associatedcompanyid', 'notes_last_updated', 'hs_analytics_source', 'hs_analytics_source_data_1', 'hs_analytics_source_data_2', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'lead_source'];
   const [rows, ls, owners, pipes] = await Promise.all([
     searchAll('contacts', [{ filters: [{ propertyName: 'recent_conversion_date', operator: 'GTE', value: String(since) }, { propertyName: 'recent_conversion_date', operator: 'LT', value: String(until) }] }], props, 'recent_conversion_date'),
     leadStatusMap(), ownerNames(), hs('/crm/v3/pipelines/deals').catch(() => ({ results: [] }))
@@ -1607,7 +1607,7 @@ async function buildForms(q) {
       ownerId: o, assigned: active.has(o), owner: active.has(o) ? short(o) : o ? (FORM_OWNER_LABEL[o] || OWNER_NAMES[o] || owners[o] || 'Another owner') : 'No owner',
       status: ls[p.hs_lead_status] || p.hs_lead_status || '', spam: !!f.spam, note: f.note || (free ? 'Personal email address' : ''),
       coId: p.associatedcompanyid || '', contactTouch: ms(p.notes_last_updated),
-      traffic: { source: p.hs_analytics_source || '', d1: p.hs_analytics_source_data_1 || '', d2: p.hs_analytics_source_data_2 || '', utm_source: p.utm_source || '', utm_medium: p.utm_medium || '', utm_campaign: p.utm_campaign || '', utm_content: p.utm_content || '', utm_term: p.utm_term || '' } }));
+      traffic: { source: p.hs_analytics_source || '', d1: p.hs_analytics_source_data_1 || '', d2: p.hs_analytics_source_data_2 || '', utm_source: p.utm_source || '', utm_medium: p.utm_medium || '', utm_campaign: p.utm_campaign || '', utm_content: p.utm_content || '', utm_term: p.utm_term || '', lead_source: p.lead_source || '' } }));
   });
   // company context: customer?, open deals in the pipeline, Account Status, last touch, SDR Owner, company owner, who's working it
   const coIds = [...new Set(out.external.map(r => r.coId).filter(Boolean))];
@@ -1717,6 +1717,21 @@ async function buildFormsHistory(q) {
 
 // Slack markdown for #inbound-leads: form submissions in a period, one table per form, with company context.
 // part=forms&fmt=slack&from=YYYY-MM-DD&to=YYYY-MM-DD. Returns { messages: [...] } (each under Slack's 5,000-character limit).
+// "Where the lead came from" in one short label: UTM tags first, then a HubSpot campaign, then the original traffic source (+ page/referrer)
+const SRC_LABEL = { ORGANIC_SEARCH: 'Organic search', PAID_SEARCH: 'Paid search', EMAIL_MARKETING: 'Email marketing', SOCIAL_MEDIA: 'Organic social', REFERRALS: 'Referral', OTHER_CAMPAIGNS: 'Campaign', DIRECT_TRAFFIC: 'Direct', OFFLINE: 'Offline', PAID_SOCIAL: 'Paid social', AI_REFERRALS: 'AI referral' };
+function sourceLabel(t) {
+  if (!t) return '';
+  const utm = [t.utm_source, t.utm_medium, t.utm_campaign].filter(Boolean).join(' / ');
+  if (utm) return 'UTM: ' + utm;
+  const d1 = String(t.d1 || ''), host = d1.replace(/^https?:\/\//, '').split('/')[0];
+  let s = SRC_LABEL[t.source] || t.source || 'Unknown';
+  if (t.source === 'OTHER_CAMPAIGNS' && d1) s = 'Campaign: ' + d1.replace(/^\d+-/, '');
+  else if (t.source === 'REFERRALS' && host) s += ': ' + host;
+  else if (t.source === 'DIRECT_TRAFFIC' && host && !/^[0-9a-f-]{20,}$/i.test(host)) s += ' (' + host + ')';
+  else if ((t.source === 'EMAIL_MARKETING' || t.source === 'SOCIAL_MEDIA' || t.source === 'PAID_SOCIAL' || t.source === 'PAID_SEARCH') && d1) s += ': ' + d1;
+  if (t.lead_source && !/^Inbound$/i.test(t.lead_source)) s += ' · Lead source: ' + t.lead_source;
+  return s;
+}
 function formsSlack(D) {
   const HSB = 'https://app-eu1.hubspot.com/contacts/25735731/record/';
   const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : '';
@@ -1727,9 +1742,9 @@ function formsSlack(D) {
   const where = r => { const c = r.co || {}; const deal = (c.openDeals || [])[0];
     return r.bucket === 'customer' ? 'Existing customer' + (deal ? ', open deal: ' + deal.stage : '') : r.bucket === 'pipeline' ? 'In pipeline: ' + deal.stage : 'New business'; };
   const row = r => { const c = r.co || {};
-    return '| [' + cell(c.name || r.company) + '](' + HSB + '0-2/' + (c.id || '') + ') | [' + cell(r.name) + '](' + HSB + '0-1/' + r.id + ')' + (r.title ? ', ' + cell(r.title) : '') + ' | ' + d(r.at) +
+    return '| [' + cell(c.name || r.company) + '](' + HSB + '0-2/' + (c.id || '') + ') | [' + cell(r.name) + '](' + HSB + '0-1/' + r.id + ')' + (r.title ? ', ' + cell(r.title) : '') + ' | ' + d(r.at) + ' | ' + cell(sourceLabel(r.traffic) || '–') +
       ' | ' + where(r) + ' | ' + cell(c.accountStatus || '–') + ' | ' + (nm(c.sdr) || '**None**') + ' | ' + (nm(c.owner) || '–') + ' | ' + (nm(r.working) || '–') + ' | ' + ago(r.touch) + ' |'; };
-  const head = '| Company | Contact | Submitted | Customer or pipeline | Account Status | SDR | Company owner | Working on it | Last touch |\n|---|---|---|---|---|---|---|---|---|\n';
+  const head = '| Company | Contact | Submitted | Source / UTM | Customer or pipeline | Account Status | SDR | Company owner | Working on it | Last touch |\n|---|---|---|---|---|---|---|---|---|---|\n';
   const cnt = b => real.filter(r => r.bucket === b).length;
   const cos = new Set(real.map(r => (r.co && r.co.id) || r.company)).size;
   const range = d(Date.parse(D.since)) + ' to ' + d(Date.parse(D.until) - 1);
