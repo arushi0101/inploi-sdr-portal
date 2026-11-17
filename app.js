@@ -369,8 +369,8 @@ function render(){
   var D=DEALS.filter(function(d){return all||d.s===state.pod;});
   $('pipeKpis').innerHTML=kpi(dn(D.length,'deals','all'),'Open SDR deals','Credited via the deal SDR Owner')+kpi(fmtK(sum(D,function(d){return d.a;})),'Total deal amount','Uses Amount; the ARR field is often blank')+kpi(String(PIPE.createdMtd||0),'Deals created this month','By the four SDRs')+kpi(PIPE.closedWon?fmtK(PIPE.closedWon/1000):'\u00a30','Closed-won revenue',PIPE.closedWon?'From SDR-credited deals':'No SDR deal has closed yet');
   $('dealBody').innerHTML=D.length?D.map(function(d){
-    return '<tr><td><a href="'+dl(d.id)+'"'+(d.co?' data-co="'+d.co+'"':'')+' target="_blank" rel="noopener">'+esc(d.n)+'</a></td><td class="l">'+esc(byK(d.s).short)+'</td><td class="l">'+esc(d.st)+'</td><td class="n">'+fmtK(d.a)+'</td><td class="n">'+(d.arr?esc(d.arr):'<span style="color:var(--muted)">blank</span>')+'</td><td class="n">'+esc(d.cr)+'</td><td class="l">'+(d.next?esc(d.next):'<span class="pill bad">Not set</span>')+'</td></tr>';
-  }).join(''):'<tr><td colspan="7" class="empty">No open SDR-sourced deals.</td></tr>';
+    return '<tr><td><a href="'+dl(d.id)+'"'+(d.co?' data-co="'+d.co+'"':'')+' target="_blank" rel="noopener">'+esc(d.n)+'</a></td><td class="l">'+esc(byK(d.s).short)+'</td><td class="l">'+esc(d.st)+'</td><td class="n">'+fmtK(d.a)+'</td><td class="n">'+(d.arr?esc(d.arr):'<span style="color:var(--muted)">blank</span>')+'</td><td class="n">'+esc(d.cr)+'</td></tr>';
+  }).join(''):'<tr><td colspan="6" class="empty">No open SDR-sourced deals.</td></tr>';
   var acc=D.filter(function(d){return d.st&&!/^discovery/i.test(d.st);}).length;
   if($('pipeAccepted')){$('pipeAccepted').className='pill';$('pipeAccepted').style.cssText='background:#e3f4ea;color:#0e7a46';$('pipeAccepted').textContent=acc+' of '+D.length+' sales accepted';}
   if(window.SDRPipeBoard)try{window.SDRPipeBoard(D,{byK:byK,fmtK:fmtK,dl:dl,esc:esc});}catch(err){console.error(err);}
