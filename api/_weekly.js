@@ -185,7 +185,7 @@ module.exports = function (X) {
       '<h1 style="font-size:20px;margin:0 0 4px">Weekly inbound report · ' + esc(nice(D.from)) + ' to ' + esc(nice(D.to)) + '</h1>' +
       '<p style="margin:0 0 10px;color:#666;font-size:13px">UK time · From HubSpot and #inbound-visits · <a href="' + PORTAL + '/#inweekly">Open on the dashboard</a> (filters, drill-down, form dropdown)</p>';
     o += '<table cellpadding="0" cellspacing="6" style="width:100%;border-collapse:separate;margin:8px -6px 4px"><tr>' +
-      tile('Inbound leads', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' not') + tile('Website companies', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.netNewIcp + ' new ICP') +
+      tile('Inbound leads', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' unassigned') + tile('Website companies', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.netNewIcp + ' new ICP') +
       tile('Event leads', S.events.leads, S.events.icp + ' ICP · ' + S.events.netNewIcpCos + ' new ICP cos') + tile('Accounts reached', D.outreach ? D.outreach.total.cos : '–', D.outreach ? D.outreach.total.newCos + ' net new' : '') +
       tile('Contacts reached', D.outreach ? D.outreach.total.cons : '–', D.outreach ? D.outreach.total.newCons + ' net new' : '') + '</tr></table>';
     o += h2('Summary') + table(['Area', 'Count', 'Detail'], [
