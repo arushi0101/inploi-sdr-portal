@@ -310,3 +310,18 @@ Resolved by Arushi (12 Nov):
 - Every open sales-pipeline deal's owner is an AE, and SDR Owner holds an SDR or stays empty, never an AE.
 - **Pods:** an AE's own booking credits their pod SDR: Felix → Matthew Meehan (Sales Pod 2), Jason → James Crawford (Sales Pod 1). The dashboard uses the same pairing.
 - 12 Nov: SDR Owner changed from Felix to Matthew on Culina Group, Ole & Steen, Bristol Airport, Popeyes UK and V&C (Arushi).
+
+## Events: the events sheet is the source of truth (Arushi, 17 Nov 2026)
+"Always use the events sheet as the source of truth for events; it should be the same all across."
+- Sheet: **EVENTS LEADS LISTS 26** (Drive id `1OoIRFayF6pS4yO4RmU8oPhQo7RKA9S6HLhaOUWLMjKc`), one tab per event. Event leads = the rows of an
+  event's tab; event date = the tab's Event Date; ICP = the sheet's "Company Fits ICP Matrix?" (with its ICP Reasoning). Met / Want to meet come from the sheet too.
+- The dashboard (Inbound › Weekly inbound report › Events) and the Friday email read `api/_events.json`, a snapshot of the sheet with
+  **no personal data** (people are HubSpot contact IDs only). HubSpot is only used to say whether the contact/company was already in the CRM
+  before the event, owners, and last touch. Do not count events from HubSpot's Lead Source = Event any more.
+- **Daily sync** (end-of-day task, step 0): download the sheet as .xlsx into a scratch folder; fetch read-only from HubSpot
+  `hs_event_contacts.json` (Lead Source = Event contacts), `hs_email_contacts.json` (contacts by the sheet's emails) and `hs_companies.json`
+  (companies by the sheet's company names, email domains and the contacts' company IDs) — shapes in `scripts/events_sync.py`;
+  run `python3 -I scripts/events_sync.py <folder>`; commit `api/_events.json` if it changed.
+- The script also writes `<folder>/icp_updates.json`: companies whose ICP Fit **and** ICP Status are empty in HubSpot get the sheet's verdict
+  (`sdr_icp_fit` YES/NO, `sdr_icp_status` "ICP: … (events sheet: <event>)"). Fill empty only. Companies the sheet marks differently at
+  different events are listed as conflicts: leave them and mention them to Arushi.
