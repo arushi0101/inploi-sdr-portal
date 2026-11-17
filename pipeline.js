@@ -55,7 +55,7 @@ window.SDRPipeBoard=function(D,api){
     o+=sel?'<div class="pb-list"><div class="pb-top"><b>'+esc(sel.k)+' · '+sel.n+' deals · '+fmtK(sel.a)+'</b><button type="button" class="pb-seg" style="padding:5px 10px;cursor:pointer;font-size:.8rem" data-pbs="">Clear</button></div><div class="pb-board" style="grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">'+sel.deals.slice().sort(function(a,b){return b.a-a.a;}).map(card).join('')+'</div></div>'
       :'<p class="muted small" style="margin-top:10px">Click a bar to see its deals.</p>';
   }
-  root.innerHTML=o;if(tbl)tbl.hidden=MODE!=='table';
+  root.innerHTML=o;if(tbl)tbl.hidden=MODE!=='table';var cf=root.parentNode&&root.parentNode.querySelector(':scope > .card-filter');if(cf)cf.hidden=MODE!=='table';
   Array.prototype.forEach.call(root.querySelectorAll('[data-pbm]'),function(b){b.onclick=function(){MODE=b.getAttribute('data-pbm');try{localStorage.setItem('pipeMode',MODE);}catch(x){}window.SDRPipeBoard(D,api);};});
   Array.prototype.forEach.call(root.querySelectorAll('[data-pbs]'),function(b){b.onclick=function(){var k=b.getAttribute('data-pbs');SEL=k&&SEL!==k?k:null;window.SDRPipeBoard(D,api);};});
 };
