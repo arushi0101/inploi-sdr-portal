@@ -164,59 +164,101 @@ module.exports = function (X) {
 
   /* ---- the email ---- */
   function email(D) {
+    // Gmail drops <style> blocks: every style is inline. Layout is table-based for email clients.
     const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-    const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : '–';
+    const d = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' }) : '';
     const nice = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
     const HS = 'https://app-eu1.hubspot.com/contacts/25735731/record/';
-    const CSS = '<style>.w{font-family:Helvetica,Arial,sans-serif;color:#222;max-width:980px;background:#f6f5f2;padding:20px 22px;border-radius:12px}.w table.t{border-collapse:collapse;font-size:13px;margin:6px 0 16px;width:100%;background:#fff}.w .t th{text-align:left;padding:6px 8px;border-bottom:2px solid #222;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.w .t td{padding:5px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}.w .t .r{text-align:right}.w h2{font-size:16px;margin:26px 0 4px;color:#111;border-top:1px solid #ddd;padding-top:14px}.w h3{font-size:13px;margin:14px 0 2px;color:#333}.w .p{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;color:#555;background:#f1efeb}.w .pq{color:#0e7a46;background:#e6f5ec}.w .pd{color:#b4321b;background:#fcebe6}.w .pw{color:#1f5fbf;background:#e8f0fc}.w .pn{color:#8a5a00;background:#fbf1dc}.w .m{font-size:11px;color:#6f6b66}.w .k{width:20%;padding:12px 14px;border:1px solid #e5e3de;border-radius:10px;background:#fff;vertical-align:top}.w .k b{display:block;font-size:26px;margin:4px 0 2px;color:#111}.w a{color:#1a5fb4}</style>';
-    const table = (head, rows, numCols) => rows.length ? '<table class="t" cellpadding="0" cellspacing="0">' +
-      '<tr>' + head.map((h, i) => '<th' + (numCols && i >= 1 && i <= numCols ? ' class="r"' : '') + '>' + esc(h) + '</th>').join('') + '</tr>' +
-      rows.map(r => '<tr>' + r.map((v, i) => '<td' + (numCols && i >= 1 && i <= numCols ? ' class="r"' : '') + '>' + (v && v.html != null ? v.html : esc(v)) + '</td>').join('') + '</tr>').join('') + '</table>'
-      : '<p style="color:#666;font-size:13px;margin:4px 0 16px">None this week.</p>';
-    const h2 = t => '<h2>' + esc(t) + '</h2>';
-    const h3 = t => '<h3>' + esc(t) + '</h3>';
-    const link = (txt, id, kind) => id ? { html: '<a href="' + HS + kind + '/' + id + '">' + esc(txt) + '</a>' } : txt;
-    const kv = pairs => table(['Measure', 'Count'], pairs, 1);
-    const PK = { Qualified: 'pq', 'ICP fit': 'pq', Disqualified: 'pd', 'Not ICP': 'pd', 'In progress': 'pw', 'Not started': 'pn', 'Not assigned': 'pn', 'Not scored': 'pn', 'Not checked': 'pn' };
-    const pill = t => ({ html: '<span class="p ' + (PK[t] || '') + '">' + esc(t) + '</span>' });
-    const tile = (label, v, sub) => '<td class="k"><span class="m" style="text-transform:uppercase;letter-spacing:.05em;font-weight:600">' + esc(label) + '</span><b>' + esc(v) + '</b><span class="m">' + esc(sub) + '</span></td>';
-    const S = D.S, touch = r => [d(r.lastTouch), d(r.lastContacted), r.by ? r.by + (r.byKind ? ' · ' + r.byKind : '') : 'No one yet'];
-    let o = CSS + '<div class="w">' +
-      '<h1 style="font-size:20px;margin:0 0 4px">Weekly inbound report · ' + esc(nice(D.from)) + ' to ' + esc(nice(D.to)) + '</h1>' +
-      '<p style="margin:0 0 10px;color:#666;font-size:13px">UK time · From HubSpot and #inbound-visits · <a href="' + PORTAL + '/#inweekly">Open on the dashboard</a> (filters, drill-down, form dropdown)</p>';
-    o += '<table cellpadding="0" cellspacing="6" style="width:100%;border-collapse:separate;margin:8px -6px 4px"><tr>' +
-      tile('Inbound leads', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' unassigned') + tile('Website companies', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.netNewIcp + ' new ICP') +
-      tile('Event leads', S.events.leads, S.events.icp + ' ICP · ' + S.events.netNewIcpCos + ' new ICP cos') + tile('Accounts reached', D.outreach ? D.outreach.total.cos : '–', D.outreach ? D.outreach.total.newCos + ' net new' : '') +
-      tile('Contacts reached', D.outreach ? D.outreach.total.cons : '–', D.outreach ? D.outreach.total.newCons + ' net new' : '') + '</tr></table>';
-    o += h2('Summary') + table(['Area', 'Count', 'Detail'], [
-      ['Inbound leads (website forms, real)', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' not assigned'],
-      ['Companies on the website', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.qualified + ' qualified · ' + S.visits.netNewIcp + ' net new ICP'],
-      ['Event leads', S.events.leads, S.events.icp + ' ICP fit · ' + S.events.netNewIcpCos + ' net new ICP companies'],
-      ['SDR outreach: accounts', D.outreach ? D.outreach.total.cos : '–', D.outreach ? D.outreach.total.newCos + ' net new' : 'not available'],
-      ['SDR outreach: contacts', D.outreach ? D.outreach.total.cons : '–', D.outreach ? D.outreach.total.newCons + ' net new' : 'not available']], 1);
-    o += h2('Where inbound leads came from') + h3('By channel') + kv([['Website forms', S.inbound.leads], ['Website visits (companies)', S.inbound.visits], ['Events', S.inbound.events]]) +
-      h3('Website forms by original traffic source') + table(['Source', 'Leads'], D.bySource.map(x => [x.name, x.n]), 1) +
-      h3('Website forms by form') + table(['Form', 'Leads'], D.byForm.map(x => [x.name, x.n]), 1);
-    o += h2('SDR outreach') + (D.outreach ? table(['SDR', 'Accounts', 'Net new accounts', 'Contacts', 'Net new contacts', 'Calls', 'Emails'],
-      D.outreach.bySdr.map(x => [x.name, x.cos, x.newCos, x.cons, x.newCons, x.calls, x.emails]).concat([[{ html: '<b>Team</b>' }, D.outreach.total.cos, D.outreach.total.newCos, D.outreach.total.cons, D.outreach.total.newCons, D.outreach.total.calls, D.outreach.total.emails]]), 6) : '<p>Not available this run.</p>');
-    o += h2('Form submissions') + kv([['All submissions', S.forms.total], ['Internal (inploi team)', S.forms.internal], ['External', S.forms.external], ['External: likely spam / disqualified on review', S.forms.spam],
-      ['External: assigned to an SDR or AE', S.forms.assigned], ['External: not assigned', S.forms.unassigned], ['Assigned: not started', S.forms.notStarted], ['Assigned: in progress (being worked)', S.forms.inProgress],
-      ['Assigned: qualified', S.forms.qualified], ['Disqualified', S.forms.disqualified], ['Existing customers', S.forms.customer]]);
-    const fRow = r => [d(r.at), link(r.name, r.id, '0-1'), link(r.company, r.coId, '0-2'), r.form, r.source, r.owner, pill(r.stage), r.status].concat(touch(r));
-    const fHead = ['Submitted', 'Contact', 'Company', 'Form', 'Source', 'Owner', 'Stage', 'Lead status', 'Last touch', 'Last contacted', 'Last touched by'];
-    o += h3('Not assigned') + table(fHead, D.forms.filter(r => !r.assigned && !r.spam).map(fRow));
-    o += h3('Assigned') + table(fHead, D.forms.filter(r => r.assigned && !r.spam).map(fRow));
-    if (S.forms.spam) o += h3('Spam / disqualified on review') + table(fHead, D.forms.filter(r => r.spam).map(fRow));
-    o += h2('Website visits') + kv([['Companies on the website', S.visits.companies], ['Net new companies', S.visits.netNew], ['Qualified visits (ICP ' + ICP_MIN + '/10+)', S.visits.qualified], ['Disqualified visits (scored under ' + ICP_MIN + ')', S.visits.disqualified], ['Not scored yet', S.visits.unscored], ['Net new ICP companies', S.visits.netNewIcp], ['Matched to a HubSpot company', S.visits.inCrm]]) +
-      table(['First visit', 'Company', 'Visits', 'ICP score', 'Verdict', 'Net new', 'Account status', 'SDR Owner', 'Company owner', 'Last touch', 'Last contacted', 'Last touched by'],
-        D.visits.map(v => [d(v.at), v.coId ? link(v.name, v.coId, '0-2') : v.name + ' (not in HubSpot)', v.visits, v.score == null ? '–' : v.score + '/10', pill(v.verdict), v.netNew ? (v.netNewIcp ? 'Yes · ICP' : 'Yes') : 'No', v.customer ? 'Customer' : v.accountStatus, v.sdr, v.owner].concat(touch(v))));
-    o += h2('Events') + kv([['Event leads', S.events.leads], ['ICP fit', S.events.icp], ['ICP fit: company already in CRM', S.events.icpExisting], ['ICP fit: net new company', S.events.icpNew], ['Net new ICP companies created', S.events.netNewIcpCos],
-      ['Not ICP', S.events.notIcp], ['ICP not checked yet', S.events.unchecked], ['Existing contacts (already in CRM)', S.events.existingContacts], ['New contact, company already in CRM', S.events.newContactExistingCo], ['Net new contact and company', S.events.netNew], ['No company linked', S.events.noCompany]]) +
-      (D.byEvent.length > 1 ? h3('By event') + table(['Event', 'Leads'], D.byEvent.map(x => [x.name || 'Event not set', x.n]), 1) : '') +
-      table(['Added', 'Contact', 'Company', 'Event', 'ICP', 'In CRM?', 'Owner', 'Lead status', 'Last touch', 'Last contacted', 'Last touched by'],
-        D.events.map(e => [d(e.at), link(e.name, e.id, '0-1'), link(e.company, e.coId, '0-2'), e.event, { html: pill(e.icp).html + (e.icpTier ? '<br><span class="m">' + esc(e.icpTier) + '</span>' : '') }, e.bucket, e.owner, e.status].concat(touch(e))));
-    o += '<p style="color:#666;font-size:12px;margin-top:20px">Stages for assigned form leads: Qualified = open deal, meeting booked or Visible Opportunity; Disqualified = Not Qualified, Lost, Do Not Contact, Bounced, or flagged as spam; In progress = being worked (No Two-Way / Two-Way / Engaged, or touched since the form); Not started = no touch since the form. Last touched by = the latest call, email, meeting or LinkedIn message on the record.</p></div>';
-    return { subject: 'Weekly inbound report · ' + nice(D.from) + ' to ' + nice(D.to), html: o, counts: S };
+    const F = 'font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;';
+    const INK = '#1b1a19', MUTED = '#77716b', LINE = '#ece9e4', ACC = '#ff4d00';
+    const PILL = { Qualified: ['#0e7a46', '#e3f4ea'], 'ICP fit': ['#0e7a46', '#e3f4ea'], Disqualified: ['#b4321b', '#fbe9e4'], 'Not ICP': ['#b4321b', '#fbe9e4'], 'In progress': ['#1f5fbf', '#e7effb'], 'Not started': ['#8a5a00', '#fbf0d9'], 'Not assigned': ['#8a5a00', '#fbf0d9'], 'Not scored': ['#8a5a00', '#fbf0d9'], 'Not checked': ['#8a5a00', '#fbf0d9'], 'Net new': ['#5b4bc4', '#efecfb'], 'Existing customer': ['#555', '#efede9'] };
+    const pill = t => { const c = PILL[t] || ['#555', '#efede9']; return '<span style="' + F + 'display:inline-block;white-space:nowrap;font-size:11px;font-weight:600;line-height:16px;padding:2px 9px;border-radius:99px;color:' + c[0] + ';background:' + c[1] + '">' + esc(t) + '</span>'; };
+    const a = (txt, id, kind) => id ? '<a href="' + HS + kind + '/' + id + '" style="color:' + INK + ';font-weight:600;text-decoration:none">' + esc(txt) + '</a>' : '<span style="font-weight:600">' + esc(txt) + '</span>';
+    const sub = t => t ? '<div style="font-size:12px;color:' + MUTED + ';margin-top:2px">' + t + '</div>' : '';
+    const TD = 'padding:10px 12px;border-bottom:1px solid ' + LINE + ';vertical-align:top;font-size:13px;color:' + INK + ';' + F;
+    const TH = 'padding:8px 12px;background:#faf9f7;border-bottom:1px solid ' + LINE + ';text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';font-weight:700;white-space:nowrap;' + F;
+    const grid = (head, rows, right) => rows.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ' + LINE + ';border-radius:10px">' +
+      '<tr>' + head.map((h, i) => '<th style="' + TH + ((right || []).includes(i) ? 'text-align:right;' : '') + '">' + esc(h) + '</th>').join('') + '</tr>' +
+      rows.map(r => '<tr>' + r.map((v, i) => '<td style="' + TD + ((right || []).includes(i) ? 'text-align:right;white-space:nowrap;' : '') + '">' + v + '</td>').join('') + '</tr>').join('') + '</table>'
+      : '<div style="' + F + 'font-size:13px;color:' + MUTED + ';padding:14px 0">None this week.</div>';
+    // a metric list with bars: [[label, n, colour, indent]]
+    const bars = (items, max) => '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + items.map(([l, n, col, ind]) => {
+      const w = Math.max(2, Math.round((n || 0) / Math.max(1, max) * 100));
+      return '<tr><td style="' + F + 'font-size:13px;color:' + (ind ? MUTED : INK) + ';padding:7px 0 3px ' + (ind ? '14px' : '0') + '">' + esc(l) + '</td><td style="' + F + 'font-size:13px;font-weight:700;text-align:right;padding:7px 0 3px;color:' + INK + '">' + n + '</td></tr>' +
+        '<tr><td colspan="2" style="padding:0 0 4px ' + (ind ? '14px' : '0') + '"><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:' + LINE + ';height:5px;border-radius:3px;font-size:0;line-height:0"><table width="' + w + '%" cellpadding="0" cellspacing="0"><tr><td style="background:' + (col || ACC) + ';height:5px;border-radius:3px;font-size:0;line-height:0">&nbsp;</td></tr></table></td></tr></table></td></tr>';
+    }).join('') + '</table>';
+    const card = (title, desc, body) => '<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid ' + LINE + ';border-radius:12px"><tr><td style="padding:20px 22px">' +
+      '<div style="' + F + 'font-size:16px;font-weight:700;color:' + INK + '">' + esc(title) + '</div>' + (desc ? '<div style="' + F + 'font-size:12px;color:' + MUTED + ';margin:3px 0 0">' + esc(desc) + '</div>' : '') +
+      '<div style="height:14px;line-height:14px;font-size:0">&nbsp;</div>' + body + '</td></tr></table></td></tr>';
+    const two = (l, r) => '<table width="100%" cellpadding="0" cellspacing="0"><tr><td width="48%" valign="top">' + l + '</td><td width="4%"></td><td width="48%" valign="top">' + r + '</td></tr></table>';
+    const h4 = t => '<div style="' + F + 'font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';font-weight:700;margin:4px 0 4px">' + esc(t) + '</div>';
+    const gap = '<div style="height:16px;line-height:16px;font-size:0">&nbsp;</div>';
+    const touch = r => (r.lastTouch ? '<span style="white-space:nowrap">' + d(r.lastTouch) + '</span>' : '<span style="color:' + MUTED + '">No touch yet</span>') +
+      sub((r.by ? esc(r.by) + (r.byKind ? ' · ' + esc(r.byKind) : '') : 'No one yet') + (r.lastContacted ? '<br>Contacted ' + d(r.lastContacted) : ''));
+    const S = D.S, O = D.outreach, G = { q: '#1f9d5c', d: '#d2553a', w: '#3a7be0', n: '#d9a227' };
+
+    let o = '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee"><tr><td align="center" style="padding:24px 12px">' +
+      '<table width="760" cellpadding="0" cellspacing="0" style="max-width:760px;width:100%">';
+    // header band
+    o += '<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="background:#171513;border-radius:14px"><tr><td style="padding:24px 26px">' +
+      '<div style="' + F + 'font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:' + ACC + ';font-weight:700">inploi · SDR inbound</div>' +
+      '<div style="' + F + 'font-size:24px;font-weight:700;color:#fff;margin-top:6px">Weekly inbound report</div>' +
+      '<div style="' + F + 'font-size:14px;color:#c9c3bc;margin-top:4px">' + esc(nice(D.from)) + ' – ' + esc(nice(D.to)) + ' · UK time</div>' +
+      '</td><td align="right" valign="middle" style="padding:24px 26px"><a href="' + PORTAL + '/#inweekly" style="' + F + 'display:inline-block;background:' + ACC + ';color:#fff;font-size:13px;font-weight:600;text-decoration:none;padding:10px 16px;border-radius:8px">Open dashboard</a></td></tr></table></td></tr>';
+    // KPI cards
+    const kpi = (label, v, s) => '<td width="20%" valign="top" style="padding:0 4px"><table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid ' + LINE + ';border-radius:12px"><tr><td style="padding:14px 14px 13px">' +
+      '<div style="' + F + 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';font-weight:700">' + esc(label) + '</div>' +
+      '<div style="' + F + 'font-size:28px;font-weight:700;color:' + INK + ';line-height:34px;margin-top:6px">' + esc(v) + '</div>' +
+      '<div style="' + F + 'font-size:11px;color:' + MUTED + ';margin-top:2px">' + esc(s) + '</div></td></tr></table></td>';
+    o += '<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="margin:0 -4px"><tr>' +
+      kpi('Inbound leads', S.inbound.leads, S.forms.assigned + ' assigned · ' + S.forms.unassigned + ' unassigned') +
+      kpi('Website companies', S.visits.companies, S.visits.netNew + ' net new · ' + S.visits.netNewIcp + ' new ICP') +
+      kpi('Event leads', S.events.leads, S.events.icp + ' ICP fit') +
+      kpi('Accounts reached', O ? O.total.cos : '–', O ? O.total.newCos + ' net new' : '') +
+      kpi('Contacts reached', O ? O.total.cons : '–', O ? O.total.newCons + ' net new' : '') + '</tr></table></td></tr>';
+
+    // where from
+    const srcMax = Math.max(1, ...D.bySource.map(x => x.n)), formMax = Math.max(1, ...D.byForm.map(x => x.n));
+    o += card('Where inbound came from', 'Website forms count real external leads (no spam, internal or tests).',
+      bars([['Website forms (leads)', S.inbound.leads], ['Website visits (companies)', S.inbound.visits], ['Event leads', S.inbound.events]], Math.max(S.inbound.leads, S.inbound.visits, S.inbound.events)) + gap +
+      two(h4('Form leads by traffic source') + (D.bySource.length ? bars(D.bySource.map(x => [x.name, x.n]), srcMax) : sub('None')),
+          h4('Form leads by form') + (D.byForm.length ? bars(D.byForm.map(x => [x.name, x.n]), formMax) : sub('None'))));
+
+    // forms
+    const fRow = r => [a(r.name, r.id, '0-1') + sub(esc(r.title)) + sub(a(r.company, r.coId, '0-2').replace('font-weight:600', 'font-weight:500;color:' + MUTED)),
+      esc(r.form) + sub(esc(r.source) + ' · ' + d(r.at)), esc(r.owner), pill(r.stage) + sub(esc(r.status)), touch(r)];
+    const fHead = ['Lead', 'Form', 'Owner', 'Stage', 'Last touch'];
+    o += card('Form submissions', S.forms.total + ' submissions this week: ' + S.forms.external + ' external, ' + S.forms.internal + ' internal.',
+      two(bars([['External leads', S.forms.external - S.forms.spam], ['Assigned', S.forms.assigned, null, 1], ['Not assigned', S.forms.unassigned, G.n, 1], ['Spam (disqualified on review)', S.forms.spam, G.d, 1]], Math.max(1, S.forms.external)),
+          bars([['Not started', S.forms.notStarted, G.n], ['In progress', S.forms.inProgress, G.w], ['Qualified', S.forms.qualified, G.q], ['Disqualified', S.forms.disqualified, G.d]], Math.max(1, S.forms.assigned + S.forms.spam))) + gap +
+      h4('Not assigned') + grid(fHead, D.forms.filter(r => !r.assigned && !r.spam).map(fRow)) + gap +
+      h4('Assigned') + grid(fHead, D.forms.filter(r => r.assigned && !r.spam).map(fRow)) +
+      (S.forms.spam ? gap + h4('Spam / disqualified on review') + grid(fHead, D.forms.filter(r => r.spam).map(fRow)) : ''));
+
+    // visits
+    o += card('Website visits', 'Companies from the Dealfront alerts. Qualified = ICP score ' + ICP_MIN + '/10+; net new = first-ever alert this week.',
+      bars([['Companies on the website', S.visits.companies], ['Net new companies', S.visits.netNew, null, 1], ['Qualified visits', S.visits.qualified, G.q, 1], ['Disqualified visits', S.visits.disqualified, G.d, 1], ['Net new ICP companies', S.visits.netNewIcp, G.q, 1]], Math.max(1, S.visits.companies)) + gap +
+      grid(['Company', 'ICP', 'Status', 'SDR', 'Last touch'], D.visits.map(v => [(v.coId ? a(v.name, v.coId, '0-2') : a(v.name) + sub('Not in HubSpot')) + sub(d(v.at) + ' · ' + v.visits + ' visit' + (v.visits === 1 ? '' : 's') + (v.netNew ? ' · net new' : '')),
+        (v.score == null ? '' : '<b>' + v.score + '/10</b><br>') + pill(v.verdict), esc(v.customer ? 'Customer' : v.accountStatus || '–'), esc(v.sdr || '–'), touch(v)])));
+
+    // events
+    const evRows = D.events.slice(0, 60);
+    o += card('Events', 'Leads from the events sheet, by event date. ICP fit is the sheet’s “Company Fits ICP Matrix?”.',
+      two(bars([['Event leads', S.events.leads], ['ICP fit', S.events.icp, G.q, 1], ['Not ICP', S.events.notIcp, G.d, 1], ['Not checked', S.events.unchecked, G.n, 1]], Math.max(1, S.events.leads)),
+          bars([['ICP: company already in CRM', S.events.icpExisting], ['ICP: net new company', S.events.icpNew], ['Existing contacts', S.events.existingContacts], ['Net new contact and company', S.events.netNew]], Math.max(1, S.events.leads))) +
+      (D.byEvent.length ? gap + h4('By event') + bars(D.byEvent.map(x => [x.name || 'Event not set', x.n]), Math.max(1, ...D.byEvent.map(x => x.n))) : '') + gap +
+      grid(['Lead', 'Event', 'ICP', 'In the CRM', 'Last touch'], evRows.map(e => [a(e.name, e.id, '0-1') + sub(esc(e.title)) + sub(a(e.company, e.coId, '0-2').replace('font-weight:600', 'font-weight:500;color:' + MUTED)),
+        esc(e.event || '–'), pill(e.icp) + sub(esc(e.icpTier)), esc(e.bucket), touch(e)])) +
+      (D.events.length > evRows.length ? sub('Showing ' + evRows.length + ' of ' + D.events.length + '. The full list is on the dashboard.') : ''));
+
+    // outreach
+    if (O) o += card('SDR outreach', 'Accounts and contacts each SDR called or emailed. Net new = no SDR call or email earlier this year.',
+      grid(['SDR', 'Accounts', 'Net new', 'Contacts', 'Net new', 'Calls', 'Emails'], O.bySdr.map(x => ['<b>' + esc(x.name) + '</b>', x.cos, '<b>' + x.newCos + '</b>', x.cons, '<b>' + x.newCons + '</b>', x.calls, x.emails])
+        .concat([['<b>Team</b>', '<b>' + O.total.cos + '</b>', '<b>' + O.total.newCos + '</b>', '<b>' + O.total.cons + '</b>', '<b>' + O.total.newCons + '</b>', '<b>' + O.total.calls + '</b>', '<b>' + O.total.emails + '</b>']]), [1, 2, 3, 4, 5, 6]));
+
+    o += '<tr><td style="' + F + 'font-size:11px;line-height:17px;color:' + MUTED + ';padding:4px 6px 0">Stages for assigned form leads: Qualified = open deal, meeting booked or Visible Opportunity · Disqualified = Not Qualified, Lost, Do Not Contact, Bounced, or spam · In progress = No Two-Way / Two-Way / Engaged, or touched since the form · Not started = no touch since the form. Last touch shows who made the latest call, email, meeting or LinkedIn message.</td></tr>';
+    o += '</table></td></tr></table>';
+    return { subject: 'Weekly inbound report · ' + nice(D.from) + ' – ' + nice(D.to), html: o, counts: S };
   }
   return { build, email };
 };
