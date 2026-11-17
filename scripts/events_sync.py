@@ -71,19 +71,19 @@ def read_sheet(path):
                     if x.lower().startswith(n.lower()):
                         return i
             return None
-        C = dict(date=col('Event Date'), event=col('Event'), co=col('Company'), ind=col('Industry'), icp=col('Company Fits'),
+        C = dict(date=col('Event Date'), event=col('Event/Conference', 'Event/', 'Event '), co=col('Company'), ind=col('Industry'), icp=col('Company Fits'),
                  name=col('Contact Name'), want=col('Want to meet'), met=col('Met'), email=col('Email'), reason=col('ICP Reason'))
         body = []
         for r in data[hi + 1:]:
-            g = lambda k: (r[C[k]] if C[k] is not None and C[k] < len(r) else None)
+            g = lambda k, r=r: (r[C[k]] if C[k] is not None and C[k] < len(r) else None)
             if not (g('co') or g('name') or g('email')):
                 continue
             body.append(g)
         if not body:
             continue
-        d0 = next((g('date') for g in body if isinstance(g('date'), (datetime.date, datetime.datetime))), None)
+        d0 = min((g('date') for g in body if isinstance(g('date'), (datetime.date, datetime.datetime))), default=None)
         date = d0.strftime('%Y-%m-%d') if d0 else tab_date(ws.title)
-        name = next((str(g('event')).strip() for g in body if g('event') and not str(g('event')).lower().startswith('i am')), '') or ws.title.split('|', 1)[-1].strip()
+        name = next((str(g('event')).strip() for g in body if isinstance(g('event'), str) and g('event').strip() and not g('event').lower().startswith('i am')), '') or ws.title.split('|', 1)[-1].strip()
         ei = len(events)
         events.append({'tab': ws.title, 'name': name, 'date': date})
         for g in body:
@@ -111,12 +111,12 @@ def main(folder):
         if c.get('name'):
             co_by_name.setdefault(norm(c['name']), []).append(c)
         if c.get('domain'):
-            co_by_dom.setdefault(str(c['domain']).lower().replace('www.', ''), []).append(c)
+            co_by_dom.setdefault(re.sub(r'^(https?://)?(www\.)?', '', str(c['domain']).lower()).split('/')[0], []).append(c)
     oldest = lambda L: sorted(L, key=lambda c: c.get('created') or '9')[0]
 
     out, matched_ct, matched_co = [], 0, 0
     for r in rows:
-        ct = by_email.get(r['_email']) if r['_email'] else None
+        ct = next((by_email[x.strip()] for x in r['_email'].split(';') if x.strip() in by_email), None) if r['_email'] else None
         if not ct and r['_name']:
             cands = by_name.get(norm(r['_name']), [])
             if len(cands) > 1 and r['co']:
@@ -128,14 +128,14 @@ def main(folder):
         if not co and r['co'] and norm(r['co']) in co_by_name:
             co = oldest(co_by_name[norm(r['co'])])
         if not co and r['_email'] and '@' in r['_email'] and not FREE.search(r['_email']):
-            dom = r['_email'].split('@', 1)[1]
+            dom = r['_email'].split(';')[0].strip().split('@', 1)[1]
             if dom in co_by_dom:
                 co = oldest(co_by_dom[dom])
         matched_ct += bool(ct)
         matched_co += bool(co)
         out.append({k: v for k, v in {'e': r['e'], 'd': r['date'], 'co': r['co'], 'ind': r['ind'], 'icp': r['icp'], 'why': r['why'], 'met': r['met'], 'want': r['want'],
                                      'ct': str(ct['id']) if ct else None, 'coId': str(co['id']) if co else (str(ct['coId']) if ct and ct.get('coId') else None)}.items() if v not in (None, '')})
-    snap = {'source': 'EVENTS LEADS LISTS 26', 'sheetId': SHEET_ID, 'syncedAt': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'events': events, 'rows': out}
+    snap = {'source': 'EVENTS LEADS LISTS 26', 'sheetId': SHEET_ID, 'syncedAt': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'events': events, 'rows': out}
     dest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api', '_events.json')
     json.dump(snap, open(dest, 'w'), separators=(',', ':'))
 
@@ -156,7 +156,12 @@ def main(folder):
         if len(v['v']) > 1:
             conflicts.append(cid)
             continue
-        upd.append({'id': cid, 'fit': 'YES' if True in v['v'] else 'NO', 'why': v['why'], 'events': sorted(v['ev'])})
+        fit = 'YES' if True in v['v'] else 'NO'
+        if c.get('icpStatus'):
+            continue
+        why = v['why'] or ('Marked ' + ('ICP' if fit == 'YES' else 'not ICP') + ' in the events sheet')
+        upd.append({'id': cid, 'name': c.get('name'), 'fit': fit, 'events': sorted(v['ev']),
+                    'properties': {'sdr_icp_fit': fit, 'sdr_icp_status': ('ICP' if fit == 'YES' else 'NOT ICP') + ': ' + why[:220] + ' (events sheet: ' + ', '.join(sorted(v['ev']))[:80] + ')'}})
     json.dump({'updates': upd, 'conflicts': conflicts}, open(os.path.join(folder, 'icp_updates.json'), 'w'), indent=1)
     print(json.dumps({'events': len(events), 'rows': len(out), 'contactsMatched': matched_ct, 'companiesMatched': matched_co,
                       'icpFillable': len(upd), 'icpConflicts': len(conflicts)}))
