@@ -1581,7 +1581,7 @@ async function buildForms(q) {
   let since, until = Date.now(), days;
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q.from || '')) { since = ukStart(q.from); if (/^\d{4}-\d{2}-\d{2}$/.test(q.to || '')) until = ukStart(q.to) + 86400000; days = Math.round((until - since) / 86400000); }
   else { days = Math.min(Math.max(Number(q && q.days) || 30, 1), 180); since = Date.now() - days * 86400000; }
-  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events', 'associatedcompanyid', 'notes_last_updated', 'hs_analytics_source', 'hs_analytics_source_data_1', 'hs_analytics_source_data_2', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'lead_source'];
+  const props = ['firstname', 'lastname', 'email', 'company', 'jobtitle', 'hubspot_owner_id', 'hs_lead_status', 'recent_conversion_event_name', 'recent_conversion_date', 'num_conversion_events', 'associatedcompanyid', 'notes_last_updated', 'hs_analytics_source', 'hs_analytics_source_data_1', 'hs_analytics_source_data_2', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'lead_source', 'hs_latest_source', 'hs_latest_source_data_1'];
   const [rows, ls, owners, pipes] = await Promise.all([
     searchAll('contacts', [{ filters: [{ propertyName: 'recent_conversion_date', operator: 'GTE', value: String(since) }, { propertyName: 'recent_conversion_date', operator: 'LT', value: String(until) }] }], props, 'recent_conversion_date'),
     leadStatusMap(), ownerNames(), hs('/crm/v3/pipelines/deals').catch(() => ({ results: [] }))
@@ -1607,7 +1607,7 @@ async function buildForms(q) {
       ownerId: o, assigned: active.has(o), owner: active.has(o) ? short(o) : o ? (FORM_OWNER_LABEL[o] || OWNER_NAMES[o] || owners[o] || 'Another owner') : 'No owner',
       status: ls[p.hs_lead_status] || p.hs_lead_status || '', spam: !!f.spam, note: f.note || (free ? 'Personal email address' : ''),
       coId: p.associatedcompanyid || '', contactTouch: ms(p.notes_last_updated),
-      traffic: { source: p.hs_analytics_source || '', d1: p.hs_analytics_source_data_1 || '', d2: p.hs_analytics_source_data_2 || '', utm_source: p.utm_source || '', utm_medium: p.utm_medium || '', utm_campaign: p.utm_campaign || '', utm_content: p.utm_content || '', utm_term: p.utm_term || '', lead_source: p.lead_source || '' } }));
+      traffic: { source: p.hs_analytics_source || '', d1: p.hs_analytics_source_data_1 || '', d2: p.hs_analytics_source_data_2 || '', utm_source: p.utm_source || '', utm_medium: p.utm_medium || '', utm_campaign: p.utm_campaign || '', utm_content: p.utm_content || '', utm_term: p.utm_term || '', lead_source: p.lead_source || '', latest: p.hs_latest_source || '', latestD1: p.hs_latest_source_data_1 || '' } }));
   });
   // company context: customer?, open deals in the pipeline, Account Status, last touch, SDR Owner, company owner, who's working it
   const coIds = [...new Set(out.external.map(r => r.coId).filter(Boolean))];
@@ -1723,6 +1723,8 @@ function sourceLabel(t) {
   if (!t) return '';
   const utm = [t.utm_source, t.utm_medium, t.utm_campaign].filter(Boolean).join(' / ');
   if (utm) return 'UTM: ' + utm;
+  // contacts already in HubSpot before the form keep an Offline first touch; the latest session says what brought them back
+  if (t.source === 'OFFLINE' && t.latest && t.latest !== 'OFFLINE') { const r = sourceLabel(Object.assign({}, t, { source: t.latest, d1: t.latestD1, latest: '' })); return r.replace(/( · Lead source|$)/, ' (latest visit)$1'); }
   const d1 = String(t.d1 || ''), host = d1.replace(/^https?:\/\//, '').split('/')[0];
   let s = SRC_LABEL[t.source] || t.source || 'Unknown';
   if (t.source === 'OTHER_CAMPAIGNS' && d1) s = 'Campaign: ' + d1.replace(/^\d+-/, '');
