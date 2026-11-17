@@ -135,6 +135,19 @@ def main(folder):
         matched_co += bool(co)
         out.append({k: v for k, v in {'e': r['e'], 'd': r['date'], 'co': r['co'], 'ind': r['ind'], 'icp': r['icp'], 'why': r['why'], 'met': r['met'], 'want': r['want'],
                                      'ct': str(ct['id']) if ct else None, 'coId': str(co['id']) if co else (str(ct['coId']) if ct and ct.get('coId') else None)}.items() if v not in (None, '')})
+    # Arushi, 17 Nov: a company marked ICP at any event counts as ICP everywhere, tagged with the event(s) that marked it
+    key = lambda r: r.get('coId') or ('n:' + norm(r.get('co')))
+    icp_at = {}
+    for r in out:
+        if r.get('icp') is True and (r.get('coId') or r.get('co')):
+            icp_at.setdefault(key(r), set()).add(events[r['e']]['name'])
+    for r in out:
+        k = key(r) if (r.get('coId') or r.get('co')) else None
+        if k in icp_at:
+            r['icpAt'] = sorted(icp_at[k])
+            if r.get('icp') is not True:
+                r['icp'] = True
+                r['why'] = ('Marked ICP at ' + ', '.join(r['icpAt']) + '. ' + r.get('why', '')).strip()[:300]
     snap = {'source': 'EVENTS LEADS LISTS 26', 'sheetId': SHEET_ID, 'syncedAt': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'events': events, 'rows': out}
     dest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api', '_events.json')
     json.dump(snap, open(dest, 'w'), separators=(',', ':'))
@@ -151,17 +164,15 @@ def main(folder):
     upd, conflicts = [], []
     for cid, v in verdicts.items():
         c = companies.get(cid, {})
-        if c.get('icpFit'):
+        if c.get('icpFit') or c.get('icpStatus'):
             continue
-        if len(v['v']) > 1:
-            conflicts.append(cid)
-            continue
-        fit = 'YES' if True in v['v'] else 'NO'
-        if c.get('icpStatus'):
-            continue
-        why = v['why'] or ('Marked ' + ('ICP' if fit == 'YES' else 'not ICP') + ' in the events sheet')
-        upd.append({'id': cid, 'name': c.get('name'), 'fit': fit, 'events': sorted(v['ev']),
-                    'properties': {'sdr_icp_fit': fit, 'sdr_icp_status': ('ICP' if fit == 'YES' else 'NOT ICP') + ': ' + why[:220] + ' (events sheet: ' + ', '.join(sorted(v['ev']))[:80] + ')'}})
+        yes = sorted(icp_at.get(cid, set()))
+        no = sorted(v['ev'] - set(yes))
+        if yes:
+            st = 'ICP: marked ICP at ' + ', '.join(yes) + (' (not ICP at ' + ', '.join(no) + ')' if no else '') + ' (events sheet)'
+        else:
+            st = 'NOT ICP: ' + (v['why'] or 'marked not ICP')[:200] + ' (events sheet: ' + ', '.join(no)[:80] + ')'
+        upd.append({'id': cid, 'name': c.get('name'), 'fit': 'YES' if yes else 'NO', 'events': yes or no, 'properties': {'sdr_icp_fit': 'YES' if yes else 'NO', 'sdr_icp_status': st[:500]}})
     json.dump({'updates': upd, 'conflicts': conflicts}, open(os.path.join(folder, 'icp_updates.json'), 'w'), indent=1)
     print(json.dumps({'events': len(events), 'rows': len(out), 'contactsMatched': matched_ct, 'companiesMatched': matched_co,
                       'icpFillable': len(upd), 'icpConflicts': len(conflicts)}))

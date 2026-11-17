@@ -323,5 +323,5 @@ Resolved by Arushi (12 Nov):
   (companies by the sheet's company names, email domains and the contacts' company IDs) — shapes in `scripts/events_sync.py`;
   run `python3 -I scripts/events_sync.py <folder>`; commit `api/_events.json` if it changed.
 - The script also writes `<folder>/icp_updates.json`: companies whose ICP Fit **and** ICP Status are empty in HubSpot get the sheet's verdict
-  (`sdr_icp_fit` YES/NO, `sdr_icp_status` "ICP: … (events sheet: <event>)"). Fill empty only. Companies the sheet marks differently at
-  different events are listed as conflicts: leave them and mention them to Arushi.
+  (`sdr_icp_fit` YES/NO, `sdr_icp_status` "ICP: … (events sheet: <event>)"). Fill empty only. A company marked ICP at **any** event is ICP everywhere
+  (Arushi, 17 Nov): ICP Fit YES and ICP Status "ICP: marked ICP at <event(s)> (not ICP at <event>)"; the dashboard and email tag it "ICP at <event>".

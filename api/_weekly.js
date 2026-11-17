@@ -126,7 +126,7 @@ module.exports = function (X) {
         : coBucket === 'Company already in CRM' ? 'Company in CRM, contact not added' : coBucket === 'Net new company' ? 'Company added, contact not added' : 'Not in HubSpot yet';
       const lt = p ? ltE[e.ct] : ltEc[e.coId];
       return Object.assign({ id: e.ct || '', name: p ? [p.firstname, p.lastname].filter(Boolean).join(' ') || p.email || 'Contact' : 'Contact not in HubSpot', title: p ? p.jobtitle || '' : '',
-        company: c.name || e.co, coId: eco[e.coId] ? e.coId : '', event: e.event, at: e.at, existing, inCrm: !!p, met: !!e.met, want: !!e.want, why: e.why || '', industry: e.ind || '',
+        company: c.name || e.co, coId: eco[e.coId] ? e.coId : '', event: e.event, at: e.at, existing, inCrm: !!p, met: !!e.met, want: !!e.want, why: e.why || '', industry: e.ind || '', icpAt: e.icpAt || [],
         bucket, coBucket, icp: e.icp === true ? 'ICP fit' : e.icp === false ? 'Not ICP' : 'Not checked', icpTier: c.sdr_icp_tier || '', icpReview: false,
         customer: c.lifecyclestage === 'customer', accountStatus: c.account_status || '', status: p ? lsOpts[p.hs_lead_status] || p.hs_lead_status || 'No lead status' : '',
         owner: p ? person(p.hubspot_owner_id) || 'No owner' : person(c.hubspot_owner_id) || 'No owner', sdr: c.sdr_owner || '' },
@@ -244,7 +244,7 @@ module.exports = function (X) {
           bars([['ICP: company already in CRM', E.icpExisting, G.q], ['ICP: net new company created', E.icpNew, G.w], ['ICP: company not in HubSpot yet', E.icpMissing, G.n], ['Contact already in CRM', E.existingContacts], ['New contact, company in CRM', E.newContactExistingCo], ['Net new contact and company', E.netNew], ['Contact not in HubSpot', E.noContact, G.n]], Math.max(1, E.leads))) +
       (D.byEvent.length ? gap + h4('By event') + bars(D.byEvent.map(x => [x.name || 'Event', x.n]), Math.max(1, ...D.byEvent.map(x => x.n))) : '') + gap +
       h4('ICP-fit leads') + grid(['Lead', 'Event', 'In the CRM', 'Owner', 'Last touch'], evRows.map(e => [(e.id ? a(e.name, e.id, '0-1') + sub(esc(e.title)) : '<span style="color:' + MUTED + '">Contact not in HubSpot</span>') + sub(a(e.company, e.coId, '0-2').replace('font-weight:600', 'font-weight:500;color:' + MUTED)),
-        esc(e.event) + sub(e.met ? 'Met' : e.want ? 'Wanted to meet' : ''), esc(e.bucket), esc(e.owner) + sub(esc(e.sdr ? 'SDR: ' + e.sdr : '')), touch(e)])) +
+        esc(e.event) + sub((e.met ? 'Met' : e.want ? 'Wanted to meet' : '') + (e.icpAt && e.icpAt.length ? (e.met || e.want ? ' · ' : '') + 'ICP at ' + esc(e.icpAt.join(', ')) : '')), esc(e.bucket), esc(e.owner) + sub(esc(e.sdr ? 'SDR: ' + e.sdr : '')), touch(e)])) +
       (E.icp > evRows.length ? sub('Showing ' + evRows.length + ' of ' + E.icp + ' ICP-fit leads. Every lead is on the dashboard.') : '') +
       sub('Events sheet synced ' + (E.syncedAt ? new Date(E.syncedAt).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'not yet') + '.'));
 
