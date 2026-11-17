@@ -62,8 +62,15 @@ def read_sheet(path):
         data = list(ws.iter_rows(values_only=True))
         hi = next((i for i, r in enumerate(data[:6]) if r and any(str(c or '').strip().startswith('Company Fits') for c in r)), None)
         if hi is None:
-            continue
-        h = [str(c or '').strip() for c in data[hi]]
+            # header row missing (it happens when someone deletes it): fall back to the TEMPLATE column order
+            # if the sheet still looks like an event list (a True/False ICP column F)
+            if not data or not any(isinstance(r[5], bool) for r in data[:5] if r and len(r) > 5):
+                continue
+            hi = -1
+            h = ['Event Date', 'Event/Conference/Webinar', 'Delegates', 'Company', 'Industry', 'Company Fits ICP Matrix?', 'Contact Name',
+                 'Want to meet', 'Met', 'Job Title', 'Email', 'LinkedIn', 'Context', 'Next Steps / Anything Else']
+        else:
+            h = [str(c or '').strip() for c in data[hi]]
 
         def col(*names):
             for n in names:
