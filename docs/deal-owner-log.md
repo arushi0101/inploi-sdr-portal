@@ -70,3 +70,13 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 - Re-read all 8 deals: the values match.
 
 - 2026-11-18 07:45 UTC (Arushi): Konecranes 502453425391 closed_lost_reason → No Decision (+ detail, note 548091843796). Ramboll 496647844040 sdr_beneficiary_s_ 29569628 → 32364701 (Felix self-booked at event → pod SDR; note 548035500251).
+
+## 2026-11-18 #31 Marketing → SDR relabel
+
+- 2026-11-18 14:43 UTC: `discovery_meeting_channel` `Marketing` → `SDR` on 5 deals. Nothing else changed (`deal_source` and `sdr_beneficiary_s_` untouched). Re-read: all 5 now `SDR`.
+  - 530484600034 (SDR 29569628)
+  - 532919454918 (SDR 29569626)
+  - 533642515651 (SDR 29569626)
+  - 534705293506 (SDR 29569626)
+  - 540014559466 (SDR 29569626)
+- Left as `Marketing` (no SDR booked the meeting): 496407283950, 496640316636, 496647844040, 496511705279, 502452474082, 541282858230, 534957341930, 510951564492, 510207889637.
