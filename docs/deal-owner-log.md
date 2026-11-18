@@ -52,3 +52,19 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 - 2026-11-18 07:05 UTC: Deal Source (`discovery_meeting_channel`) changed from `Cold data` to `SDR` on deals 535012857072 and 535010104509. Nothing else changed. Re-read: both now `SDR`.
 - Only 2 deals carried `Cold data` (both created 2026), not 5. 0 pre-2026 deals use it.
 - The `Cold data` option is still on the property definition; removing it needs HubSpot property settings (not possible through the tools here). Nothing deleted or archived.
+
+## 2026-11-18 Closed-lost reasons + deal source backfill (#33)
+
+- 2026-11-18 07:40 UTC: Sales pipeline 3833763026, Closed Lost, close date in 2026, empty `closed_lost_reason`: 8 deals found. `closed_lost_reason` and `closed_lost_detail` (both empty before) set on 7; one evidence note added to each of those 7 deals. Nothing else changed.
+  - 504636594374: `Timing` (HIGH). Call 2 Sep 2026: missed the hiring window, parked until Q1 2027. Note 548092549358.
+  - 496647844040: `No Decision` (MEDIUM). No reply after the 7 May demo; 30 Jul close-out email unanswered. Note 548033336519.
+  - 478598825164: `Qualified Out` (MEDIUM). Email 24 Jul after the pricing call: chatbot alone won't solve the problem; needs ATS integration. Note 548033336522.
+  - 471596134587: `Budget` (MEDIUM). Prospect email 21 Oct: 2027 budget approval unlikely. Note 548091120855.
+  - 14472445686, 5689876694, 5689902296: `Other` (bulk-closed 11 Aug, no evidence; #33 rule for bulk-closed deals). Notes 548033336524, 548091120858, 548035494084.
+  - 502453425391: left empty. Weak evidence only: the demo was rescheduled by the prospect, then calls 17-20 Jul went unanswered, and the deal was closed before the 20 Jul demo slot.
+- Deal Source (`discovery_meeting_channel`): filled on all 8 deals, so nothing was changed. `sdr_beneficiary_s_` was not changed either. Flagged for review, not changed:
+  - 496647844040: Deal Source `Marketing` matches the evidence (AE booked it at an event, #grwth 25 Mar), but SDR Owner is 29569628 and no SDR booked it.
+  - 478598825164: current `SDR`; evidence suggests `Marketing` (the #grwth post says the prospect asked for a demo by email). SDR 29569626 handled the booking.
+  - 14472445686: current `Marketing`; source unclear (2024). Nov 2026 pilot meetings are logged on this closed deal and not on the open deal 544332425431.
+  - 5689876694, 5689902296: current `SDR`; there's no evidence to check it against (imported 2020/21 deals).
+- Re-read all 8 deals: the values match.
