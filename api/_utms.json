@@ -1,10 +1,10 @@
 {
- "updatedAt": "2026-11-18T06:56:17Z",
+ "updatedAt": "2026-11-18T17:40:54Z",
  "utms": {
   "dealfront promote / cpc / (no campaign)": {
    "firstSeen": "2026-10-31",
    "formIds": [],
-   "inTracker": null,
+   "inTracker": false,
    "lastSeen": "2026-10-31",
    "loggedOn": "2026-11-18",
    "visits": 1
@@ -12,7 +12,7 @@
   "hs automation / email / (no campaign)": {
    "firstSeen": "2026-08-26",
    "formIds": [],
-   "inTracker": null,
+   "inTracker": false,
    "lastSeen": "2026-11-06",
    "loggedOn": "2026-11-18",
    "visits": 8
@@ -20,7 +20,7 @@
   "hs email / email / (no campaign)": {
    "firstSeen": "2026-10-27",
    "formIds": [],
-   "inTracker": null,
+   "inTracker": false,
    "lastSeen": "2026-10-31",
    "loggedOn": "2026-11-18",
    "visits": 2
@@ -30,7 +30,7 @@
    "formIds": [
     "913785055433"
    ],
-   "inTracker": null,
+   "inTracker": false,
    "lastSeen": "2026-11-05",
    "loggedOn": "2026-11-18",
    "visits": 0
@@ -38,7 +38,7 @@
   "linkedin / social / (no campaign)": {
    "firstSeen": "2026-08-19",
    "formIds": [],
-   "inTracker": null,
+   "inTracker": false,
    "lastSeen": "2026-11-07",
    "loggedOn": "2026-11-18",
    "visits": 7
@@ -46,7 +46,7 @@
   "substack / email / (no campaign)": {
    "firstSeen": "2026-11-04",
    "formIds": [],
-   "inTracker": null,
+   "inTracker": false,
    "lastSeen": "2026-11-06",
    "loggedOn": "2026-11-18",
    "visits": 2

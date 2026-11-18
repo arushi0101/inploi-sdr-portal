@@ -6,9 +6,9 @@ listed in inploi_GTM_Campaign_Tracker (Campaigns tab). Anything marked NO should
 
 | Source / medium / campaign | First seen | Last seen | Form leads | Visits | In tracker |
 |---|---|---|---|---|---|
-| linkedin / social / (no campaign) | 2026-08-19 | 2026-11-07 | 0 | 7 | ? |
-| hs automation / email / (no campaign) | 2026-08-26 | 2026-11-06 | 0 | 8 | ? |
-| substack / email / (no campaign) | 2026-11-04 | 2026-11-06 | 0 | 2 | ? |
-| hubspot / other campaigns / demos-dont-show-2026 | 2026-11-05 | 2026-11-05 | 1 | 0 | ? |
-| hs email / email / (no campaign) | 2026-10-27 | 2026-10-31 | 0 | 2 | ? |
-| dealfront promote / cpc / (no campaign) | 2026-10-31 | 2026-10-31 | 0 | 1 | ? |
+| linkedin / social / (no campaign) | 2026-08-19 | 2026-11-07 | 0 | 7 | NO |
+| hs automation / email / (no campaign) | 2026-08-26 | 2026-11-06 | 0 | 8 | NO |
+| substack / email / (no campaign) | 2026-11-04 | 2026-11-06 | 0 | 2 | NO |
+| hubspot / other campaigns / demos-dont-show-2026 | 2026-11-05 | 2026-11-05 | 1 | 0 | NO |
+| dealfront promote / cpc / (no campaign) | 2026-10-31 | 2026-10-31 | 0 | 1 | NO |
+| hs email / email / (no campaign) | 2026-10-27 | 2026-10-31 | 0 | 2 | NO |
