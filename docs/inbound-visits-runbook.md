@@ -340,3 +340,46 @@ Resolved by Arushi (12 Nov):
   and the raw utm_* fields. As of 17 Nov no real visit or form carried a utm_campaign.
 - ICP for a visiting company: the ICP score in its #inbound-visits thread if there is one, else the company's HubSpot ICP Fit.
 - The #inbound-visits Slack routing (sections A/1 above) is unchanged.
+
+## Inputs from SDRs and BDRs in #inbound-leads (Arushi, 18 Nov 2026)
+"Keep taking inputs from the SDRs and BDRs in the inbound leads channel." Every hourly run reads **all** new messages in
+#inbound-leads (C05CYATGALC) from the last 7 days, not only replies under "_SDR routing_" posts: top-level messages and
+thread replies from SDRs (James, Matthew, Nikita, Evan), AEs (Jason, Felix) and BDRs, and any instruction from Arushi.
+- Log each input in `docs/inbound-visits-log.md` (who, which lead by ID, what they said in a few words, what we did).
+- **Disqualified** ("disqualify", "not a fit", "spam", "vendor", "student", "not worth it", "DQ"): set the contact's
+  Lead Status to Not Qualified (overwrite only New / No Two-Way Contact / empty), company Account Status to Disqualified
+  (only if empty, New or Inbound and no open deal), add a short note on the contact, add the contact ID to `FORM_FLAGS`
+  in `api/data.js` (spam: true, short note) and add a row to **`docs/disqualified-leads.md`**. Cancel any held post for it.
+- **Taken / worked / meeting booked**: log it; nothing else unless the runbook says so.
+- **Routing feedback** (wrong person, should go to X): update this runbook and say thanks in the thread (skip if Arushi replied).
+- Never post a reply at night; hold thank-yous until 09:00 UK.
+
+## UTM tracking (Arushi, 18 Nov 2026)
+"New UTMs should be properly tracked." At the end of each day `scripts/utm_register.py` builds `docs/utm-register.md` and
+`api/_utms.json`: every utm_source / medium / campaign seen on form leads (HubSpot utm_* fields, or Original Source
+"Other campaigns" + campaign) and on Leadfeeder visits (email, social, cpc mediums or any campaign), with first/last seen,
+form leads and visits, and whether the campaign is in the GTM campaign tracker (Campaigns tab of
+inploi_GTM_Campaign_Tracker, Drive 1-Wl2diLpSZL9cCJzS03-POzdMN2C4ZNyhtXrazGw0b4). New UTMs and UTMs missing from the
+tracker go in the end-of-day round-up and the Friday report. Naming in the tracker: `yyyymm_activity_play`.
+
+## Structured end-of-day round-up in #inbound-leads (Arushi, 18 Nov 2026)
+One top-level post, always the same sections in this order (write "None today" rather than dropping a section):
+```
+*Inbound round-up · <Day date>* 🌟
+*1. Today at a glance*
+• Demo requests: N · Audit unlocks: N · Website visits (ICP 6/10+): N · Disqualified: N · New UTMs: N
+*2. New form leads*
+1. Demo request · <Contact> (<title>) at <Company>, Point: @owner · ICP: <Fit>/<Tier>, <why> · Contact check: <…> · Context: <…> · <links>
+*3. Disqualified today*
+• <Company>: <reason> (by <name>)
+*4. Feedback from the team*
+• <name>: <what they said> → <what we did>
+*5. UTMs and sources*
+• New: <source / medium / campaign> (N visits, N leads) · Not in the campaign tracker yet: <…>
+*6. Still open*
+• <lead with no reply from its owner after the SLA, owner, since when>
+Thanks all, have a lovely evening!
+_SDR routing_
+```
+The #inbound-visits post keeps its own format (above). The Friday weekly report adds the same sections for the week
+(disqualified this week with reasons, team feedback, UTMs new this week and not in the tracker) after the form tables.
