@@ -9,6 +9,7 @@ Status → Disqualified only if empty, New or Inbound and there is no open deal;
 
 | Date | Source | Company (HubSpot ID) | Contact ID | Disqualified by | Reason | Where |
 |---|---|---|---|---|---|---|
+| 2026-11-18 | Demo request | Streamlinex Tech (463739813107) | 903565178089 | Evan | Vendor: used Request a Demo to pitch their own company | #inbound-leads thread on the 16 Nov round-robin post; company Account Status → Disqualified, note 548092921044 |
 | 2026-11-18 | Demo request | Melotto Group (470067755228) | 929295765740 | Arushi | Vendor: small US writing/research consultancy, no ATS or live roles | Arushi's DM to Claude; held post cancelled |
 | 2026-11-17 | Demo request | digitalstackinsider.com (no company) | 928411740392 | Matthew | Vendor/media site, US number; selling data lists | HubSpot (Not Qualified at 15:37); #inbound-leads thread on the HubSpot round-robin post |
 | 2026-11-17 | Form (Field Sales) | company 463730800886 | 898512666832 | Nikita, Arushi | Blacklisted spam address | #inbound-leads thread on the 16 Nov round-robin post |

@@ -1558,6 +1558,7 @@ const FORM_FLAGS = {
   '898512666832': { spam: true, note: 'Blacklisted spam address (checked by SDR); disqualified' },
   '928411740392': { spam: true, note: 'Vendor/media domain, US number; set to Not Qualified by its owner' },
   '929295765740': { spam: true, note: 'Vendor (small US consultancy, no ATS or roles); disqualified by Arushi' },
+  '903565178089': { spam: true, note: 'Vendor using the demo form to pitch us; disqualified by Evan' },
   '919003864254': { note: 'Software directory (vendor), not a buyer' },
   '914459580623': { note: 'Real company (RPO): needs an SDR' },
   '913785055433': { note: 'Work email, ran several audits' }
