@@ -60,13 +60,17 @@ def read_sheet(path):
         if ws.title.strip().upper() in SKIP_TABS:
             continue
         data = list(ws.iter_rows(values_only=True))
-        hi = next((i for i, r in enumerate(data[:6]) if r and any(str(c or '').strip().startswith('Company Fits') for c in r)), None)
+        is_head = lambda r: bool(r) and any(str(c or '').strip().startswith('Company Fits') for c in r)
+        hi = next((i for i, r in enumerate(data) if is_head(r)), None)
+        # a sort can carry the header row down the tab (22 Oct | Candidate Experience Conference, 17 Nov 2026):
+        # then every other row is a person, and the header row itself is skipped
+        start = 0 if hi is not None and hi > 5 else (hi + 1 if hi is not None else None)
         if hi is None:
             # header row missing (it happens when someone deletes it): fall back to the TEMPLATE column order
             # if the sheet still looks like an event list (a True/False ICP column F)
             if not data or not any(isinstance(r[5], bool) for r in data[:5] if r and len(r) > 5):
                 continue
-            hi = -1
+            hi, start = -1, 0
             h = ['Event Date', 'Event/Conference/Webinar', 'Delegates', 'Company', 'Industry', 'Company Fits ICP Matrix?', 'Contact Name',
                  'Want to meet', 'Met', 'Job Title', 'Email', 'LinkedIn', 'Context', 'Next Steps / Anything Else']
         else:
@@ -81,7 +85,9 @@ def read_sheet(path):
         C = dict(date=col('Event Date'), event=col('Event/Conference', 'Event/', 'Event '), co=col('Company'), ind=col('Industry'), icp=col('Company Fits'),
                  name=col('Contact Name'), want=col('Want to meet'), met=col('Met'), email=col('Email'), reason=col('ICP Reason'))
         body = []
-        for r in data[hi + 1:]:
+        for r in data[start:]:
+            if is_head(r):
+                continue
             g = lambda k, r=r: (r[C[k]] if C[k] is not None and C[k] < len(r) else None)
             if not (g('co') or g('name') or g('email')):
                 continue
