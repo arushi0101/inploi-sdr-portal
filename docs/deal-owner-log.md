@@ -68,3 +68,5 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
   - 14472445686: current `Marketing`; source unclear (2024). Nov 2026 pilot meetings are logged on this closed deal and not on the open deal 544332425431.
   - 5689876694, 5689902296: current `SDR`; there's no evidence to check it against (imported 2020/21 deals).
 - Re-read all 8 deals: the values match.
+
+- 2026-11-18 07:45 UTC (Arushi): Konecranes 502453425391 closed_lost_reason → No Decision (+ detail, note 548091843796). Ramboll 496647844040 sdr_beneficiary_s_ 29569628 → 32364701 (Felix self-booked at event → pod SDR; note 548035500251).
