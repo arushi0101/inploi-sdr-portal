@@ -46,3 +46,9 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 - 2026-11-17 contact 898512666832: Lead Status → Not Qualified (spam, confirmed by SDR in #inbound-leads thread)
 - 2026-11-17 Care Dorset duplicate deals merged at Arushi's request: 542521411812 (workflow duplicate) merged into 542185459936; HubSpot's merged deal id is now 543980842187. Done once via a temporary hard-coded endpoint (api/merge-once.js), removed straight after.
 - 2026-11-17 10:10 UTC hourly run: new deal 544332425431 (NHS Oxford - Candidate Management) created by Felix, owner Felix, channel Founder. Existing customer (Oxford Health NHS, renewed Oct 2026), founder-led pilot with no #grwth booking post: treated like the other customer/expansion deals, SDR Owner left empty, nothing changed. No new visits, forms or meetings.
+
+## 2026-11-18 Cold data → SDR (Emerson's request)
+
+- 2026-11-18 07:05 UTC: Deal Source (`discovery_meeting_channel`) changed from `Cold data` to `SDR` on deals 535012857072 and 535010104509. Nothing else changed. Re-read: both now `SDR`.
+- Only 2 deals carried `Cold data` (both created 2026), not 5. 0 pre-2026 deals use it.
+- The `Cold data` option is still on the property definition; removing it needs HubSpot property settings (not possible through the tools here). Nothing deleted or archived.
