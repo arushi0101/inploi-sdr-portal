@@ -25,6 +25,7 @@ Nikita Rohwer (U091M9CPELB, 29569628), Evan Williams (U091M9BGVH9, 29569626).
 
 - **SLA line:** alert Monday to Thursday: reach out within 24 hours (by that time the next day, UK). Alert Friday, Saturday or Sunday: by Monday 12:00 UK.
 - **Round-robin order:** James, Matthew, Nikita, Evan, then repeat. The next person is the one after the last "round-robin" entry in `docs/inbound-visits-log.md` (shared with form submissions).
+  - **19 Nov 2026 (Arushi): James out of office Thu 19 and Fri 20 Nov, back from Sat 21 Nov.** Skip James in the round-robin on those days: rotate Matthew → Nikita → Evan only, and log entries as "round-robin (James OOO)". Leads James already owns stay with him. An Account Status nudge that would go to James is logged as "held: James OOO until Mon 23 Nov" in `docs/account-status-nudges-log.md` instead of being DM'd.
 - **Never** overwrite an existing owner or a filled field. Only create missing companies, fill empty fields and assign unowned companies.
 - Every reply ends with `_SDR routing_` so a thread is never handled twice.
 - Every action is listed in `docs/inbound-visits-log.md` (when, company, ICP score, HubSpot record, what was done, who was tagged).
