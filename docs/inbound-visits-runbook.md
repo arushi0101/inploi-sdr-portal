@@ -368,7 +368,7 @@ One top-level post, always the same sections in this order (write "None today" r
 ```
 *Inbound round-up · <Day date>* 🌟
 *1. Today at a glance*
-• Demo requests: N · Audit unlocks: N · Website visits (ICP 6/10+): N · Disqualified: N · New UTMs: N
+• Demo requests: N (R received, D disqualified) · Audit unlocks: N (R received, D disqualified) · Website visits (ICP 6/10+): N · Disqualified: N · New UTMs: N
 *2. New form leads*
 1. Demo request · <Contact> (<title>) at <Company>, Point: @owner · ICP: <Fit>/<Tier>, <why> · Contact check: <…> · Context: <…> · <links>
 *3. Disqualified today*
