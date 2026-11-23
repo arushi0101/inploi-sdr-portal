@@ -4,7 +4,7 @@ Agreed with Arushi on 9 Nov 2026. Every new Dealfront alert in #inbound-visits (
 
 ## 1. Is it ICP?
 - Use the score Claude in Slack posts in the alert's thread ("X scores N/10").
-- **ICP = 6/10 or higher.** Below 6: do nothing, post nothing.
+- **ICP = 6/10 or higher.** Below 6 (Arushi, 23 Nov: every alert gets a reply so the channel shows it was handled): no HubSpot changes, no tags, no SLA, but reply in the alert's thread with one short note: "Checked: *N/10*, below our ICP bar / outside our ICP. <one-line reason>. Not added to HubSpot / already in HubSpot. No action needed. Thanks!" then "_SDR routing_". Hold it until 09:00 UK on weekends and after hours. If the AE-conversation rule applies, post the AE signal instead.
 - If Claude hasn't scored it within 30 minutes of the alert (or says it is out of credits), score it myself with the same ICP gates
   (ATS in use, 40+ live vacancies, UK HQ/hiring, frontline multi-site hiring model, scale ~1,000+ staff).
 
