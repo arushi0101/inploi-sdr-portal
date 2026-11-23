@@ -316,7 +316,7 @@ Resolved by Arushi (12 Nov):
 "Always use the events sheet as the source of truth for events; it should be the same all across."
 - Sheet: **EVENTS LEADS LISTS 26** (Drive id `1OoIRFayF6pS4yO4RmU8oPhQo7RKA9S6HLhaOUWLMjKc`), one tab per event. Event leads = the rows of an
   event's tab; event date = the tab's Event Date; ICP = the sheet's "Company Fits ICP Matrix?" (with its ICP Reasoning). Met / Want to meet come from the sheet too.
-- The dashboard (Inbound › Weekly inbound report › Events) and the Friday email read `api/_events.json`, a snapshot of the sheet with
+- The dashboard (Inbound › Weekly inbound report › Events) read `api/_events.json`, a snapshot of the sheet with
   **no personal data** (people are HubSpot contact IDs only). HubSpot is only used to say whether the contact/company was already in the CRM
   before the event, owners, and last touch. Do not count events from HubSpot's Lead Source = Event any more.
 - **Daily sync** (end-of-day task, step 0): download the sheet as .xlsx into a scratch folder; fetch read-only from HubSpot
@@ -329,7 +329,7 @@ Resolved by Arushi (12 Nov):
 
 ## Website visits come from Leadfeeder (Arushi, 17 Nov 2026)
 - Leadfeeder account **Inploi (314105)** is connected. It sees every identified company, not just the "All ICP companies" feed that posts to #inbound-visits.
-- The dashboard (Inbound › Visits, Inbound › Weekly inbound report) and the Friday email read `api/_visits.json`, built by
+- The dashboard (Inbound › Visits, Inbound › Weekly inbound report) read `api/_visits.json`, built by
   `scripts/leadfeeder_sync.py` from Leadfeeder `search_web_visits` pages (include=company). Company-level data only: no visitor names,
   emails or Leadfeeder client ids.
 - **Hourly top-up**: fetch search_web_visits for the last 2 days (page_size 100, include=company, every page), save each page as
