@@ -1,6 +1,14 @@
 {
- "updatedAt": "2026-11-20T18:09:00Z",
+ "updatedAt": "2026-11-23T17:40:50Z",
  "utms": {
+  "claude.ai / ai-assistant / (no campaign)": {
+   "firstSeen": "2026-11-23",
+   "formIds": [],
+   "inTracker": false,
+   "lastSeen": "2026-11-23",
+   "loggedOn": "2026-11-23",
+   "visits": 1
+  },
   "dealfront promote / cpc / (no campaign)": {
    "firstSeen": "2026-10-31",
    "formIds": [],

@@ -6,6 +6,7 @@ listed in inploi_GTM_Campaign_Tracker (Campaigns tab). Anything marked NO should
 
 | Source / medium / campaign | First seen | Last seen | Form leads | Visits | In tracker |
 |---|---|---|---|---|---|
+| claude.ai / ai-assistant / (no campaign) | 2026-11-23 | 2026-11-23 | 0 | 1 | NO |
 | linkedin / social / (no campaign) | 2026-08-19 | 2026-11-07 | 0 | 7 | NO |
 | hs automation / email / (no campaign) | 2026-08-26 | 2026-11-06 | 0 | 8 | NO |
 | substack / email / (no campaign) | 2026-11-04 | 2026-11-06 | 0 | 2 | NO |
