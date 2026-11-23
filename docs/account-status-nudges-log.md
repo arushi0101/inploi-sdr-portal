@@ -14,3 +14,4 @@ Notes from the first sweep (10 Nov):
 - The Crick Institute demo (25 Nov) has no company associated in HubSpot.
 - All other prospect meetings were already Meeting Booked or Open Opportunity.
 | 2026-11-13 09:07 | FIFA (448944047302) | "Felix x Mark", 18 Nov with Felix | empty | Matthew (pod SDR) | 1794560847.792979 | resolved: Open Opportunity, deal created 09:36 |
+| 2026-11-23 12:13 | Island Healthcare (472348594364) | Demo, 2 Dec 2026 with Felix (meeting 551423872195, Felix's own) | empty | Matthew (pod SDR) | 1795435741.192539 | open |
