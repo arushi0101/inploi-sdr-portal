@@ -223,3 +223,28 @@ Evidence: none of the 53 is Customer-sourced, and none has "Upsell" or "Expansio
 - AE or other non-SDR in SDR Owner: 0.
 - Deals with no deal owner: 0.
 - Deal Type counts: New Customer 140, Upsell 16, Cross-sell 4, empty 1 (David Lloyd Leisure - Accessibility).
+
+## 2026-11-24 Fix #12 company owners (Arushi)
+
+Arushi asked on 24 Nov: "Give new companies an owner automatically; exclude free-email and tool domains." Done means fewer than 50 unowned companies created since 1 Nov.
+
+- **Before (12:55 UTC):** 528 companies created since 2026-11-01 had no Company owner. 603 companies were created in that period.
+- **Cause:** 481 of the 528 (91%) have Record source CRM_SETTING, "Create and associate companies with contacts". 445 of these were created in one burst on 9 Nov, 10:40–10:50 UTC. That was when the setting was switched on and HubSpot made companies for existing contacts, whose create dates go back as far as 2025. Since then it creates about 2 a day (33 between 10 and 24 Nov). The other 47 have Record source INTEGRATION, "HubSpot connector for Claude": the 2 and 4 Nov event-list imports. None came from Cognism, Leadfeeder, Clay, HeyReach, IMPORT, CRM_UI or FORM. None had an SDR Owner, and 2 had deals.
+- **Writes:** 476 companies. `hubspot_owner_id` went from empty to the owner shown below. Only empty values were filled, and nothing was overwritten, deleted or merged. All 48 batches returned updated=10/10 (the last batch 6/6), failed 0. The set was read before (528 empty) and again after (52 empty).
+  - Rule a (open deal, SDR Owner on the deal), 2: Banham 470197261531 → James (deal 544903320788), Island Healthcare 472348594364 → Evan (deal 548857402609).
+  - Rule b (associated contact owned by a listed person, most recent contact), 459: Matt de la Hey 273, Arushi 58, Felix 44, Nikita 31, Evan 20, Raamis 10 (his contacts' owner id 37987484, not 1026156745), Joseph 7, Matthew Meehan 6, James 5, Jason 4, Sean-Stanley 1. On 24 of these, different listed people own the company's contacts. The most recent contact won, and the CSV says which.
+  - Rule c (SDR Owner already set): 0. No company had one.
+  - Rule d (most recent logged email, call or meeting by a listed person), 15: Matt de la Hey 8, Joseph 2, Felix 2 (Forum Events, New Look call 12 Nov), Evan 1 (In-house Recruitment), Jason 1 (Ares meeting), Matthew Meehan 1 (WBD UK calls and email, 9–18 Nov).
+- **Junk (no owner set; deletion/merge proposal for Arushi), 23:** free-email typos (gmail.co "Kiwi for Gmail", icoud.com "iCloud"); tools and system senders (hubspot.com, gong.io, assistant.gong.io, heyreach.io, leadfeeder.com, google.com, reply.airbnb.com, findajob-support.deskpro.com, growthrhino.email); our own and internal domains (inploi.me, arushi-mittal.in); vendors in our stack (vercel.com, openai.com, twilio.com, kinde.com, cronofy.com, maxio.com, carta.com, mistral.ai); likely spam senders with no name (intelseek.co, digitalstackinsider.com).
+- **Domain fixes or merges (owner set, but Arushi should merge):** 463522060528 A.S. Watson UK (aswatsonuk.onmicrosoft.com), 473674766540 (mail.landedhouses.co.uk), 463685972193 Tesco (uk.tesco.com), 463675300045 DWP (engineering.digital.dwp.gov.uk).
+- **Needs routing (left unowned), 29:**
+  - 5 ICP event-list companies, suggested next in the round-robin: HUGO BOSS → Matthew, Pennon → Nikita, Ambitious about Autism → Evan, Ascot → James, PHMG → Matthew.
+  - 4 with contacts and emails by Elzane Dougall: Pepperclub, SBG Fund, Marionnaud, Glen Country Club.
+  - 3 owned by Arushi's inactive owner id 80899543: Shamaazi, Addi, HBP Group.
+  - 2 with Jake Donald contacts: Lidl FR, FIL.
+  - 2 with contacts from Anushca, who has left: MFT R&I, PIB.
+  - 7 with contacts from Cecile, who has left. Mostly non-UK, so probably not prospects.
+  - 4 with activity only by inactive owners (Dean Webb, Sandra Djokic): look like vendors or agencies.
+  - 2 with no owner or activity: Haven Calm, and qzen-ai.com (no name, created today).
+- **After (13:10 UTC):** 52 unowned (23 junk + 29 needs routing). If Arushi deletes the 23 junk records, 29 remain, which is under the target of 50. Routing the 5 ICP companies would bring it to 24.
+- Full table, one row per company (id, name, domain, created, source, #contacts, #deals, owner before → after, evidence rule, record URL): `the fix12-company-owners-2026-11-24.csv file (shared with Arushi, not committed: the site deploys the repo publicly)`.
