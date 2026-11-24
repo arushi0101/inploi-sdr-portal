@@ -248,3 +248,33 @@ Arushi asked on 24 Nov: "Give new companies an owner automatically; exclude free
   - 2 with no owner or activity: Haven Calm, and qzen-ai.com (no name, created today).
 - **After (13:10 UTC):** 52 unowned (23 junk + 29 needs routing). If Arushi deletes the 23 junk records, 29 remain, which is under the target of 50. Routing the 5 ICP companies would bring it to 24.
 - Full table, one row per company (id, name, domain, created, source, #contacts, #deals, owner before → after, evidence rule, record URL): `the fix12-company-owners-2026-11-24.csv file (shared with Arushi, not committed: the site deploys the repo publicly)`.
+
+## 2026-11-24 Approved fixes applied (Arushi, in chat)
+
+- **Events Deal Source mismatches (18):**
+  - 11 SDR-worked event deals changed from `deal_source` Event to the SDR channel the SDR used, with `discovery_meeting_channel` set to SDR and SDR Owner filled where empty:
+    - OCS 466834116810 → SDR, James
+    - Magnet 467141338310 → SDR - Email, Evan
+    - Red Bull 496511705279 → SDR
+    - Arcadis 502452474082 → SDR
+    - SLR 510951564492 → SDR - Email
+    - KPMG Ireland 525864998116 → SDR - Email, Matthew (borderline: one email 88 days before RLX)
+    - Intertek 525861946616 → SDR
+    - Eurocell 525865725166 → SDR, Matthew
+    - Mitie 525864996076 → SDR - Email, Nikita
+    - Paramount 527470256376 → SDR, James
+  - Munich Re 497781902583 → Founder - Email / Founder (founder outbound before the event).
+  - 7 event-sourced deals with an empty `deal_source` set to Event. Nothing else changed on them: Mphasis, Cementation Africa, Hesley, Gleeds, FIFA, Banham, Island Healthcare.
+  - All 18 writes succeeded.
+- **Fix #35, Mitchells & Butlers:**
+  - Deal 500922874094 moved from Implementation/Kickoff to Sales/Closed Won.
+  - HubSpot reset `closedate` to today on the stage change, so it was restored to 2026-09-18T09:13:51Z. `closed_won_date` is 2026-09-18 and the amount is £87k. Re-read confirmed.
+  - New deal 548505817279 "Mitchells & Butlers – Implementation" created: Implementation/Kickoff, no amount, owner Jason, Partner / Partner - Harri, linked to company 6440942839, contact 692251 and the sales deal.
+- **5 ICP event companies routed** (Company owner + SDR Owner):
+  - HUGO BOSS 460552824004 → Matthew Meehan
+  - Pennon Group 460552824005 → Nikita Rohwer
+  - Ambitious about Autism 461071938751 → Evan Williams
+  - Ascot Racecourse 461048522942 → James Crawford
+  - PHMG 461043121377 → Matthew Meehan
+- **Raamis:** both owner records (37987484 and 1026156745) are active. Kept 37987484, the record with the most recent activity (his contacts and the Nov meetings). No change.
+- **Deal values:** 43 of 44 open sales deals at Demo or later have an amount. Haven Seal Bay integration 548202373309 (created 23 Nov) is blank and looks like a duplicate of the customer-pipeline deal 540026810560.
