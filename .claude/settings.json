@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "mcp__Slack__slack_send_message"
+      "mcp__Slack__slack_send_message",
+      "mcp__HubSpot__manage_crm_objects"
     ]
   }
 }
