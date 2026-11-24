@@ -88,3 +88,51 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 - 2026-11-24 08:15 UTC: Checked the `discovery_meeting_channel` (Deal Source) definition: options are AE, SDR, Marketing, Partner, Customer, Founder. `Cold data` is gone, so 0 deals carry it.
 - Arushi OK'd the relabel outcome: the 5 SDR-set deals moved on 18 Nov stay `SDR`. The 9 left as `Marketing` (496407283950, 496640316636, 496647844040, 496511705279, 502452474082, 541282858230, 534957341930, 510951564492, 510207889637) were booked by an AE at an event. Their SDR Owner is pod credit, so they fall under the event-package exception in the fix's "done when". No HubSpot changes today.
 - Notion fix #31 row updated: status Done, waiting-on cleared, progress note added.
+
+## 2026-11-24 #31 booking-SDR pass (Arushi's instruction)
+
+Arushi's instruction (24 Nov, task board): find the SDR who booked or was working each account and set them as the source; then check that all non-legacy deals have sources. This reopens the 9 "AE booked at an event" deals from 18 Nov. Rule used: an SDR booked the meeting, or SDR calls/emails on the account in the 60 days before the booking → `discovery_meeting_channel` = `SDR` and `sdr_beneficiary_s_` = that SDR. Real event booking with no SDR work before it → keep `Marketing`. If it was unclear → no change.
+
+- 2026-11-24 08:48 UTC: 7 deals updated in one write. Every deal was re-read before and after the write, and all values match.
+
+### Changes
+
+| Deal | Property | Before → After | Evidence |
+|---|---|---|---|
+| 534957341930 Culina Group | discovery_meeting_channel | Marketing → SDR | James Crawford worked Culina from Dec 2025 onward (60+ calls). He called Robin Morle on 8 and 21 Oct. Felix's "Inploi x culina intro" invite (545536573657) was created on 22 Oct, and James emailed Robin "Re: inploi - great to speak, Robin" the same day. The #inbound-leads screen on 28 Oct says James was working the account. |
+| 534957341930 Culina Group | sdr_beneficiary_s_ | 32364701 (Matthew, pod) → 29569627 (James) | Same evidence. James booked or worked the account; Matthew has no activity on it. |
+| 510951564492 SLR Consulting | discovery_meeting_channel | Marketing → SDR | Matthew became company owner on 29 Jun. He sent 2 emails on 30 Jun and 1 on 10 Jul ("The trust problem from Alex's RecFest talk"). He logged the outcome (Interested) on the 17 Jul intro (504593268953). SDR stays 32364701. |
+| 510207889637 Old Mill | discovery_meeting_channel | Marketing → SDR | James created the Discovery Call meeting himself (502066576595, created 3 Jul). His note: "Shared link to RecFest, with more information and booking link. Booked time in with Jason from the link." Earlier James calls and emails to Emma Coleman: Dec 2025 to Jan 2026. SDR stays 29569627. |
+| 509652673751 Next Retail | sdr_beneficiary_s_ | empty → 29569626 (Evan) | Evan created the "inploi x NEXT, Intro Call" meeting on 1 Jun (494977277128, for 22 Jun), with calls and emails the same day. The channel was already SDR. |
+| 515175934158 Day Lewis Pharmacy | sdr_beneficiary_s_ | empty → 29569628 (Nikita) | Nikita called Neil Hopkins from Nov 2025 to Aug 2026, and the "Nikita who just called" email thread got replies on 6-7 Aug. The intro meeting was created on 7 Aug. The channel was already SDR. |
+| 525861946616 Intertek | sdr_beneficiary_s_ | empty → 29569626 (Evan) | Evan worked Intertek from Apr to Sep (calls to Tina Smith on 19, 26 and 28 Aug and 16 Sep; emails on 28 Aug and 16 Sep). Felix booked the demo on 7 Oct, within 60 days of Evan's last contact. The channel was already SDR. |
+| 506575469798 Travis Perkins Plc | sdr_beneficiary_s_ | 1709905072 (Jason, AE) → 29569626 (Evan) | Evan created the intro meeting on 5 Jun (495701440756) and worked the account from Nov 2025 to Jun 2026 (calls and emails). An AE in the SDR field was wrong. |
+
+### The 9 deals, kept as Marketing (event booking, no SDR work before it)
+
+- 496407283950 The LEGO Group: RL Exchange (Mar 26). No SDR calls or emails on the company in 2026, and no #grwth "Meeting Booked" post. SDR Owner 29569628 is pod or earlier credit (left alone).
+- 496640316636 Dominus Hospitality: Above & Beyond (Mar 26). Felix's calendar booked the 10 Apr disco (482063273193, created 31 Mar). No SDR activity. SDR Owner 29569628 left alone.
+- 496647844040 Ramboll: Felix's #grwth post on 25 Mar says "booked demos with Ramboll, Red Bull..." at RL Exchange. The meeting body says "Booked via RLX". No SDR activity. SDR Owner 32364701 (pod, set 18 Nov) left alone.
+- 496511705279 Red Bull: same #grwth post. The meeting body says "Booked via RLX". Evan's one call on 9 Jan falls outside the 60-day window. SDR Owner 29569628 left alone.
+- 541282858230 FIFA: Felix met FIFA at a Sept event (#gtm, 17 Sep) and booked the demo himself. No SDR activity. Evan and Arushi confirmed the Nov deal is a cleanup re-registration. SDR Owner 32364701 (pod) left alone.
+
+### Left unchanged, unclear (for Arushi)
+
+- 502452474082 Arcadis: Jason posted "Meeting Booked with Emma Hale" on 14 May. Emma is a new contact he created at IHR Manchester. James had worked Arcadis earlier (calls and emails in Jan, including "inploi - we just spoke" on 9 Jan), but he logged only 1 dial (1 Apr) in the 60 days before. SDR Owner is 29569626 (Evan), and Evan has no logged activity on Arcadis. Recommendation: keep Marketing and consider James instead of Evan as SDR Owner. Arushi to decide.
+
+### Part 2: non-legacy integrity check (sales pipeline, created on or after 2026-01-01: 161 deals)
+
+- Channel counts after this pass: SDR 80, Marketing 34, Customer 19, Partner 16, AE 10, Founder 1, empty 1.
+- Empty channel: 548857402609 Island Healthcare (created today, no deal owner yet; Felix demo 2 Dec). Left for the AE or the hourly run.
+- SDR channel with empty SDR Owner, left unchanged:
+  - 478652404925 J D Wetherspoon: booked by Cecile Bigot (#grwth, 24 Feb). She has left and isn't an option in the dropdown.
+  - 494795881703 Novo Nordisk: booked by Jean Pierre de Beer (meeting 479718207716). He has left and isn't an option.
+  - 466415493319 Suez: partner-led (#grwth, 5 Mar, Pete from PP). The channel probably should be Partner.
+  - 512598954172 Gatwick Airport: Felix booked it himself via LinkedIn (#grwth, 14 Jul). The channel probably should be AE.
+  - 524808379623 Insanity: Felix met them at an event (#pricing-requests, 2 Oct). The channel probably should be Marketing.
+  - 527446504697 The Francis Crick Institute: Felix booked it at an Oct event (#gtm, 8 Oct). Evan's touches were in Dec and Feb, more than 60 days before. The channel probably should be Marketing.
+  - 535103251650 Gleeds: "Booked by Alex from the event" (#grwth, 27 Oct). The channel probably should be Founder or Marketing.
+  - 512599223491 Islington Council: no SDR activity or Slack post found. Unclear.
+- Marketing channel with an SDR in SDR Owner: the 9 above except Culina, SLR and Old Mill (now SDR), plus 543980842187 Care Dorset (James), 544903320788 Banham (James) and 517648218359 Harding+ (Jake Donald). Care Dorset and Banham were booked by Jason himself (#grwth, 12 and 18 Nov), so the SDR Owner there is pod credit. Harding+ has no SDR evidence. Left alone.
+- AE or non-SDR in SDR Owner: 506575469798 Travis Perkins fixed (Jason → Evan). 517648218359 Harding+ has Jake Donald, who isn't an SDR. Flagged.
+- Also noted: 441896134857 EY and 497918142705 Lendable (AE channel, SDR Owner set), and 525517547767 Bristol Airport (Partner channel, SDR Owner Matthew). Left alone.
