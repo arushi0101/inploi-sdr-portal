@@ -195,3 +195,4 @@
   - #inbound-leads round-up (C05CYATGALC ts 1795541997.553329): 1 demo request (937623203052, likely vendor, owner 29569627 via HubSpot round robin; no company record by design, so no company note), 0 audits, 0 ICP visits, 1 disqualified (380258652381 by James), feedback: James on 380258652381, 0 new UTMs. Still open: 937623203052 awaiting James's DQ yes/no (inside SLA).
   - Events sync: helper rerun after the first attempt stopped on an unstaged file; result to follow.
   - No emails sent.
+  - Events sync (helper rerun): api/_events.json updated (12 events, 923→924 rows, contacts matched 352, companies 575). icp_updates: 0 fillable, 0 conflicts, so no HubSpot changes.
