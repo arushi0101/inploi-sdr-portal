@@ -136,3 +136,55 @@ Arushi's instruction (24 Nov, task board): find the SDR who booked or was workin
 - Marketing channel with an SDR in SDR Owner: the 9 above except Culina, SLR and Old Mill (now SDR), plus 543980842187 Care Dorset (James), 544903320788 Banham (James) and 517648218359 Harding+ (Jake Donald). Care Dorset and Banham were booked by Jason himself (#grwth, 12 and 18 Nov), so the SDR Owner there is pod credit. Harding+ has no SDR evidence. Left alone.
 - AE or non-SDR in SDR Owner: 506575469798 Travis Perkins fixed (Jason → Evan). 517648218359 Harding+ has Jake Donald, who isn't an SDR. Flagged.
 - Also noted: 441896134857 EY and 497918142705 Lendable (AE channel, SDR Owner set), and 525517547767 Bristol Airport (Partner channel, SDR Owner Matthew). Left alone.
+
+## 2026-11-24 #31 second pass (Arushi: assign booking/working SDR)
+
+Arushi's instruction (24 Nov): find the SDR who booked each meeting, or who was working the account, and set them as the source. Rules, applied in order:
+1. An SDR booked the meeting → SDR + that SDR.
+2. Otherwise, the most recent SDR to work the account before the booking (no time limit: calls, emails, sequences, the company's SDR Owner) → SDR + that SDR.
+3. No SDR ever touched the account → keep the current source and fix only an obviously wrong value. Remove Jake Donald from SDR Owner.
+4. The booker was an SDR who has since left → SDR, with SDR Owner left empty.
+
+Rule 2 judgement: a company SDR Owner that was pod or patch credit, with no logged SDR activity before the booking, does not count as "working the account". Example: FIFA's SDR Owner was set on 13 Nov, after the booking. The current SDRs logged no activity on LEGO, Dominus, Ramboll or FIFA. Their only earlier contact came from people who have since left (Cecile on LEGO, 1 call in Aug 2024). So rule 3 applied to those deals.
+
+- 2026-11-24 09:50 UTC: one write of 9 deals. 7 updated. 2 were rejected by the portal ("dealtype is required based on the values of other properties"), so nothing changed on them. All 9 were re-read before and after the write.
+
+### Changes applied
+
+| Deal | Property | Before → After | Evidence |
+|---|---|---|---|
+| 512598954172 Gatwick Airport | sdr_beneficiary_s_ | empty → 29569628 (Nikita) | Rule 2. Nikita logged 11 calls Jul–Oct 2025 and sent the "inploi x Gatwick possible collaboration" emails on 14 Jul 2025. Felix later booked via LinkedIn (#grwth, 14 Jul 2026). |
+| 527446504697 The Francis Crick Institute | sdr_beneficiary_s_ | empty → 29569626 (Evan) | Rule 2. Evan made calls Dec 2025–19 Mar 2026 and emailed up to 26 Feb 2026 ("Post-Talent Tech Rising check-in"). Felix booked the demo at the Oct event. |
+| 535103251650 Gleeds | sdr_beneficiary_s_ | empty → 29569628 (Nikita) | Rule 2. Nikita logged 48 company calls (10 more via contacts) Sep 2025–Feb 2026 and sent emails in Sep 2025. Alex booked from the Oct event (#grwth, 27 Oct). |
+| 548857402609 Island Healthcare | discovery_meeting_channel | empty → SDR | Rule 2. On 11 Nov Evan requested the Care Strategy Forum 1-2-1 with Ian Bennett (MD) (group DM). Follow-up was agreed at the forum (#gtm wrap-up, 13 Nov), then Ian booked Felix's 2 Dec demo. |
+| 548857402609 Island Healthcare | sdr_beneficiary_s_ | empty → 29569626 (Evan) | Same evidence. |
+| 524808379623 Insanity | discovery_meeting_channel | SDR → Marketing | Rule 3. No SDR activity ever (Felix only), and the company has no SDR Owner. Felix "met at the event" (#pricing-requests, 2 Oct). |
+| 512599223491 Islington Council | discovery_meeting_channel | SDR → Marketing | Rule 3. No SDR calls or emails ever (Felix only). The Gong intro (17 Jul) says Robert's interest came from conversations at RecFest. The company's SDR Owner is Matthew as patch credit, with no activity. |
+| 517648218359 Harding+ | sdr_beneficiary_s_ | 1221748725 (Jake Donald) → empty | Rule 3. Jake isn't an SDR, and no current SDR touched the account (only Felix since Nov 2025, plus Reece Pinnock and Dila Tumer in 2023–24, both gone). Marketing kept. |
+
+### Blocked by the portal (Arushi to action)
+
+| Deal | Intended change | Evidence | Blocker |
+|---|---|---|---|
+| 502452474082 Arcadis | Marketing → SDR; SDR Owner 29569626 (Evan) → 29569627 (James) | Rule 2. James logged 15 calls and 10 emails Jan–Apr 2026 before Jason's booking on 14 May at IHR Manchester. The last call was 1 Apr, and company Account Status is "In Progress (SDR actively working)". Evan has no logged activity. | Closed-lost deal with empty Deal Type (`dealtype`). |
+| 496511705279 Red Bull | Marketing → SDR; SDR Owner 29569628 (Nikita) → 29569626 (Evan) | Rule 2. Evan logged 38 calls Jul 2025–9 Jan 2026, sent emails in Oct 2025 and ran a sequence in Jan 2025, and is the company owner and SDR Owner. Felix booked at RL Exchange on 25 Mar 2026. | Same: Deal Type is empty. |
+
+### Left as is
+
+- 466415493319 Suez: rule 4. Cecile Bigot (left) worked it with 54 calls Dec 2024–8 Aug 2025. Felix's call on 13 Feb refers to the "last conversation in August". SDR kept, and SDR Owner stays empty because Cecile isn't an option.
+- 478652404925 J D Wetherspoon: rule 4. Cecile Bigot booked it (#grwth, 24 Feb). SDR Owner stays empty.
+- 494795881703 Novo Nordisk: rule 4. Jean Pierre de Beer (left) booked it and created meeting 479718207716 on 20 Mar. SDR Owner stays empty.
+- 496407283950 The LEGO Group: rule 3. Booked at RL Exchange. No current-SDR activity; Cecile made 1 call in 2024. Marketing kept, and the Nikita SDR Owner was left alone (not obviously wrong under the rules). The company SDR Owner is Matthew.
+- 496640316636 Dominus Hospitality: rule 3. Booked at Above & Beyond, with no SDR activity ever. Marketing kept, and the Nikita SDR Owner was left alone.
+- 496647844040 Ramboll: rule 3. "Booked via RLX" by Felix, with no SDR activity. Marketing kept, with Matthew as pod SDR Owner.
+- 541282858230 FIFA: rule 3. Felix booked it at a Sept event, with no SDR activity. Marketing kept, with Matthew as pod credit (set 13 Nov).
+- 543980842187 Care Dorset: rule 3. Jason requested the 1-2-1 himself (Evan's 11 Nov list says "Jason has already requested"), and Jason booked it (#grwth, 12 Nov). Marketing kept, with James as pod credit.
+- 544903320788 Banham: rule 3. Jason's own HR Forum 1-2-1 (#grwth, 18 Nov), with no SDR activity. Marketing kept, with James as pod credit.
+
+### Integrity check after this pass (sales pipeline, created on or after 2026-01-01: 161 deals)
+
+- Deal Source counts: SDR 79, Marketing 36, Customer 19, Partner 16, AE 10, Founder 1, empty 0.
+- Every deal has a Deal Source: yes.
+- SDR-sourced deals with no SDR Owner: 3. All three have a documented departed-SDR reason (Suez and J D Wetherspoon: Cecile Bigot; Novo Nordisk: Jean Pierre de Beer).
+- AE or other non-SDR in SDR Owner: 0.
+- Still failing: Arcadis and Red Bull hold their old values until Deal Type is filled in; after that, the changes above can be applied. Island Healthcare also has no deal owner yet. The demo is Felix's, but deal owner was out of scope here.
