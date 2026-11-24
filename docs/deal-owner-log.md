@@ -188,3 +188,38 @@ Rule 2 judgement: a company SDR Owner that was pod or patch credit, with no logg
 - SDR-sourced deals with no SDR Owner: 3. All three have a documented departed-SDR reason (Suez and J D Wetherspoon: Cecile Bigot; Novo Nordisk: Jean Pierre de Beer).
 - AE or other non-SDR in SDR Owner: 0.
 - Still failing: Arcadis and Red Bull hold their old values until Deal Type is filled in; after that, the changes above can be applied. Island Healthcare also has no deal owner yet. The demo is Felix's, but deal owner was out of scope here.
+
+## 2026-11-24 #31 Deal Type fill + final fixes (Arushi approved)
+
+Arushi approved this on 24 Nov ("Yes for the above"). Writes ran 09:57–09:58 UTC in 6 batches (10/10/10/10/10/3). All 53 deals were re-read before and after: 53 updated, 0 failed.
+
+Deal Type options in the portal: `newbusiness` (label "New Customer"), `existingbusiness` ("Upsell"), `Cross-sell`, `Re-Engaged`, `Re-Activation`, `Renewal`, `Price Increase`.
+
+### Final fixes
+
+| Deal | Property | Before → After | Reason |
+|---|---|---|---|
+| 502452474082 Arcadis | dealtype | empty → newbusiness | Needed before the SDR fix could save. Company is a prospect (lifecycle Opportunity, no close date). |
+| 502452474082 Arcadis | discovery_meeting_channel | Marketing → SDR | Second-pass rule 2: James worked it Jan–Apr 2026 before Jason's booking on 14 May. |
+| 502452474082 Arcadis | sdr_beneficiary_s_ | 29569626 (Evan) → 29569627 (James) | Same evidence. Evan has no logged activity. |
+| 496511705279 Red Bull | dealtype | empty → newbusiness | Needed before the SDR fix could save. Company is a prospect. |
+| 496511705279 Red Bull | discovery_meeting_channel | Marketing → SDR | Second-pass rule 2: Evan worked it Jul 2025–Jan 2026, and is company owner and company SDR Owner. |
+| 496511705279 Red Bull | sdr_beneficiary_s_ | 29569628 (Nikita) → 29569626 (Evan) | Same evidence. |
+| 548857402609 Island Healthcare | hubspot_owner_id | empty → 511871441 (Felix) | Felix owns the 2 Dec demo and the company activity. |
+
+### Deal Type fill (empty only, nothing overwritten)
+
+Evidence: none of the 53 is Customer-sourced, and none has "Upsell" or "Expansion" in its name. Every company is lifecycle Opportunity with no customer close date. Charter Communications - Beamery RFP is associated with Beamery, a customer and partner, but the buyer is Charter, a prospect. Portal practice for 2026 prospect deals is New Customer in every case (Re-Engaged and Re-Activation are unused). So every deal got New Customer except one:
+
+- newbusiness (New Customer), 52 deals: 424911626442, 428751270101, 431678968009, 437881273557, 441811684598, 441896134857, 450854801622, 451846118638, 453527937244, 460979076334, 466150160605, 466415493319, 466836078780, 467141338310, 467204571343, 467332355291, 469997224179, 470290802883, 471596134587, 474530017491, 477781002450, 477788141791, 478574237944, 478598825164, 478652404925, 479123367129, 479977248995, 480084135144, 480620964037, 485947143406, 486845912297, 489613457641, 493181507771, 493677259992, 494125337815, 494359981289, 494516407509, 494627099841, 495180232901, 495366624501, 495378540744, 495462554863, 496407283950, 496511705279, 496647844040, 497781902583, 497918142705, 498984641763, 498986091726, 502452474082, 502453425391, 502455018692.
+  - Maersk - New Deal 2026 (453527937244): the earlier Maersk deal (2025) was closed lost and typed New Customer, so New Customer again.
+- existingbusiness, Cross-sell, other values: 0.
+- Left empty, 1 deal: 488034088136 David Lloyd Leisure - Accessibility. It's a second deal (closed lost) on a prospect whose main deal (427718707444, New Customer) is still open at Proposal. Unsure whether it is a separate new deal or a cross-sell of an add-on, and DLL isn't a customer yet. Arushi to decide.
+
+### Integrity after this pass (sales pipeline, created on or after 2026-01-01: 161 deals)
+
+- Deal Source counts: SDR 81, Marketing 34, Customer 19, Partner 16, AE 10, Founder 1, empty 0.
+- SDR-sourced deals with no SDR Owner: 3, all with a documented departed-SDR reason (Suez and J D Wetherspoon: Cecile Bigot; Novo Nordisk: Jean Pierre de Beer).
+- AE or other non-SDR in SDR Owner: 0.
+- Deals with no deal owner: 0.
+- Deal Type counts: New Customer 140, Upsell 16, Cross-sell 4, empty 1 (David Lloyd Leisure - Accessibility).
