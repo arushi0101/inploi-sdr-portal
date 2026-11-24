@@ -82,3 +82,4 @@ Not changed: Hitachi Rail (479977248995, closed, Nikita). Never assigned to an A
 - Left as `Marketing` (no SDR booked the meeting): 496407283950, 496640316636, 496647844040, 496511705279, 502452474082, 541282858230, 534957341930, 510951564492, 510207889637.
 
 - 2026-11-18 17:09 UTC (hourly run): Banham 544903320788 (company 470197261531, created 16:43, meeting 548670242015 on 3 Dec). Owner already Jason (1709905072). Jason booked it himself from an HR Forum 1-2-1 (#grwth 1795020115.654059), so `sdr_beneficiary_s_` empty → 29569627 (Jason's pod SDR). Nothing else changed. Re-read: 29569627.
+| 2026-11-24 12:58 UTC | National Care Group - Candidate Agent POC (542092128443) | SDR Owner empty → James (29569627) | Arushi's decision (Jason's own demo 30 Nov, no #grwth post; pod rule Jason → James). Deal owner Jason unchanged. |
