@@ -15,3 +15,4 @@ Status → Disqualified only if empty, New or Inbound and there is no open deal;
 | 2026-11-17 | Form (Field Sales) | company 463730800886 | 898512666832 | Nikita, Arushi | Blacklisted spam address | #inbound-leads thread on the 16 Nov round-robin post |
 
 Earlier form flags (vendors, spam, typo domains) set before 17 Nov live in `FORM_FLAGS` in `api/data.js`; every new disqualification is added there too so it drops out of dashboard counts.
+| 2026-11-24 | Audit unlock | Wellcome Sanger Institute (380258652381) | 913785055433 | James | Not worth pursuing (company already Disqualified by James with a note) | #inbound-leads thread on the 16 Nov round-robin post (reply after nudge 1795521016.548659); contact Lead Status → Not Qualified, contact note 552670797001 |

@@ -1561,7 +1561,7 @@ const FORM_FLAGS = {
   '903565178089': { spam: true, note: 'Vendor using the demo form to pitch us; disqualified by Evan' },
   '919003864254': { note: 'Software directory (vendor), not a buyer' },
   '914459580623': { note: 'Real company (RPO): needs an SDR' },
-  '913785055433': { note: 'Work email, ran several audits' }
+  '913785055433': { spam: true, note: 'Disqualified by James (24 Nov); company already Disqualified' }
 };
 const FREE_MAIL = /@(gmail|googlemail|hotmail|outlook|live|yahoo|icloud|icoud|aol|proton(mail)?|me)\.[a-z.]+$/i;
 let leadStatusLabels = null;
