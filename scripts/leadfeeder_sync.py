@@ -17,6 +17,8 @@ import json, os, sys, glob, re, datetime
 DEST = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api', '_visits.json')
 # networks, ISPs and our own traffic are not prospects
 NOT_PROSPECT = re.compile(r'cablecom|truphone|^inploi$|wework|vodafone|virgin media|\bbt\b|sky broadband|eduroam|jisc|ipmaster|mmu .*data|wired$|wireless', re.I)
+# 404 page titles on inploi.com ("Page not found · inploi", "inploi | Not Found")
+NOT_FOUND = re.compile(r'page not found|\bnot found\b|\b404\b', re.I)
 
 
 def main(folder):
@@ -26,7 +28,8 @@ def main(folder):
         snap = {'companies': {}, 'visits': []}
     cos, seen = snap.get('companies', {}), {v['id'] for v in snap.get('visits', [])}
     visits = snap.get('visits', [])
-    added = 0
+    byid = {v['id']: v for v in visits}
+    added = patched = 0
     for f in sorted(glob.glob(os.path.join(folder, 'visits_*.json'))):
         d = json.load(open(f))
         for v in d.get('data', []):
@@ -45,31 +48,42 @@ def main(folder):
                     'intent': (ca.get('intent') or {}).get('score'), 'tier': (ca.get('intent') or {}).get('score_tier'),
                     'lf': ca.get('app_url'), 'skip': bool(NOT_PROSPECT.search(ca.get('name') or '')) or None}.items() if x not in (None, '', [])}
             vid = v.get('id')
-            if not vid or vid in seen:
+            if not vid:
                 continue
-            seen.add(vid)
-            pages = []
+            pages, nf = [], []
             for e in a.get('engagements') or []:
-                p = (e.get('page') or {}).get('path')
+                pg = e.get('page') or {}
+                p = pg.get('path')
                 if e.get('event_type') == 'page-view' and p and p not in pages:
                     pages.append(p)
+                # 404s: the site serves them under the requested path, so only the title tells them apart
+                if p and NOT_FOUND.search(pg.get('title') or '') and p not in nf:
+                    nf.append(p)
+            if vid in seen:
+                # already stored: only add the 404 flags (visits synced before 25 Nov didn't carry them)
+                old = byid.get(vid)
+                if old is not None and nf and old.get('nf') != nf[:12]:
+                    old['nf'] = nf[:12]
+                    patched += 1
+                continue
+            seen.add(vid)
             loc = (rel.get('location') or {}).get('attributes') or {}
             visits.append({k: x for k, x in {
                 'id': vid, 'c': cid, 't': a.get('started_at'), 'src': a.get('source'), 'med': a.get('medium'), 'cmp': a.get('campaign'),
                 'land': a.get('landing_page_path'), 'pv': a.get('page_depth'), 'len': a.get('visit_length'), 'dev': a.get('device_type'),
-                'pages': pages[:12], 'vcity': loc.get('city'), 'vcc': loc.get('country_code')}.items() if x not in (None, '', [])})
+                'pages': pages[:12], 'nf': nf[:12], 'vcity': loc.get('city'), 'vcc': loc.get('country_code')}.items() if x not in (None, '', [])})
             added += 1
     cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=120)).strftime('%Y-%m-%d')
     visits = sorted([v for v in visits if (v.get('t') or '') >= cutoff], key=lambda v: v['t'])
     used = {v['c'] for v in visits}
     snap = {'source': 'Leadfeeder (account 314105)', 'syncedAt': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             'from': visits[0]['t'][:10] if visits else None, 'companies': {k: v for k, v in cos.items() if k in used}, 'visits': visits}
-    if not added:
+    if not added and not patched:
         # nothing new: leave the file alone so a quiet hour doesn't commit (and redeploy) just a new syncedAt
         print(json.dumps({'visitsAdded': 0, 'visits': len(visits), 'unchanged': True}))
         return
     json.dump(snap, open(DEST, 'w'), separators=(',', ':'))
-    print(json.dumps({'visitsAdded': added, 'visits': len(visits), 'companies': len(snap['companies']), 'from': snap['from'], 'bytes': os.path.getsize(DEST)}))
+    print(json.dumps({'visitsAdded': added, 'notFoundPatched': patched, 'visits': len(visits), 'companies': len(snap['companies']), 'from': snap['from'], 'bytes': os.path.getsize(DEST)}))
 
 
 if __name__ == '__main__':

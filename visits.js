@@ -1,5 +1,6 @@
 /* Inbound › Visits. Companies on the website, from Leadfeeder (api/data?part=visits, synced into api/_visits.json).
-   Prospect visits only: candidates arriving from customers' careers sites, ISPs/networks and privacy-only hits are excluded (counted separately).
+   Commercial visits only (Funnel fix #32): candidates arriving from customers' careers sites, careers/job pages, legal pages, 404s and
+   ISPs/networks are excluded and counted separately. "Commercial website traffic by quarter" is the funnel's Website row.
    Net new = the company's first visit in the synced history. ICP = scored 6/10+ in the #inbound-visits thread for that company.
    Traffic sources & UTMs: Leadfeeder's source / medium / campaign (utm_source / utm_medium / utm_campaign). */
 (function(){
@@ -14,14 +15,20 @@ function load(d){if(LOADING[d]||DATA[d])return;LOADING[d]=true;
 function srcKey(c){return (c.src||'Unknown')+' / '+(c.med||'(none)')+(c.cmp?' / '+c.cmp:'');}
 function html(){
   var D=DATA[DAYS];
-  var head='<div class="iw-card iw-pad iw-top"><div><h2>Website visits</h2><p>Companies identified on inploi.com by Leadfeeder. Prospect visits only; candidates from customers’ careers sites, ISPs and privacy-page hits are left out. UK time.</p></div>'+
+  var head='<div class="iw-card iw-pad iw-top"><div><h2>Website visits</h2><p>Companies identified on inploi.com by Leadfeeder. Commercial traffic only: candidates from customers’ careers sites, careers and job pages, legal pages, 404s and ISPs are left out. UK time.</p></div>'+
     '<div class="iw-seg">'+[[7,'7 days'],[14,'14 days'],[30,'30 days'],[90,'90 days']].map(function(o){return '<button type="button" data-vd="'+o[0]+'" aria-pressed="'+(DAYS===o[0])+'">'+o[1]+'</button>';}).join('')+'</div></div>';
   if(!D)return head+'<div class="iw-card iw-pad"><p class="muted">'+(ERR[DAYS]?'Couldn’t load visits ('+e(ERR[DAYS])+').':'Loading visits from Leadfeeder… (up to a minute)')+'</p></div>';
   var all=[];D.days.forEach(function(d){d.companies.forEach(function(c){all.push(c);});});
   var cos={};all.forEach(function(c){var k=c.name;var x=cos[k]||(cos[k]=Object.assign({},c,{days:0,visitsN:0}));x.days++;x.visitsN+=c.visits||1;if(c.netNew)x.netNew=true;});
   var uniq=Object.keys(cos).length,icp=Object.keys(cos).filter(function(k){return cos[k].icp;}).length,nn=Object.keys(cos).filter(function(k){return cos[k].netNew;}).length;
-  var o=head+'<div class="iw-kpis">'+[['Companies on the website',uniq,D.total.visits+' company-days'],['Net new companies',nn,'first visit in this period'],['ICP companies',icp,'scored '+D.icpMin+'/10+ in Slack'],['Candidate visits left out',D.excluded?D.excluded.candidate:0,'from customers’ careers sites'],['Networks / ISPs left out',D.excluded?D.excluded.network:0,'not identifiable companies']]
+  var X=D.excluded||{},nonCom=(X.candidate||0)+(X.careers||0)+(X.legal||0)+(X.notFound||0);
+  var o=head+'<div class="iw-kpis">'+[['Companies on the website',uniq,D.total.visits+' company-days'],['Net new companies',nn,'first visit in this period'],['ICP companies',icp,'scored '+D.icpMin+'/10+ in Slack'],['Non-commercial visits left out',nonCom,(X.candidate||0)+' candidate · '+(X.careers||0)+' careers · '+(X.legal||0)+' legal · '+(X.notFound||0)+' 404'],['Networks / ISPs left out',X.network||0,'not identifiable companies']]
     .map(function(k){return '<div class="iw-card iw-kpi" style="cursor:default"><span class="h">'+e(k[0])+'</span><span class="v"><b>'+e(k[1])+'</b></span><span class="s">'+e(k[2])+'</span></div>';}).join('')+'</div>';
+  // commercial website traffic by quarter (funnel "Website" row, fix #32)
+  var Q=D.quarters||[];
+  if(Q.length)o+='<div class="iw-card iw-pad iw"><div class="iw-h"><h3>Commercial website traffic by quarter</h3><p>Identified company visits with at least one commercial page. Left out: candidates from customers’ careers sites, careers and job pages, legal pages (privacy, terms, cookies) and 404s, plus networks/ISPs. Leadfeeder history starts '+e(D.historyFrom?nice(D.historyFrom):'—')+', so the first quarter is partial. This is the funnel’s Website row; no hand cleaning needed.</p></div>'+
+    '<div class="iw-tw"><table class="iw-t" style="min-width:0"><thead><tr><th>Quarter</th><th class="n">Commercial visits</th><th class="n">Companies</th><th class="n">Candidate</th><th class="n">Careers</th><th class="n">Legal</th><th class="n">404</th><th class="n">Networks</th></tr></thead><tbody>'+
+    Q.map(function(q){var x=q.excluded||{};return '<tr><td><b>'+e(q.quarter.replace('-',' '))+'</b>'+(D.historyFrom&&q.quarter===Q[Q.length-1].quarter?'<small>from '+e(nice(D.historyFrom))+'</small>':'')+'</td><td class="n"><b>'+q.visits+'</b></td><td class="n">'+q.companies+'</td><td class="n">'+(x.candidate||0)+'</td><td class="n">'+(x.careers||0)+'</td><td class="n">'+(x.legal||0)+'</td><td class="n">'+(x.notFound||0)+'</td><td class="n">'+(x.network||0)+'</td></tr>';}).join('')+'</tbody></table></div></div>';
   // traffic sources & UTMs
   var src={};all.forEach(function(c){var k=srcKey(c);var x=src[k]||(src[k]={k:k,src:c.src||'Unknown',med:c.med||'',cmp:c.cmp||'',cos:{},n:0});x.cos[c.name]=1;x.n+=c.visits||1;});
   var S=Object.keys(src).map(function(k){var x=src[k];x.c=Object.keys(x.cos).length;return x;}).sort(function(a,b){return b.c-a.c;});

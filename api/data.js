@@ -1499,11 +1499,24 @@ async function alertScore(a) {
 let LF = null;
 function lfSnap() { if (!LF) { try { LF = require('./_visits.json'); } catch (e) { LF = { companies: {}, visits: [] }; } } return LF; }
 const CANDIDATE_SRC = /^(jobs|careers)\.|\.jobs$|\.inploi\.app$|careers?\b|^jobs\b/i;
+/* Commercial traffic only (Funnel fix #32, Emerson 11 + 16 Nov): a page counts only if it isn't
+   legal (privacy, terms, cookies, sub-processors, candidate privacy notice), careers/jobs (job ads, job search, /company/<x>/job/…)
+   or a 404 (flagged by page title in the sync: "Page not found · inploi" / "inploi | Not Found"). A visit with no commercial page left
+   is left out and counted under the first reason that applies: 404, careers, legal. Product pages that mention careers
+   (/experience/careers-sites, /product/careers-hubs, /platform/job-distribution) are commercial and stay in. */
+const LEGAL_PAGE = /^\/([a-z]{2}\/)?(privacy|terms|cookies?|cookie-policy|legal|support\/privacy)(\/|$|-)/i;
+const CAREERS_PAGE = /(^|\/)(job|jobs|vacancies|vacancy)(\/|$)|^\/careers\/?$|^\/company\/[^/]+\/job/i;
+const lfPageKind = (p, nf) => { const q = String(p || '').replace(/[?#].*$/, '');
+  if (nf && nf.indexOf(p) >= 0) return '404';
+  if (LEGAL_PAGE.test(q)) return 'legal'; if (CAREERS_PAGE.test(q)) return 'careers'; return 'commercial'; };
+const lfCommercialPages = v => (v.pages && v.pages.length ? v.pages : [v.land || '/']).filter(p => lfPageKind(p, v.nf) === 'commercial');
 const lfKind = (v, c) => { if (!c || c.skip) return 'network';
   if (v.med === 'referral' && CANDIDATE_SRC.test(v.src || '')) return 'candidate';
-  const pg = v.pages && v.pages.length ? v.pages : [v.land || ''];
-  if (pg.every(p => /^\/(privacy|terms|cookie)/i.test(p || ''))) return 'candidate';
-  return 'prospect'; };
+  const pg = v.pages && v.pages.length ? v.pages : [v.land || '/'];
+  const kinds = pg.map(p => lfPageKind(p, v.nf));
+  if (kinds.indexOf('commercial') >= 0) return 'prospect';
+  return kinds.indexOf('404') >= 0 ? 'notFound' : kinds.indexOf('careers') >= 0 ? 'careers' : 'legal'; };
+const LF_EXCL = ['candidate', 'careers', 'legal', 'notFound', 'network'];
 async function visitSource() {
   const S = lfSnap(); let slack = [];
   try { slack = await visitAlerts(); } catch (e) { slack = []; }
@@ -1512,7 +1525,7 @@ async function visitSource() {
   for (let i = 0; i < recent.length; i += 4) await Promise.all(recent.slice(i, i + 4).map(async a => { const s = await alertScore(a); if (s != null) sc[normCo(a.name) || a.name.toLowerCase()] = s; }));
   return S.visits.map(v => { const c = S.companies[v.c]; const kind = lfKind(v, c); const name = (c && c.n) || 'Unknown company'; const k = normCo(name) || name.toLowerCase();
     return { lf: true, kind, cid: v.c, name, at: Date.parse(v.t), ts: '', link: (c && c.lf) || '', loc: [c && c.city, c && c.cc].filter(Boolean).join(', '),
-      inHubspot: false, replies: 0, score: sc[k] != null ? sc[k] : null, src: v.src || '', med: v.med || '', cmp: v.cmp || '', land: v.land || '', pages: v.pages || [], pv: v.pv || 1,
+      inHubspot: false, replies: 0, score: sc[k] != null ? sc[k] : null, src: v.src || '', med: v.med || '', cmp: v.cmp || '', land: v.land || '', pages: kind === 'prospect' ? lfCommercialPages(v) : (v.pages || []), pv: v.pv || 1,
       emp: (c && c.emp) || '', ind: (c && c.ind) || '', intent: c && c.tier || '', url: (c && c.url) || '' }; }).filter(a => a.at);
 }
 async function buildVisits(q) {
@@ -1540,8 +1553,20 @@ async function buildVisits(q) {
   const tot = list.reduce((t, d) => ({ visits: t.visits + d.visits, netNew: t.netNew + d.netNew, netNewIcp: t.netNewIcp + d.netNewIcp }), { visits: 0, netNew: 0, netNewIcp: 0 });
   const excl = raw.filter(a => a.kind !== 'prospect' && ymd.format(new Date(a.at)) >= from);
   const S = lfSnap();
+  const excluded = {}; LF_EXCL.forEach(k => { excluded[k] = excl.filter(a => a.kind === k).length; });
   return { generatedAt: new Date().toISOString(), source: 'Leadfeeder', syncedAt: S.syncedAt || null, icpMin: ICP_MIN, channel: VISITS_CH, today, days: list, total: tot,
-    excluded: { candidate: excl.filter(a => a.kind === 'candidate').length, network: excl.filter(a => a.kind === 'network').length } };
+    excluded, quarters: lfQuarters(raw), historyFrom: S.from || null };
+}
+/* Quarterly commercial website traffic (the funnel's "Website" row, fix #32): calendar quarters, UK time, over the whole
+   synced Leadfeeder history. Visits = identified company visits with at least one commercial page; companies = distinct companies. */
+function lfQuarters(raw) {
+  const ym = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit' });
+  const Q = {};
+  raw.forEach(a => { const [y, m] = ym.format(new Date(a.at)).split('-'); const key = y + '-Q' + Math.ceil(Number(m) / 3);
+    const q = Q[key] || (Q[key] = { quarter: key, visits: 0, companies: {}, excluded: {} });
+    if (a.kind === 'prospect') { q.visits++; q.companies[a.cid || a.name] = 1; } else q.excluded[a.kind] = (q.excluded[a.kind] || 0) + 1; });
+  return Object.values(Q).sort((a, b) => a.quarter < b.quarter ? 1 : -1).map(q => { const ex = {}; LF_EXCL.forEach(k => { ex[k] = q.excluded[k] || 0; });
+    return { quarter: q.quarter, visits: q.visits, companies: Object.keys(q.companies).length, excluded: ex, excludedTotal: LF_EXCL.reduce((t, k) => t + ex[k], 0) }; });
 }
 
 /* ---------- Inbound form submissions: demo requests, audit unlocks and other website forms ----------
