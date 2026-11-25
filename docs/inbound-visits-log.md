@@ -196,3 +196,4 @@
   - Events sync: helper rerun after the first attempt stopped on an unstaged file; result to follow.
   - No emails sent.
   - Events sync (helper rerun): api/_events.json updated (12 events, 923→924 rows, contacts matched 352, companies 575). icp_updates: 0 fillable, 0 conflicts, so no HubSpot changes.
+- 2026-11-25 01:07 hourly: new alert Homes For Students (C0BLTRVSEKA 1795566334.340069, visit 00:14 UTC, candidate traffic via jobs.wagamama.uk to the privacy page). After hours, so the reply is HELD until 09:00 UK (Claude in Slack has replied in the thread; read its score then). No new #inbound-leads messages. Leadfeeder: 1 new visit today, synced next run.
