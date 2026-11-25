@@ -208,3 +208,13 @@
 - 2026-11-25 13:07 hourly: no new alerts, #inbound-leads messages, deals or meetings. One audit unlock (645023515858, nottinghamshirehealthcare.nhs.uk) was an @inploi.com test by Nikita: excluded. Leadfeeder synced.
 - 2026-11-25 14:07 hourly: no new alerts, #inbound-leads messages or deals. Audit unlock 645023515858 (cnwl.nhs.uk) = @inploi.com test by Nikita, excluded. D: DM'd Matthew re JD Sports Fashion (Felix's meeting 26 Nov, status In Progress). Leadfeeder unchanged (1877).
 - 2026-11-25 15:07 hourly: no new alerts, #inbound-leads messages, forms or deals. D: only new meeting is Felix's "Re-Cap" (20 Jan, a recap, not a prospect intro/demo): no nudge. Leadfeeder unchanged (1877).
+- 2026-11-25 16:07 hourly: new demo request, contact 722480256191 (Ian Williams Ltd 381739037929, converted 15:09 UK). Existing owner Jason (AE; contact + company owner), SDR Owner empty. AE-conversation rule not applied (no open deal, last deal 493181507771 closed lost Jun 2026; no meeting in 14 days). Contact check: Clay verified (Recruitment Manager since Apr 2024). SDR Insights already full (YES/HIGH). James has emailed/called since 12 Oct. Posted routing reply tagging Jason, cc James, in the submission thread (C05CYATGALC 1795619411.323659, reply ts 1795622928.315499). Company note NOT yet created (HubSpot approval prompt timed out twice); retry in EOD. Existing owner.
+- 2026-11-25 17:38 EOD:
+  - Events sync (helper): api/_events.json re-synced (12 events, 924 rows); only syncedAt changed. icp_updates: 0 fillable, 0 conflicts, so no HubSpot changes.
+  - New alert Mid Kent College (C0BLTRVSEKA 1795626769.691329, visit 17:02 UTC via jobs.wagamama.uk). Claude in Slack 1/10 (small FE college, candidate traffic). Not in HubSpot, not added. Posted "Checked" reply (ts 1795628363.227299).
+  - #inbound-visits round-up (C0BLTRVSEKA ts 1795628371.614259): 3 visits, 3 companies, 0 ICP. Non-ICP: Homes For Students 3/10, Rochdale Borough Council 3/10, Mid Kent College 1/10.
+  - UTM register: 7 UTMs, none new today; 7 not in the campaign tracker (tracker holds only the example row). api/_utms.json updated.
+  - Feedback: Joseph (thread 1795619411.323659) suggested Jason check with Drew at ModusForce re Ian Williams (722480256191); added to the routing post's context.
+  - #inbound-leads round-up (C05CYATGALC ts 1795630069.211449): 1 demo request (Ian Williams, Jason), 0 audits, 0 DQ; still open: 937623203052 awaiting James's DQ call.
+  - Ian Williams company note NOT created: the HubSpot note create hit an approval prompt three times and timed out (unattended). For Arushi.
+- 2026-11-25 18:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
