@@ -200,3 +200,4 @@
 - 2026-11-25 02:07 hourly: no new alerts or #inbound-leads messages. Leadfeeder +1 visit (1867 / 1191). Homes For Students reply still held for 09:00.
 - 2026-11-25 06:06 hourly: no new alerts or #inbound-leads messages. Leadfeeder unchanged (1867 / 1191). Homes For Students reply still held for 09:00.
 - 2026-11-25 07:07 hourly: no new alerts, #inbound-leads messages or form submissions. Leadfeeder unchanged (1867 / 1191). Deal hygiene: 3 newer deals with empty SDR Owner reviewed (Haven Seal Bay, Butlins, Choice Support): out of scope, no change, logged in deal-owner-log. Homes For Students reply still held for 09:00.
+- 2026-11-25 08:07 hourly: no new alerts, #inbound-leads messages, form submissions or deals today. Leadfeeder sync skipped: connector unavailable this run (1st failure; retry next hour). Homes For Students reply still held for 09:00.
