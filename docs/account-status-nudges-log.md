@@ -15,3 +15,4 @@ Notes from the first sweep (10 Nov):
 - All other prospect meetings were already Meeting Booked or Open Opportunity.
 | 2026-11-13 09:07 | FIFA (448944047302) | "Felix x Mark", 18 Nov with Felix | empty | Matthew (pod SDR) | 1794560847.792979 | resolved: Open Opportunity, deal created 09:36 |
 | 2026-11-23 12:13 | Island Healthcare (472348594364) | Demo, 2 Dec 2026 with Felix (meeting 551423872195, Felix's own) | empty | Matthew (pod SDR) | 1795435741.192539 | resolved: Open Opportunity (deal created 24 Nov) |
+| 2026-11-25 14:10 | JD Sports Fashion (6441410038) | "Felix x Kayley", 26 Nov 2026 15:15 UK with Felix (meeting 553191892209, Felix's own) | In Progress (SDR actively working) | Matthew (pod SDR) | 1795615908.635499 | open |
