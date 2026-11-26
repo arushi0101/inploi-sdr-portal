@@ -231,3 +231,11 @@
 - 2026-11-26 05:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-26 06:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-26 07:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
+- 2026-11-26 21:08 catch-up (the 08:07–21:07 hourly runs and the 17:38 EOD run queued while the worker was down; run once, consolidated):
+  - A: no new #inbound-visits alerts today. E: no new team messages in #inbound-leads (only HubSpot Breeze bot posts).
+  - B: one demo request, contact 891926111481 (MaxSEO, converted 07:51 UTC). Already in FORM_FLAGS as spam (SEO agency, vendor), so excluded; no routing post. Breeze bot tagged James automatically.
+  - C: no deals created since 24 Nov; open deals all AE-owned; deals with empty SDR credit are on the already-reviewed list. No changes.
+  - D: skipped (outside the 09:00–17:30 window by the time it ran).
+  - F: Leadfeeder +4 visits (1887 / 1202).
+  - EOD: UTM register rerun (7 UTMs, none new; 7 not in tracker). Used the 25 Nov tracker list (example row only), Drive not re-read. Events sheet sync deferred to Fri 27 Nov EOD.
+  - HELD until 09:00 Fri 27 Nov (after hours): Thu #inbound-visits round-up ("A quiet one today, no visit alerts came in.") and Thu #inbound-leads round-up (0 demo requests, 0 audits; MaxSEO excluded as vendor; 0 DQ; no feedback; no new UTMs; still open: 937623203052 awaiting James's DQ call). Fri 09:07 run: post these first.
