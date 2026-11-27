@@ -242,3 +242,4 @@
 - 2026-11-26 22:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-26 23:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-27 00:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder (26–27 Nov window): 8 visits; the result came back inline (not as a file), so the one new visit (FastCow, legal page, non-commercial) will be picked up by the next merge sync.
+- 2026-11-27 01:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced (25–27 Nov window, so the result saves to a file); FastCow visit now stored.
