@@ -1576,6 +1576,7 @@ const FORM_AES = ['1709905072', '511871441'];
 const FORM_OWNER_LABEL = { '861474011': 'Sandra Djokic (left)', '32978778': 'Annie Claassens (left)', '35222671': 'Arushi Mittal (not sales)', '511871465': 'Matt de la Hey (not an SDR)', '38079469': 'Customer Success' };
 // Agreed calls on individual submissions, keyed by HubSpot contact ID (spam = likely spam, kept visible but out of "real leads").
 const FORM_FLAGS = {
+  '937623203052': { spam: true, note: 'Disqualified by James (25 Nov): software vendor' },
   '918182865100': { spam: true, note: 'Personal email with a typo domain' },
   '891926111481': { spam: true, note: 'SEO agency (vendor)' },
   '913655542972': { spam: true, note: 'Odd email address' },

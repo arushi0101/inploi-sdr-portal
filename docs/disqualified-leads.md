@@ -16,3 +16,4 @@ Status → Disqualified only if empty, New or Inbound and there is no open deal;
 
 Earlier form flags (vendors, spam, typo domains) set before 17 Nov live in `FORM_FLAGS` in `api/data.js`; every new disqualification is added there too so it drops out of dashboard counts.
 | 2026-11-24 | Audit unlock | Wellcome Sanger Institute (380258652381) | 913785055433 | James | Not worth pursuing (company already Disqualified by James with a note) | #inbound-leads thread on the 16 Nov round-robin post (reply after nudge 1795521016.548659); contact Lead Status → Not Qualified, contact note 552670797001 |
+| 2026-11-25 | Demo request | qzen-ai.com (473592026320) | 937623203052 | James | Not a fit (Indian software firm; company marked Disqualified with notes) | #inbound-leads message 25 Nov 16:11 UTC (missed by the hourly run, picked up 27 Nov after James flagged it); contact Lead Status → Not Qualified, contact note 553744192756 |

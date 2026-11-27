@@ -168,6 +168,14 @@ If there were none, post one line saying so. Log both posts in `docs/inbound-vis
 
 > 9 Nov 2026: Arushi moved all form submission posts (hourly and end of day) from #sdr-hub to **#inbound-leads (C05CYATGALC)**.
 
+## Check everything before posting (Arushi, 27 Nov 2026)
+Before posting any round-up, nudge or "Still open" item, re-check the live sources for every lead or company it mentions:
+- HubSpot: the company's Account Status, owners and latest notes; the contact's Lead Status and owner.
+- Slack: every top-level message and thread reply in #inbound-leads (and the lead's routing thread) since the lead came in,
+  not just since the last run. Search `from:<SDR>` for the lead's company name.
+If the lead is already disqualified, booked or handled, do not list it as open: run the matching process (e.g. disqualify)
+and thank the person instead. Never ask someone for something they have already done.
+
 ## Tone for every Slack post (Arushi, 9 Nov 2026)
 Polite, soft and supportive. Write like a helpful teammate, never like a ticket system:
 - Open warmly ("Hi @Evan 👋", "Lovely news", "A nice one for you").
