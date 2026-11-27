@@ -264,3 +264,8 @@
 - 2026-11-27 15:07 hourly: new demo request, contact 940136727744 (max-qa.com, converted 14:14 UTC). Breeze round-robin assigned Nikita. Contact check: Clay maps domain to QualiTlabs (Hyderabad QA/testing vendor), person not found, +91 phone. Likely vendor; no company created, no SDR Insights. Posted routing note asking Nikita to confirm DQ (C05CYATGALC thread 1795788947.591919, reply ts 1795792080.499689). No alerts, deals or new meetings. Leadfeeder synced.
 - 2026-11-27 16:07 hourly: no new alerts, forms, deals or new meetings. No reply yet from Nikita on 940136727744 (max-qa.com). Leadfeeder synced.
 - 2026-11-27 17:07 hourly: no new alerts, forms, deals or new meetings. No reply yet from Nikita on 940136727744. Leadfeeder synced.
+- 2026-11-27 17:39 EOD (Fri):
+  - 1b UTM register: 7 UTMs, none new; 7 not in tracker (tracker Campaigns tab still only the example row). api/_utms.json refreshed.
+  - 1 #inbound-visits: quiet day, 0 alerts (C0BLTRVSEKA ts 1795801291.757039). No 6/10+ companies to route.
+  - 2 Forms today: 1 demo request, contact 940136727744 (max-qa.com, likely vendor, awaiting Nikita's DQ call). Company 474709308637 (auto-created, contact linked): filled empty Company owner 29569628 + SDR Owner Nikita. Company note 553744172256 (owner 29569628). Round-up posted (C05CYATGALC ts 1795801298.526629); still open: 940136727744 (Nikita), 937623203052 (James).
+  - 3 Weekly form report: no unassigned external submissions to round-robin (qzen-ai 473592026320 is Disqualified, awaiting James). Posted report (ts 1795801317.485629) + "This week in summary" reply (ts 1795801322.047049): 1 DQ (Wellcome Sanger, James), 1 team input, no new UTMs.
