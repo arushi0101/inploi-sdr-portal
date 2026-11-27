@@ -250,3 +250,8 @@
 - 2026-11-27 06:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-27 07:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-27 08:07 hourly: no new alerts, forms or deals. #inbound-leads: only the Breeze bot's 24h check-in for 891926111481 (MaxSEO, FORM_FLAGS vendor; nothing to do). Leadfeeder synced. Held Thu round-ups go out at 09:07.
+- 2026-11-27 09:07 hourly:
+  - Posted the held Thu 26 Nov round-ups: #inbound-visits (C0BLTRVSEKA ts 1795770432.624989, quiet day, 0 alerts) and #inbound-leads 6-section round-up (C05CYATGALC ts 1795770432.975309; 0 forms, MaxSEO 891926111481 excluded as vendor, still open 937623203052 with James).
+  - No new alerts, #inbound-leads messages, forms or deals.
+  - D: new upcoming meetings since 25 Nov: Ian Williams intro (553528079573, Jason, 3 Dec), company 381739037929 already Meeting Booked, so no nudge. Skipped: Sapia.ai deep dive and Jobtrain/Eurocell (partner/vendor), Culina next steps (open deal), AS Watson QBR (CS), Re-Cap.
+  - Leadfeeder synced.
