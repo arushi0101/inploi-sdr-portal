@@ -275,3 +275,4 @@
 - 2026-11-27 19:07 hourly (after 19:00 UK, no posts): no new alerts, #inbound-leads messages or forms. C: 5 Compass Group customer/expansion deals bulk-modified 19:05 (not new disco deals; left). D outside window. Leadfeeder synced.
 - 2026-11-27 20:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
 - 2026-11-27 21:07 hourly: no new alerts, #inbound-leads messages, forms or deals. Leadfeeder synced.
+- 2026-11-27 22:07 hourly: new Dealfront alert posted 22:01 UTC in #inbound-visits (under 30 min old, scoring/routing next run; any reply held until Mon 09:00 UK). No #inbound-leads messages, forms or deals. Leadfeeder synced.
